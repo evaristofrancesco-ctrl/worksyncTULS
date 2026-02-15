@@ -2,7 +2,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2 } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2, Edit, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -37,7 +37,7 @@ import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
-import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 export default function EmployeesPage() {
   const db = useFirestore()
@@ -54,7 +54,8 @@ export default function EmployeesPage() {
   }, [db])
   const { data: locations } = useCollection(locationsQuery)
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
 
@@ -68,6 +69,8 @@ export default function EmployeesPage() {
     password: "",
     locationId: "",
   })
+
+  const [editingEmployee, setEditingEmployee] = useState<any>(null)
 
   const handleAddEmployee = () => {
     if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.email || !newEmployee.jobTitle || !newEmployee.password) {
@@ -88,7 +91,7 @@ export default function EmployeesPage() {
       firstName: newEmployee.firstName,
       lastName: newEmployee.lastName,
       email: newEmployee.email,
-      password: newEmployee.password, // Salviamo la password per il login del prototipo
+      password: newEmployee.password,
       role: newEmployee.isAdmin ? 'admin' : 'employee',
       jobTitle: newEmployee.jobTitle,
       department: newEmployee.department || "Generale",
@@ -102,7 +105,7 @@ export default function EmployeesPage() {
 
     setDocumentNonBlocking(employeeRef, employeeData, { merge: true })
 
-    setIsDialogOpen(false)
+    setIsAddDialogOpen(false)
     setNewEmployee({ 
       firstName: "", 
       lastName: "",
@@ -120,6 +123,38 @@ export default function EmployeesPage() {
     })
   }
 
+  const handleUpdateEmployee = () => {
+    if (!editingEmployee) return;
+
+    if (!editingEmployee.firstName || !editingEmployee.lastName || !editingEmployee.email || !editingEmployee.jobTitle) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: "Per favore compila i campi obbligatori.",
+      })
+      return
+    }
+
+    const selectedLoc = locations?.find(l => l.id === editingEmployee.locationId)
+    const employeeRef = doc(db, "employees", editingEmployee.id)
+
+    const updateData = {
+      ...editingEmployee,
+      locationName: selectedLoc?.name || "Nessuna",
+      role: editingEmployee.isAdmin ? 'admin' : 'employee'
+    }
+
+    updateDocumentNonBlocking(employeeRef, updateData)
+
+    setIsEditDialogOpen(false)
+    setEditingEmployee(null)
+    
+    toast({
+      title: "Profilo aggiornato",
+      description: "Le modifiche sono state salvate correttamente.",
+    })
+  }
+
   const handleDeleteEmployee = (id: string) => {
     const employeeRef = doc(db, "employees", id)
     deleteDocumentNonBlocking(employeeRef)
@@ -127,6 +162,14 @@ export default function EmployeesPage() {
       title: "Dipendente rimosso",
       description: "Il profilo è stato rimosso con successo.",
     })
+  }
+
+  const openEditDialog = (employee: any) => {
+    setEditingEmployee({
+      ...employee,
+      isAdmin: employee.role === 'admin'
+    })
+    setIsEditDialogOpen(true)
   }
 
   const filteredEmployees = employees?.filter(emp => 
@@ -143,7 +186,7 @@ export default function EmployeesPage() {
           <p className="text-muted-foreground">Visualizza e gestisci l'anagrafica del tuo team.</p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 bg-[#227FD8] hover:bg-[#227FD8]/90">
               <Plus className="h-4 w-4" />
@@ -225,7 +268,6 @@ export default function EmployeesPage() {
 
               <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
                 <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Credenziali e Accessi</h4>
-                
                 <div className="flex items-center justify-between py-2">
                   <div className="space-y-0.5">
                     <Label className="text-base">Privilegi Amministratore</Label>
@@ -236,7 +278,6 @@ export default function EmployeesPage() {
                     onCheckedChange={(checked) => setNewEmployee({...newEmployee, isAdmin: checked})} 
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="password">Password Iniziale</Label>
                   <Input 
@@ -250,7 +291,7 @@ export default function EmployeesPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>Annulla</Button>
+              <Button variant="ghost" onClick={() => setIsAddDialogOpen(false)}>Annulla</Button>
               <Button onClick={handleAddEmployee} className="bg-[#227FD8] hover:bg-[#227FD8]/90">
                 Salva Dipendente
               </Button>
@@ -332,6 +373,9 @@ export default function EmployeesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem className="cursor-pointer" onClick={() => openEditDialog(employee)}>
+                          <Edit className="h-4 w-4 mr-2" /> Modifica
+                        </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive cursor-pointer font-medium" onClick={() => handleDeleteEmployee(employee.id)}>
                           <Trash2 className="h-4 w-4 mr-2" /> Elimina
                         </DropdownMenuItem>
@@ -351,6 +395,108 @@ export default function EmployeesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog per la modifica */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-[#227FD8]" />
+              Modifica Dipendente
+            </DialogTitle>
+            <DialogDescription>
+              Aggiorna le informazioni del profilo di {editingEmployee?.firstName}.
+            </DialogDescription>
+          </DialogHeader>
+          {editingEmployee && (
+            <div className="grid gap-6 py-4">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-firstName">Nome</Label>
+                    <Input 
+                      id="edit-firstName" 
+                      value={editingEmployee.firstName}
+                      onChange={(e) => setEditingEmployee({...editingEmployee, firstName: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-lastName">Cognome</Label>
+                    <Input 
+                      id="edit-lastName" 
+                      value={editingEmployee.lastName}
+                      onChange={(e) => setEditingEmployee({...editingEmployee, lastName: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email / Username</Label>
+                  <Input 
+                    id="edit-email" 
+                    value={editingEmployee.email}
+                    onChange={(e) => setEditingEmployee({...editingEmployee, email: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-jobTitle">Qualifica</Label>
+                    <Input 
+                      id="edit-jobTitle" 
+                      value={editingEmployee.jobTitle}
+                      onChange={(e) => setEditingEmployee({...editingEmployee, jobTitle: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-location">Sede Operativa</Label>
+                    <Select value={editingEmployee.locationId} onValueChange={(v) => setEditingEmployee({...editingEmployee, locationId: v})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleziona sede" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nessuna Sede</SelectItem>
+                        {locations?.map((loc) => (
+                          <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                <div className="flex items-center justify-between py-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Privilegi Amministratore</Label>
+                  </div>
+                  <Switch 
+                    checked={editingEmployee.isAdmin} 
+                    onCheckedChange={(checked) => setEditingEmployee({...editingEmployee, isAdmin: checked})} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-password">Cambia Password (lascia vuoto per non modificare)</Label>
+                  <Input 
+                    id="edit-password" 
+                    type="password"
+                    placeholder="••••••••" 
+                    value={editingEmployee.password}
+                    onChange={(e) => setEditingEmployee({...editingEmployee, password: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Annulla</Button>
+            <Button onClick={handleUpdateEmployee} className="bg-[#227FD8] hover:bg-[#227FD8]/90 gap-2">
+              <Save className="h-4 w-4" /> Salva Modifiche
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
