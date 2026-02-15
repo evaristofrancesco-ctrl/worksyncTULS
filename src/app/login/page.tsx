@@ -25,7 +25,9 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const cleanEmail = email.trim()
+    
+    // Normalizziamo input: rimuoviamo spazi e convertiamo email/user in minuscolo
+    const cleanEmail = email.trim().toLowerCase()
     const cleanPassword = password.trim()
 
     if (!cleanEmail || !cleanPassword) {
@@ -40,20 +42,24 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
+      // 1. Inizializziamo sempre una sessione anonima PRIMA di interrogare il DB
+      // Questo assicura che request.auth non sia null nelle regole di sicurezza
+      await signInAnonymously(auth)
+
       let userData: any = null
 
-      // 1. Fallback immediato per admin predefinito
+      // 2. Fallback per admin predefinito
       if (cleanEmail === "admin" && cleanPassword === "admin") {
-        userData = { firstName: "Admin", lastName: "Prototipo", role: "admin", password: "admin" }
+        userData = { firstName: "Admin", lastName: "Prototipo", role: "admin" }
       } else {
-        // 2. Cerchiamo il dipendente in Firestore
+        // 3. Cerchiamo il dipendente in Firestore (email salvata in minuscolo)
         const employeesRef = collection(db, "employees")
         const q = query(employeesRef, where("email", "==", cleanEmail), limit(1))
         const querySnapshot = await getDocs(q)
         
         if (!querySnapshot.empty) {
           const docData = querySnapshot.docs[0].data()
-          // Verifica password (case sensitive)
+          // Verifica password (case sensitive per la password)
           if (docData.password === cleanPassword) {
             userData = docData
           }
@@ -61,15 +67,12 @@ export default function LoginPage() {
       }
 
       if (userData) {
-        // Effettuiamo un accesso anonimo a Firebase per abilitare le regole di sicurezza "isSignedIn()"
-        await signInAnonymously(auth)
-        
         toast({
           title: "Accesso effettuato",
           description: `Bentornato, ${userData.firstName}!`,
         })
         
-        // 3. Reindirizzamento in base al ruolo
+        // 4. Reindirizzamento in base al ruolo
         if (userData.role === 'admin') {
           router.push("/admin")
         } else {
@@ -79,7 +82,7 @@ export default function LoginPage() {
         toast({
           variant: "destructive",
           title: "Credenziali errate",
-          description: "L'email o la password inserite non sono corrette.",
+          description: "L'email o la password inserite non sono corrette. Verifica anche le maiuscole/minuscole.",
         })
       }
     } catch (error: any) {
@@ -87,7 +90,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Errore di connessione",
-        description: "Impossibile contattare il database. Controlla la tua connessione.",
+        description: "Impossibile contattare il database. Riprova tra un momento.",
       })
     } finally {
       setIsLoading(false)

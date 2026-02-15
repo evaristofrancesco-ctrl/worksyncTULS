@@ -73,7 +73,8 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
 
   const handleAddEmployee = () => {
-    const cleanEmail = newEmployee.email.trim()
+    // Normalizziamo l'email/username in minuscolo per facilitare il login
+    const cleanEmail = newEmployee.email.trim().toLowerCase()
     const cleanPassword = newEmployee.password.trim()
 
     if (!newEmployee.firstName || !newEmployee.lastName || !cleanEmail || !newEmployee.jobTitle || !cleanPassword) {
@@ -122,14 +123,14 @@ export default function EmployeesPage() {
     
     toast({
       title: "Successo!",
-      description: `${employeeData.firstName} ${employeeData.lastName} è stato aggiunto alla lista.`,
+      description: `${employeeData.firstName} ${employeeData.lastName} è stato aggiunto. Credenziali: ${cleanEmail}`,
     })
   }
 
   const handleUpdateEmployee = () => {
     if (!editingEmployee) return;
 
-    const cleanEmail = editingEmployee.email.trim()
+    const cleanEmail = editingEmployee.email.trim().toLowerCase()
     
     if (!editingEmployee.firstName || !editingEmployee.lastName || !cleanEmail || !editingEmployee.jobTitle) {
       toast({
@@ -243,6 +244,7 @@ export default function EmployeesPage() {
                     value={newEmployee.email}
                     onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
                   />
+                  <p className="text-[10px] text-muted-foreground">Verrà convertito in minuscolo per l'accesso.</p>
                 </div>
               </div>
 
