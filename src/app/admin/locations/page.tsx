@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -32,7 +31,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, doc, deleteDoc, setDoc } from "firebase/firestore"
+import { collection, doc } from "firebase/firestore"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 export default function LocationsPage() {
   const db = useFirestore()
@@ -55,7 +55,7 @@ export default function LocationsPage() {
     city: "",
   })
 
-  const handleAddLocation = async () => {
+  const handleAddLocation = () => {
     if (!newLocation.name || !newLocation.city) {
       toast({
         variant: "destructive",
@@ -66,43 +66,25 @@ export default function LocationsPage() {
     }
 
     const locId = `loc-${Date.now()}`
-    try {
-      await setDoc(doc(db, "companies", "default", "locations", locId), {
-        id: locId,
-        ...newLocation,
-        companyId: "default"
-      })
-
-      setIsDialogOpen(false)
-      setNewLocation({ name: "", address: "", city: "" })
-      
-      toast({
-        title: "Sede aggiunta",
-        description: `${newLocation.name} è stata registrata correttamente.`,
-      })
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Errore",
-        description: "Impossibile salvare la sede.",
-      })
+    const locRef = doc(db, "companies", "default", "locations", locId)
+    
+    const locationData = {
+      id: locId,
+      name: newLocation.name,
+      address: newLocation.address,
+      city: newLocation.city,
+      companyId: "default"
     }
+
+    setDocumentNonBlocking(locRef, locationData, { merge: true })
+
+    setIsDialogOpen(false)
+    setNewLocation({ name: "", address: "", city: "" })
   }
 
-  const handleDeleteLocation = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "companies", "default", "locations", id))
-      toast({
-        title: "Sede eliminata",
-        description: "La sede è stata rimossa dal sistema.",
-      })
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Errore",
-        description: "Impossibile eliminare la sede.",
-      })
-    }
+  const handleDeleteLocation = (id: string) => {
+    const locRef = doc(db, "companies", "default", "locations", id)
+    deleteDocumentNonBlocking(locRef)
   }
 
   const filteredLocations = locations?.filter(loc => 

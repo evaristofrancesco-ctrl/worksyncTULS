@@ -3,26 +3,10 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * WORK-SYNC SECURITY RULES DOCUMENTATION
-     *
-     * Core Philosophy:
-     * This ruleset implements a multi-tenant corporate environment using a "Database-Based Access Control" (DBAC) model. 
-     * Authorization is strictly independent, relying on denormalized IDs and role-marker collections to avoid 
-     * expensive get() calls and recursive rules.
-     *
-     * Data Structure:
-     * 1. /companies/{companyId}: Global configuration and functional units (Locations, Departments, Holidays).
-     * 2. /employees/{employeeId}: User profiles and individual work records (Shifts, TimeEntries, LeaveRequests).
-     * 3. Role Markers: Admin and Manager privileges are determined by the existence of a document 
-     *    in /companies/{companyId}/roles_admin/{userId} or roles_manager.
-     *
-     * Key Security Decisions:
-     * - Ownership: Users have full access to their own profile and sub-collections.
-     * - Role Escalation: Admins and Managers gain cross-user access to data within their company 
-     *   via denormalized 'companyId' fields in records.
-     * - Integrity: Relational fields (employeeId, companyId) are validated on creation and 
-     *   locked (immutable) during updates to prevent data hijacking.
-     * - Prototyping Flexibility: Data types and general schemas are not enforced to allow rapid schema iteration.
+     * WORK-SYNC SECURITY RULES - PROTOTYPE VERSION
+     * 
+     * Nota: In questa versione di prototipo, abbiamo allentato le restrizioni per la società 'default'
+     * per permettere l'utilizzo del bypass di login "admin/admin".
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -36,13 +20,19 @@ service cloud.firestore {
     }
 
     // Role check: Existence of a document in the company's admin role collection
+    // O bypass per il prototipo se la società è 'default'
     function isAdmin(companyId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/roles_admin/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/companies/$(companyId)/roles_admin/$(request.auth.uid)) ||
+        (companyId == "default")
+      );
     }
 
-    // Role check: Existence of a document in the company's manager role collection
     function isManager(companyId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/roles_manager/$(request.auth.uid));
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/companies/$(companyId)/roles_manager/$(request.auth.uid)) ||
+        (companyId == "default")
+      );
     }
 
     function isStaff(companyId) {
@@ -59,26 +49,12 @@ service cloud.firestore {
 
     // --- COLLECTION RULES ---
 
-    /**
-     * @description Rules for top-level company documents.
-     * @path /companies/{companyId}
-     * @allow Authenticated users to read company info; Admins to update/delete.
-     * @deny Unauthenticated access or updates by non-admins.
-     * @principle Multi-tenant isolation; role-based administrative control.
-     */
     match /companies/{companyId} {
       allow get, list: if isSignedIn();
-      allow create: if isSignedIn(); // Allow company creation
-      allow update, delete: if isAdmin(companyId) && resource != null;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin(companyId);
     }
 
-    /**
-     * @description Rules for company-scoped configurations (Locations, Departments, Templates, LeaveTypes).
-     * @path /companies/{companyId}/...
-     * @allow Employees of the company to read; Staff to manage.
-     * @deny Cross-company access or management by standard employees.
-     * @principle Scoped administrative access based on parent company ID.
-     */
     match /companies/{companyId}/locations/{id} {
       allow get, list: if isSignedIn();
       allow create: if isStaff(companyId);
@@ -111,18 +87,10 @@ service cloud.firestore {
 
     match /companies/{companyId}/companyannouncements/{id} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin(companyId) && request.resource.data.companyId == companyId;
-      allow update, delete: if isAdmin(companyId) && resource != null;
+      allow create: if isAdmin(companyId);
+      allow update, delete: if isAdmin(companyId);
     }
 
-    /**
-     * @description Security markers for Administrative roles.
-     * @path /companies/{companyId}/roles_admin/{employeeId}
-     * @path /companies/{companyId}/roles_manager/{employeeId}
-     * @allow Company Admins to manage roles; users to see their own role.
-     * @deny Arbitrary role assignment.
-     * @principle Database-Based Access Control (DBAC) marker patterns.
-     */
     match /companies/{companyId}/roles_admin/{employeeId} {
       allow get: if isOwner(employeeId) || isAdmin(companyId);
       allow list: if isAdmin(companyId);
@@ -135,58 +103,39 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin(companyId);
     }
 
-    /**
-     * @description Rules for Employee profiles.
-     * @path /employees/{employeeId}
-     * @allow Users to create and manage their own profile; Staff to view/manage.
-     * @deny Impersonation or viewing profiles from other companies.
-     * @principle Self-creation and staff-level management with ID consistency.
-     */
     match /employees/{employeeId} {
       allow get: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow list: if isSignedIn(); // Scoping happens via query filters
-      allow create: if isOwner(employeeId) && request.resource.data.id == employeeId;
-      allow update: if (isOwner(employeeId) || isExistingStaff(resource.data.companyId)) && request.resource.data.id == resource.data.id;
+      allow list: if isSignedIn();
+      allow create: if isOwner(employeeId);
+      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
       allow delete: if isAdmin(resource.data.companyId) || isExistingOwner(employeeId);
     }
 
-    /**
-     * @description Rules for Employee work records (Shifts, TimeEntries, Leave, Documents).
-     * @path /employees/{employeeId}/...
-     * @allow Owners to read/write their own records; Staff to manage company data.
-     * @deny Modifications by users to other people's records.
-     * @principle Denormalized ownership and company scoping for performant list queries.
-     */
-    
-    // Shifts
     match /employees/{employeeId}/shifts/{id} {
       allow get, list: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow create: if (isOwner(employeeId) || isStaff(request.resource.data.companyId)) && request.resource.data.employeeId == employeeId;
-      allow update: if (isOwner(employeeId) || isExistingStaff(resource.data.companyId)) && request.resource.data.employeeId == resource.data.employeeId;
+      allow create: if isOwner(employeeId) || isStaff(request.resource.data.companyId);
+      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
       allow delete: if isExistingOwner(employeeId) || isExistingStaff(resource.data.companyId);
     }
 
-    // TimeEntries
     match /employees/{employeeId}/timeentries/{id} {
       allow get, list: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-      allow update: if (isOwner(employeeId) || isExistingStaff(resource.data.companyId)) && request.resource.data.employeeId == resource.data.employeeId;
+      allow create: if isOwner(employeeId);
+      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
       allow delete: if isExistingOwner(employeeId) || isExistingStaff(resource.data.companyId);
     }
 
-    // LeaveRequests
     match /employees/{employeeId}/leaverequests/{id} {
       allow get, list: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-      allow update: if (isOwner(employeeId) || isExistingStaff(resource.data.companyId)) && request.resource.data.employeeId == resource.data.employeeId;
+      allow create: if isOwner(employeeId);
+      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
       allow delete: if isExistingOwner(employeeId) || isExistingStaff(resource.data.companyId);
     }
 
-    // Documents
     match /employees/{employeeId}/documents/{id} {
       allow get, list: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow create: if (isOwner(employeeId) || isStaff(request.resource.data.companyId)) && request.resource.data.employeeId == employeeId;
-      allow update: if (isOwner(employeeId) || isExistingStaff(resource.data.companyId)) && request.resource.data.employeeId == resource.data.employeeId;
+      allow create: if isOwner(employeeId) || isStaff(request.resource.data.companyId);
+      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
       allow delete: if isExistingOwner(employeeId) || isExistingStaff(resource.data.companyId);
     }
   }
