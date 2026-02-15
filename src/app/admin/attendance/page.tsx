@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock, Download, Filter, Search } from "lucide-react"
+import { Clock, Download, Filter, Search, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -14,20 +14,50 @@ import {
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-
-const attendanceLogs = [
-  { id: 1, name: "Michael Chen", date: "2024-04-23", clockIn: "08:55", clockOut: "17:05", status: "Presente" },
-  { id: 2, name: "Elena Rodriguez", date: "2024-04-23", clockIn: "09:12", clockOut: "18:00", status: "Presente" },
-  { id: 3, name: "David Kim", date: "2024-04-23", clockIn: "09:45", clockOut: "-", status: "Ritardo" },
-  { id: 4, name: "Sarah Johnson", date: "2024-04-23", clockIn: "08:30", clockOut: "16:30", status: "Presente" },
-]
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, collectionGroup, query, where, orderBy } from "firebase/firestore"
+import { useState } from "react"
 
 export default function AttendancePage() {
+  const db = useFirestore()
+  const [searchQuery, setSearchQuery] = useState("")
+
+  // Recupera tutti i dipendenti per mappare gli ID ai nomi
+  const employeesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, "employees");
+  }, [db])
+  const { data: employees } = useCollection(employeesQuery)
+
+  // Recupera i log di presenza reali tramite collectionGroup
+  const timeEntriesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collectionGroup(db, "timeentries"),
+      where("companyId", "==", "default"),
+      orderBy("checkInTime", "desc")
+    );
+  }, [db])
+  const { data: entries, isLoading } = useCollection(timeEntriesQuery)
+
+  // Mappa per accesso rapido ai dati dipendente
+  const employeeMap = employees?.reduce((acc, emp) => {
+    acc[emp.id] = emp;
+    return acc;
+  }, {} as any) || {};
+
+  const filteredEntries = entries?.filter(entry => {
+    const emp = employeeMap[entry.employeeId];
+    if (!emp) return false;
+    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+    return fullName.includes(searchQuery.toLowerCase());
+  }) || [];
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Registro Presenze</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Registro Presenze</h1>
           <p className="text-muted-foreground">Monitora gli ingressi e le uscite del personale in tempo reale.</p>
         </div>
         <div className="flex gap-2">
@@ -40,52 +70,86 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      <Card>
+      <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-primary" />
-              <CardTitle>Log Attività Odierna</CardTitle>
+              <Clock className="h-5 w-5 text-[#227FD8]" />
+              <CardTitle className="text-xl font-bold">Log Attività Recente</CardTitle>
             </div>
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Cerca dipendente..." className="pl-8 bg-muted/50 border-none" />
+              <Input 
+                placeholder="Cerca dipendente..." 
+                className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead>Dipendente</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Entrata</TableHead>
-                <TableHead>Uscita</TableHead>
-                <TableHead>Stato</TableHead>
+                <TableHead className="font-bold">Dipendente</TableHead>
+                <TableHead className="font-bold">Data</TableHead>
+                <TableHead className="font-bold">Entrata</TableHead>
+                <TableHead className="font-bold">Uscita</TableHead>
+                <TableHead className="font-bold">Stato</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {attendanceLogs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={`https://picsum.photos/seed/${log.name}/100/100`} />
-                        <AvatarFallback>{log.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium text-sm">{log.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{log.date}</TableCell>
-                  <TableCell className="text-sm font-mono">{log.clockIn}</TableCell>
-                  <TableCell className="text-sm font-mono">{log.clockOut}</TableCell>
-                  <TableCell>
-                    <Badge variant={log.status === "Ritardo" ? "destructive" : "secondary"}>
-                      {log.status}
-                    </Badge>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : filteredEntries.length > 0 ? filteredEntries.map((log) => {
+                const emp = employeeMap[log.employeeId];
+                const checkInDate = new Date(log.checkInTime);
+                const checkOutDate = log.checkOutTime ? new Date(log.checkOutTime) : null;
+
+                return (
+                  <TableRow key={log.id} className="hover:bg-muted/20 transition-colors">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8 border shadow-sm">
+                          <AvatarImage src={emp?.photoUrl || `https://picsum.photos/seed/${log.employeeId}/100/100`} />
+                          <AvatarFallback className="bg-primary/10 text-primary">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm text-[#1e293b]">
+                            {emp ? `${emp.firstName} ${emp.lastName}` : "Utente Sconosciuto"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">{emp?.jobTitle}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {checkInDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </TableCell>
+                    <TableCell className="text-sm font-mono">
+                      {checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                    </TableCell>
+                    <TableCell className="text-sm font-mono">
+                      {checkOutDate ? checkOutDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500 hover:bg-green-600" : ""}>
+                        {!log.checkOutTime ? "In Servizio" : "Completato"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                )
+              }) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
+                    Nessun record di presenza trovato nel database.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

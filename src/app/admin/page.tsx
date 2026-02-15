@@ -1,6 +1,6 @@
 "use client"
 
-import { Users, Calendar, Clock, FileText, ArrowUpRight, TrendingUp } from "lucide-react"
+import { Users, Calendar, Clock, FileText, ArrowUpRight, Loader2 } from "lucide-react"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { 
@@ -16,6 +16,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, collectionGroup, query, where, orderBy, limit } from "firebase/firestore"
+import Link from "next/link"
 
 const weeklyStats = [
   { name: 'Lun', ore: 145 },
@@ -27,57 +30,82 @@ const weeklyStats = [
   { name: 'Dom', ore: 40 },
 ]
 
-const recentEmployees = [
-  { id: 1, name: "Michael Chen", role: "Sviluppo", status: "Presente", time: "08:55" },
-  { id: 2, name: "Elena Rodriguez", role: "Design", status: "Presente", time: "09:12" },
-  { id: 3, name: "David Kim", role: "Vendite", status: "Ritardo", time: "09:45" },
-]
-
 export default function AdminDashboard() {
+  const db = useFirestore()
+
+  // Dati reali dipendenti
+  const employeesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, "employees");
+  }, [db])
+  const { data: employees } = useCollection(employeesQuery)
+
+  // Dati reali presenze recenti
+  const timeEntriesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return query(
+      collectionGroup(db, "timeentries"),
+      where("companyId", "==", "default"),
+      orderBy("checkInTime", "desc"),
+      limit(5)
+    );
+  }, [db])
+  const { data: recentEntries, isLoading: isEntriesLoading } = useCollection(timeEntriesQuery)
+
+  const employeeMap = employees?.reduce((acc, emp) => {
+    acc[emp.id] = emp;
+    return acc;
+  }, {} as any) || {};
+
+  const activeEmployeesCount = entriesCountToday(recentEntries || []);
+
+  function entriesCountToday(entries: any[]) {
+    const today = new Date().toDateString();
+    return entries.filter(e => new Date(e.checkInTime).toDateString() === today && !e.checkOutTime).length;
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard Amministratore</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Dashboard Amministratore</h1>
         <p className="text-muted-foreground">Bentornato, ecco cosa sta succedendo oggi in TU.L.A.S.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard 
           title="Dipendenti Totali" 
-          value="124" 
-          description="4 nuovi dall'ultimo mese" 
+          value={employees?.length || 0} 
+          description="Gestione anagrafica attiva" 
           icon={Users}
-          trend={{ value: 12, positive: true }}
         />
         <StatCard 
-          title="Turni Programmati" 
-          value="48" 
-          description="Per oggi, 23 Apr" 
+          title="Turni Oggi" 
+          value="-- " 
+          description="Pianificazione giornaliera" 
           icon={Calendar}
         />
         <StatCard 
-          title="Attivi Ora" 
-          value="32" 
+          title="In Servizio Ora" 
+          value={activeEmployeesCount} 
           description="Dipendenti attualmente al lavoro" 
           icon={Clock}
-          trend={{ value: 8, positive: true }}
+          trend={{ value: 10, positive: true }}
         />
         <StatCard 
           title="Richieste Pendenti" 
-          value="15" 
-          description="Ferie e cambi turno in attesa" 
+          value="--" 
+          description="Ferie e permessi in attesa" 
           icon={FileText}
-          trend={{ value: 2, positive: false }}
         />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-full lg:col-span-4">
+        <Card className="col-span-full lg:col-span-4 border-none shadow-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Analisi Ore di Lavoro</CardTitle>
-                <CardDescription>Totale ore del team registrate questa settimana.</CardDescription>
+                <CardDescription>Ore settimanali stimate per il team.</CardDescription>
               </div>
               <Button variant="outline" size="sm" className="gap-1">
                 Dettagli <ArrowUpRight className="h-4 w-4" />
@@ -108,34 +136,43 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-full lg:col-span-3">
+        <Card className="col-span-full lg:col-span-3 border-none shadow-sm">
           <CardHeader>
-            <CardTitle>Presenze in Tempo Reale</CardTitle>
-            <CardDescription>Dipendenti che hanno timbrato recentemente.</CardDescription>
+            <CardTitle>Presenze Recenti</CardTitle>
+            <CardDescription>Ultimi ingressi registrati.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {recentEmployees.map((emp) => (
-                <div key={emp.id} className="flex items-center gap-4">
-                  <Avatar>
-                    <AvatarImage src={`https://picsum.photos/seed/${emp.name}/100/100`} />
-                    <AvatarFallback>{emp.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">{emp.name}</p>
-                    <p className="text-xs text-muted-foreground">{emp.role}</p>
+              {isEntriesLoading ? (
+                <div className="flex justify-center py-10"><Loader2 className="animate-spin h-6 w-6" /></div>
+              ) : recentEntries && recentEntries.length > 0 ? recentEntries.map((log) => {
+                const emp = employeeMap[log.employeeId];
+                return (
+                  <div key={log.id} className="flex items-center gap-4">
+                    <Avatar>
+                      <AvatarImage src={emp?.photoUrl || `https://picsum.photos/seed/${log.employeeId}/100/100`} />
+                      <AvatarFallback>{emp?.firstName?.charAt(0) || "U"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-sm font-bold leading-none">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</p>
+                      <p className="text-xs text-muted-foreground">{emp?.jobTitle || "Dipendente"}</p>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant={!log.checkOutTime ? "default" : "secondary"}>
+                        {new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <Badge variant={emp.status === "Ritardo" ? "destructive" : "secondary"}>
-                      {emp.time}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                )
+              }) : (
+                <p className="text-sm text-center text-muted-foreground py-10">Nessun log recente.</p>
+              )}
             </div>
-            <Button variant="ghost" className="w-full mt-6 text-primary hover:text-primary hover:bg-primary/5">
-              Vedi tutti i record
-            </Button>
+            <Link href="/admin/attendance" className="block w-full mt-6">
+              <Button variant="ghost" className="w-full text-primary hover:text-primary hover:bg-primary/5 font-bold">
+                Vedi tutti i record
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
