@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2, Edit, Save, ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -184,11 +185,15 @@ export default function EmployeesPage() {
     setIsEditDialogOpen(true)
   }
 
-  const filteredEmployees = employees?.filter(emp => 
-    `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.jobTitle?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || []
+  const filteredEmployees = useMemo(() => {
+    return employees?.filter(emp => {
+      const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
+      const search = searchQuery.toLowerCase();
+      return fullName.includes(search) ||
+        (emp.email || "").toLowerCase().includes(search) ||
+        (emp.jobTitle || "").toLowerCase().includes(search);
+    }) || []
+  }, [employees, searchQuery]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -370,21 +375,21 @@ export default function EmployeesPage() {
                     <div className="flex items-center gap-3">
                       <Avatar className="border-2 border-white shadow-sm">
                         <AvatarImage src={employee.photoUrl || `https://picsum.photos/seed/${employee.id}/200/200`} alt={employee.firstName} />
-                        <AvatarFallback className="bg-primary/10 text-primary font-bold">{(employee.firstName || "").charAt(0)}</AvatarFallback>
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">{(employee.firstName || "U").charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col text-sm">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-[#1e293b]">{employee.firstName} {employee.lastName}</span>
+                          <span className="font-bold text-[#1e293b]">{employee.firstName || ""} {employee.lastName || ""}</span>
                           {employee.role === 'admin' && (
                             <Badge className="bg-[#227FD8]/10 text-[#227FD8] border-none text-[9px] h-4 px-1">ADMIN</Badge>
                           )}
                         </div>
-                        <span className="text-muted-foreground text-xs">{employee.email}</span>
+                        <span className="text-muted-foreground text-xs">{employee.email || ""}</span>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm font-medium">{employee.jobTitle}</span>
+                    <span className="text-sm font-medium">{employee.jobTitle || ""}</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
@@ -432,7 +437,7 @@ export default function EmployeesPage() {
               Modifica Dipendente
             </DialogTitle>
             <DialogDescription>
-              Aggiorna le informazioni del profilo di {editingEmployee?.firstName}.
+              Aggiorna le informazioni del profilo di {editingEmployee?.firstName || ""}.
             </DialogDescription>
           </DialogHeader>
           {editingEmployee && (

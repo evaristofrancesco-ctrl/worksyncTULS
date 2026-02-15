@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, query, where } from "firebase/firestore"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 
 export default function AttendancePage() {
   const db = useFirestore()
@@ -31,7 +31,6 @@ export default function AttendancePage() {
   const { data: employees } = useCollection(employeesQuery)
 
   // Recupera i log di presenza reali tramite collectionGroup
-  // Rimuoviamo l'orderBy per evitare errori di indici mancanti nel prototipo
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -41,23 +40,30 @@ export default function AttendancePage() {
   }, [db])
   const { data: entries, isLoading } = useCollection(timeEntriesQuery)
 
-  // Mappa per accesso rapido ai dati dipendente
-  const employeeMap = employees?.reduce((acc, emp) => {
-    acc[emp.id] = emp;
-    return acc;
-  }, {} as any) || {};
+  // Mappa per accesso rapido ai dati dipendente (Memoizzata per performance)
+  const employeeMap = useMemo(() => {
+    if (!employees) return {};
+    return employees.reduce((acc, emp) => {
+      acc[emp.id] = emp;
+      return acc;
+    }, {} as any);
+  }, [employees]);
 
-  // Filtriamo e ordiniamo in memoria per stabilità
-  const filteredEntries = (entries || [])
-    .filter(entry => {
-      const emp = employeeMap[entry.employeeId];
-      if (!emp) return false;
-      const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
-      return fullName.includes(searchQuery.toLowerCase());
-    })
-    .sort((a, b) => {
-      return new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime();
-    });
+  // Filtriamo e ordiniamo in memoria per stabilità (Evita crash se mancano dati)
+  const filteredEntries = useMemo(() => {
+    return (entries || [])
+      .filter(entry => {
+        const emp = employeeMap[entry.employeeId];
+        if (!emp) return false;
+        const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
+        return fullName.includes(searchQuery.toLowerCase());
+      })
+      .sort((a, b) => {
+        const dateA = a.checkInTime ? new Date(a.checkInTime).getTime() : 0;
+        const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
+        return dateB - dateA;
+      });
+  }, [entries, employeeMap, searchQuery]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -114,7 +120,7 @@ export default function AttendancePage() {
                 </TableRow>
               ) : filteredEntries.length > 0 ? filteredEntries.map((log) => {
                 const emp = employeeMap[log.employeeId];
-                const checkInDate = new Date(log.checkInTime);
+                const checkInDate = log.checkInTime ? new Date(log.checkInTime) : null;
                 const checkOutDate = log.checkOutTime ? new Date(log.checkOutTime) : null;
 
                 return (
@@ -127,17 +133,17 @@ export default function AttendancePage() {
                         </Avatar>
                         <div className="flex flex-col">
                           <span className="font-bold text-sm text-[#1e293b]">
-                            {emp ? `${emp.firstName} ${emp.lastName}` : "Utente Sconosciuto"}
+                            {emp ? `${emp.firstName || ""} ${emp.lastName || ""}` : "Utente Sconosciuto"}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{emp?.jobTitle}</span>
+                          <span className="text-[10px] text-muted-foreground">{emp?.jobTitle || "Dipendente"}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {isNaN(checkInDate.getTime()) ? "Data non valida" : checkInDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleDateString('it-IT') : "--/--/----"}
                     </TableCell>
                     <TableCell className="text-sm font-mono">
-                      {isNaN(checkInDate.getTime()) ? "--:--" : checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                     </TableCell>
                     <TableCell className="text-sm font-mono">
                       {checkOutDate && !isNaN(checkOutDate.getTime()) ? checkOutDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}

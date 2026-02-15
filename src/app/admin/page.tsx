@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, query, where } from "firebase/firestore"
 import Link from "next/link"
+import { useMemo } from "react"
 
 const weeklyStats = [
   { name: 'Lun', ore: 145 },
@@ -41,7 +42,7 @@ export default function AdminDashboard() {
   }, [db])
   const { data: employees } = useCollection(employeesQuery)
 
-  // Dati reali presenze recenti
+  // Dati reali presenze recenti tramite collectionGroup
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
@@ -51,25 +52,36 @@ export default function AdminDashboard() {
   }, [db])
   const { data: entries, isLoading: isEntriesLoading } = useCollection(timeEntriesQuery)
 
-  const employeeMap = employees?.reduce((acc, emp) => {
-    acc[emp.id] = emp;
-    return acc;
-  }, {} as any) || {};
+  // Mappa dei dipendenti memoizzata
+  const employeeMap = useMemo(() => {
+    if (!employees) return {};
+    return employees.reduce((acc, emp) => {
+      acc[emp.id] = emp;
+      return acc;
+    }, {} as any);
+  }, [employees]);
 
-  // Ordiniamo e limitiamo in memoria per evitare errori di indici complessi
-  const recentEntries = (entries || [])
-    .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime())
-    .slice(0, 5);
+  // Voci recenti (Ordinate e sicure)
+  const recentEntries = useMemo(() => {
+    return (entries || [])
+      .filter(e => e.checkInTime)
+      .sort((a, b) => {
+        const dateA = new Date(a.checkInTime).getTime();
+        const dateB = new Date(b.checkInTime).getTime();
+        return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
+      })
+      .slice(0, 5);
+  }, [entries]);
 
-  const activeEmployeesCount = entriesCountToday(entries || []);
-
-  function entriesCountToday(entries: any[]) {
+  // Conteggio dipendenti attivi
+  const activeEmployeesCount = useMemo(() => {
+    if (!entries) return 0;
     const todayStr = new Date().toDateString();
     return entries.filter(e => {
-      const d = new Date(e.checkInTime);
-      return !isNaN(d.getTime()) && d.toDateString() === todayStr && !e.checkOutTime;
+      const d = e.checkInTime ? new Date(e.checkInTime) : null;
+      return d && !isNaN(d.getTime()) && d.toDateString() === todayStr && !e.checkOutTime;
     }).length;
-  }
+  }, [entries]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -87,7 +99,7 @@ export default function AdminDashboard() {
         />
         <StatCard 
           title="Turni Oggi" 
-          value="-- " 
+          value="--" 
           description="Pianificazione giornaliera" 
           icon={Calendar}
         />
@@ -96,7 +108,7 @@ export default function AdminDashboard() {
           value={activeEmployeesCount} 
           description="Dipendenti attualmente al lavoro" 
           icon={Clock}
-          trend={{ value: 10, positive: true }}
+          trend={{ value: activeEmployeesCount > 0 ? 10 : 0, positive: true }}
         />
         <StatCard 
           title="Richieste Pendenti" 
@@ -152,22 +164,22 @@ export default function AdminDashboard() {
             <div className="space-y-6">
               {isEntriesLoading ? (
                 <div className="flex justify-center py-10"><Loader2 className="animate-spin h-6 w-6" /></div>
-              ) : recentEntries && recentEntries.length > 0 ? recentEntries.map((log) => {
+              ) : recentEntries.length > 0 ? recentEntries.map((log) => {
                 const emp = employeeMap[log.employeeId];
-                const checkInDate = new Date(log.checkInTime);
+                const checkInDate = log.checkInTime ? new Date(log.checkInTime) : null;
                 return (
                   <div key={log.id} className="flex items-center gap-4">
                     <Avatar>
                       <AvatarImage src={emp?.photoUrl || `https://picsum.photos/seed/${log.employeeId}/100/100`} />
-                      <AvatarFallback>{emp?.firstName?.charAt(0) || "U"}</AvatarFallback>
+                      <AvatarFallback>{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 space-y-1">
-                      <p className="text-sm font-bold leading-none">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</p>
+                      <p className="text-sm font-bold leading-none">{emp ? `${emp.firstName || ""} ${emp.lastName || ""}` : "Sconosciuto"}</p>
                       <p className="text-xs text-muted-foreground">{emp?.jobTitle || "Dipendente"}</p>
                     </div>
                     <div className="text-right">
                       <Badge variant={!log.checkOutTime ? "default" : "secondary"}>
-                        {!isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
+                        {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                       </Badge>
                     </div>
                   </div>
