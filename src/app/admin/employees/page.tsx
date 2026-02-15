@@ -100,13 +100,13 @@ export default function EmployeesPage() {
     restDay: "0",
     restStartTime: "",
     restEndTime: "",
-    weeklyHours: 44,
+    weeklyHours: 46,
   })
 
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
 
   const handleContractChange = (type: string, target: 'new' | 'edit') => {
-    const hours = type === 'full-time' ? 44 : 22
+    const hours = type === 'full-time' ? 46 : 23
     if (target === 'new') {
       setNewEmployee({ ...newEmployee, contractType: type, weeklyHours: hours })
     } else {
@@ -170,7 +170,7 @@ export default function EmployeesPage() {
       restDay: "0",
       restStartTime: "",
       restEndTime: "",
-      weeklyHours: 44
+      weeklyHours: 46
     })
     
     toast({
@@ -356,8 +356,8 @@ export default function EmployeesPage() {
                     <Select value={newEmployee.contractType} onValueChange={(v) => handleContractChange(v, 'new')}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="full-time">Full-time (44h)</SelectItem>
-                        <SelectItem value="part-time">Part-time (22h)</SelectItem>
+                        <SelectItem value="full-time">Full-time (46h)</SelectItem>
+                        <SelectItem value="part-time">Part-time (23h)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -596,8 +596,8 @@ export default function EmployeesPage() {
                     <Select value={editingEmployee.contractType} onValueChange={(v) => handleContractChange(v, 'edit')}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="full-time">Full-time (44h)</SelectItem>
-                        <SelectItem value="part-time">Part-time (22h)</SelectItem>
+                        <SelectItem value="full-time">Full-time (46h)</SelectItem>
+                        <SelectItem value="part-time">Part-time (23h)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
