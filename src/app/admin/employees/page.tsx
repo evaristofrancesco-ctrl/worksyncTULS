@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2, Edit, Save, ImageIcon } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2, Edit, Save, ImageIcon, CalendarDays } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -39,6 +39,16 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
+const DAYS_OF_WEEK = [
+  { label: "Lunedì", value: "1" },
+  { label: "Martedì", value: "2" },
+  { label: "Mercoledì", value: "3" },
+  { label: "Giovedì", value: "4" },
+  { label: "Venerdì", value: "5" },
+  { label: "Sabato", value: "6" },
+  { label: "Domenica", value: "0" },
+]
+
 export default function EmployeesPage() {
   const db = useFirestore()
   
@@ -69,6 +79,8 @@ export default function EmployeesPage() {
     password: "",
     locationId: "",
     photoUrl: "",
+    contractType: "full-time",
+    restDay: "0", // Default Domenica
   })
 
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
@@ -81,7 +93,7 @@ export default function EmployeesPage() {
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "Per favore compila tutti i campi obbligatori (Nome, Cognome, Email/Username, Qualifica, Password).",
+        description: "Per favore compila tutti i campi obbligatori.",
       })
       return
     }
@@ -104,7 +116,8 @@ export default function EmployeesPage() {
       companyId: "default",
       locationId: newEmployee.locationId || "",
       locationName: selectedLoc?.name || "Nessuna",
-      contractType: "full-time",
+      contractType: newEmployee.contractType || "full-time",
+      restDay: newEmployee.restDay || "0",
       photoUrl: newEmployee.photoUrl || `https://picsum.photos/seed/${tempId}/200/200`
     }
 
@@ -120,7 +133,9 @@ export default function EmployeesPage() {
       isAdmin: false,
       password: "",
       locationId: "",
-      photoUrl: ""
+      photoUrl: "",
+      contractType: "full-time",
+      restDay: "0"
     })
     
     toast({
@@ -210,7 +225,7 @@ export default function EmployeesPage() {
               Aggiungi Dipendente
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5 text-[#227FD8]" />
@@ -222,10 +237,10 @@ export default function EmployeesPage() {
             </DialogHeader>
             <div className="grid gap-6 py-4">
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Foto e Identità</h4>
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Identità</h4>
                 <div className="flex items-center gap-4">
                   <Avatar className="h-16 w-16 border-2 border-primary/20">
-                    <AvatarImage src={newEmployee.photoUrl || `https://picsum.photos/seed/new/200/200`} />
+                    <AvatarImage src={newEmployee.photoUrl || ""} />
                     <AvatarFallback><ImageIcon className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
                   </Avatar>
                   <div className="flex-1 space-y-2">
@@ -270,7 +285,34 @@ export default function EmployeesPage() {
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Ruolo e Sede</h4>
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Contratto e Orari</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="contractType">Tipo Contratto</Label>
+                    <Select value={newEmployee.contractType} onValueChange={(v) => setNewEmployee({...newEmployee, contractType: v})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full-time">Full-time (7h/giorno)</SelectItem>
+                        <SelectItem value="part-time">Part-time (4h/giorno)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="restDay">Giorno di Riposo</Label>
+                    <Select value={newEmployee.restDay} onValueChange={(v) => setNewEmployee({...newEmployee, restDay: v})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DAYS_OF_WEEK.map(d => (
+                          <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="jobTitle">Qualifica</Label>
@@ -282,7 +324,7 @@ export default function EmployeesPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="location">Sede Operativa (Opzionale)</Label>
+                    <Label htmlFor="location">Sede Operativa</Label>
                     <Select value={newEmployee.locationId || "none"} onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v === "none" ? "" : v})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleziona sede" />
@@ -299,11 +341,9 @@ export default function EmployeesPage() {
               </div>
 
               <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Credenziali e Accessi</h4>
                 <div className="flex items-center justify-between py-2">
                   <div className="space-y-0.5">
                     <Label className="text-base">Privilegi Amministratore</Label>
-                    <p className="text-xs text-muted-foreground">Consente l'accesso alla dashboard admin</p>
                   </div>
                   <Switch 
                     checked={newEmployee.isAdmin || false} 
@@ -338,13 +378,13 @@ export default function EmployeesPage() {
             <div>
               <CardTitle className="text-xl font-bold text-[#1e293b]">Team TU.L.A.S</CardTitle>
               <CardDescription>
-                Totale {filteredEmployees.length} dipendenti registrati nel sistema.
+                Gestione dei dipendenti e dei loro orari di lavoro.
               </CardDescription>
             </div>
             <div className="relative w-full max-sm:max-w-none max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca per nome, ruolo o email..."
+                placeholder="Cerca dipendente..."
                 className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -356,16 +396,17 @@ export default function EmployeesPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="rounded-l-lg font-bold">Dipendente</TableHead>
-                <TableHead className="font-bold">Ruolo</TableHead>
+                <TableHead className="font-bold">Dipendente</TableHead>
+                <TableHead className="font-bold">Contratto</TableHead>
+                <TableHead className="font-bold">Riposo</TableHead>
                 <TableHead className="font-bold">Sede</TableHead>
-                <TableHead className="text-right rounded-r-lg font-bold">Azioni</TableHead>
+                <TableHead className="text-right font-bold">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {employeesLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-10">
+                  <TableCell colSpan={5} className="text-center py-10">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
@@ -374,41 +415,39 @@ export default function EmployeesPage() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="border-2 border-white shadow-sm">
-                        <AvatarImage src={employee.photoUrl || `https://picsum.photos/seed/${employee.id}/200/200`} alt={employee.firstName} />
+                        <AvatarImage src={employee.photoUrl} alt={employee.firstName} />
                         <AvatarFallback className="bg-primary/10 text-primary font-bold">{(employee.firstName || "U").charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-[#1e293b]">{employee.firstName || ""} {employee.lastName || ""}</span>
-                          {employee.role === 'admin' && (
-                            <Badge className="bg-[#227FD8]/10 text-[#227FD8] border-none text-[9px] h-4 px-1">ADMIN</Badge>
-                          )}
-                        </div>
-                        <span className="text-muted-foreground text-xs">{employee.email || ""}</span>
+                        <span className="font-bold text-[#1e293b]">{employee.firstName || ""} {employee.lastName || ""}</span>
+                        <span className="text-muted-foreground text-xs">{employee.jobTitle || ""}</span>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm font-medium">{employee.jobTitle || ""}</span>
+                    <Badge variant="outline" className="capitalize">{employee.contractType || "N/A"}</Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
-                      <MapPin className="h-3 w-3 text-[#227FD8]" />
-                      <span className="font-medium">{employee.locationName || "Non assegnata"}</span>
+                      <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                      <span>{DAYS_OF_WEEK.find(d => d.value === employee.restDay)?.label || "Nessuno"}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-medium text-muted-foreground">{employee.locationName || "Non assegnata"}</span>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="hover:bg-muted/50 rounded-full">
+                        <Button variant="ghost" size="icon">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem className="cursor-pointer" onClick={() => openEditDialog(employee)}>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEditDialog(employee)}>
                           <Edit className="h-4 w-4 mr-2" /> Modifica
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive cursor-pointer font-medium" onClick={() => handleDeleteEmployee(employee.id)}>
+                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteEmployee(employee.id)}>
                           <Trash2 className="h-4 w-4 mr-2" /> Elimina
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -416,37 +455,23 @@ export default function EmployeesPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!employeesLoading && filteredEmployees.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                    Nessun dipendente trovato. Aggiungine uno nuovo per iniziare.
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Dialog per la modifica */}
+      {/* Dialog Modifica */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit className="h-5 w-5 text-[#227FD8]" />
-              Modifica Dipendente
-            </DialogTitle>
-            <DialogDescription>
-              Aggiorna le informazioni del profilo di {editingEmployee?.firstName || ""}.
-            </DialogDescription>
+            <DialogTitle>Modifica Dipendente</DialogTitle>
           </DialogHeader>
           {editingEmployee && (
             <div className="grid gap-6 py-4">
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Foto e Identità</h4>
                 <div className="flex items-center gap-4">
                   <Avatar className="h-16 w-16 border-2 border-primary/20">
-                    <AvatarImage src={editingEmployee.photoUrl || `https://picsum.photos/seed/${editingEmployee.id}/200/200`} />
+                    <AvatarImage src={editingEmployee.photoUrl} />
                     <AvatarFallback><ImageIcon className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
                   </Avatar>
                   <div className="flex-1 space-y-2">
@@ -476,71 +501,35 @@ export default function EmployeesPage() {
                     />
                   </div>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-email">Email / Username</Label>
-                  <Input 
-                    id="edit-email" 
-                    value={editingEmployee.email || ""}
-                    onChange={(e) => setEditingEmployee({...editingEmployee, email: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-jobTitle">Qualifica</Label>
-                    <Input 
-                      id="edit-jobTitle" 
-                      value={editingEmployee.jobTitle || ""}
-                      onChange={(e) => setEditingEmployee({...editingEmployee, jobTitle: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-location">Sede Operativa</Label>
-                    <Select value={editingEmployee.locationId || "none"} onValueChange={(v) => setEditingEmployee({...editingEmployee, locationId: v === "none" ? "" : v})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleziona sede" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nessuna Sede</SelectItem>
-                        {locations?.map((loc) => (
-                          <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                <div className="flex items-center justify-between py-2">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">Privilegi Amministratore</Label>
-                  </div>
-                  <Switch 
-                    checked={editingEmployee.isAdmin || false} 
-                    onCheckedChange={(checked) => setEditingEmployee({...editingEmployee, isAdmin: checked})} 
-                  />
+                  <Label>Tipo Contratto</Label>
+                  <Select value={editingEmployee.contractType} onValueChange={(v) => setEditingEmployee({...editingEmployee, contractType: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full-time">Full-time</SelectItem>
+                      <SelectItem value="part-time">Part-time</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-password">Cambia Password (lascia vuoto per non modificare)</Label>
-                  <Input 
-                    id="edit-password" 
-                    type="password"
-                    placeholder="••••••••" 
-                    value={editingEmployee.password || ""}
-                    onChange={(e) => setEditingEmployee({...editingEmployee, password: e.target.value})}
-                  />
+                  <Label>Giorno di Riposo</Label>
+                  <Select value={editingEmployee.restDay} onValueChange={(v) => setEditingEmployee({...editingEmployee, restDay: v})}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {DAYS_OF_WEEK.map(d => (
+                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Annulla</Button>
-            <Button onClick={handleUpdateEmployee} className="bg-[#227FD8] hover:bg-[#227FD8]/90 gap-2">
-              <Save className="h-4 w-4" /> Salva Modifiche
-            </Button>
+            <Button onClick={handleUpdateEmployee} className="bg-[#227FD8]">Salva Modifiche</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

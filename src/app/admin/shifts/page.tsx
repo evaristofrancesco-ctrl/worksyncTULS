@@ -1,189 +1,235 @@
+
 "use client"
 
-import { useState } from "react"
-import { Calendar, Plus, Sparkles, UserCheck, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { useState, useMemo } from "react"
+import { Calendar, Plus, Sparkles, UserCheck, AlertTriangle, CheckCircle2, Loader2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogFooter
-} from "@/components/ui/dialog"
-import { aiShiftOptimization, Employee, Shift, AiShiftOptimizationOutput } from "@/ai/flows/ai-shift-optimization-flow"
-import { mockEmployees, mockShifts } from "@/lib/mock-data"
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, doc, collectionGroup, query } from "firebase/firestore"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function ShiftsPage() {
-  const [isOptimizing, setIsOptimizing] = useState(false)
-  const [optimizationResult, setOptimizationResult] = useState<AiShiftOptimizationOutput | null>(null)
-  const [showResultDialog, setShowResultDialog] = useState(false)
+  const db = useFirestore()
+  const { toast } = useToast()
+  const [isGenerating, setIsGenerating] = useState(false)
 
-  const handleAiOptimize = async () => {
-    setIsOptimizing(true)
+  // Recupera i dipendenti
+  const employeesQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, "employees");
+  }, [db])
+  const { data: employees } = useCollection(employeesQuery)
+
+  // Recupera tutti i turni (di tutti i dipendenti)
+  const shiftsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collectionGroup(db, "shifts");
+  }, [db])
+  const { data: shifts, isLoading: isShiftsLoading } = useCollection(shiftsQuery)
+
+  const employeeMap = useMemo(() => {
+    if (!employees) return {};
+    return employees.reduce((acc, emp) => {
+      acc[emp.id] = emp;
+      return acc;
+    }, {} as any);
+  }, [employees]);
+
+  // Funzione per generare i turni automatici per la settimana corrente
+  const handleAutoGenerate = async () => {
+    if (!employees || employees.length === 0) {
+      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente trovato." })
+      return
+    }
+
+    setIsGenerating(true)
+    
     try {
-      // Mappa i dati mock ai tipi GenAI
-      const inputEmployees: Employee[] = mockEmployees.map(e => ({
-        id: e.id,
-        name: e.name,
-        roles: [e.position],
-        skills: e.skills,
-        availability: e.availability
-      }))
+      const today = new Date()
+      const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 1)) // Lunedì
 
-      const inputShifts: Shift[] = mockShifts.map(s => ({
-        id: s.id,
-        name: s.title,
-        startTime: s.startTime,
-        endTime: s.endTime,
-        requiredRoles: ["Senior Developer", "UX Designer"],
-        requiredSkills: [],
-        minCoverage: 1
-      }))
+      for (const emp of employees) {
+        // Ciclo sui 6 giorni lavorativi (Lun-Sab)
+        for (let i = 0; i < 6; i++) {
+          const currentDate = new Date(startOfWeek)
+          currentDate.setDate(startOfWeek.getDate() + i)
+          
+          const dayOfWeek = currentDate.getDay().toString()
+          
+          // Salta se è il giorno di riposo del dipendente
+          if (dayOfWeek === emp.restDay) continue;
 
-      const result = await aiShiftOptimization({
-        employees: inputEmployees,
-        shifts: inputShifts
-      })
-      
-      setOptimizationResult(result)
-      setShowResultDialog(true)
+          // ORARI PUNTO VENDITA: 09:00-13:00 e 17:00-20:00
+          
+          // TURNO MATTINA (Sempre per tutti)
+          const morningShiftId = `shift-${emp.id}-${currentDate.getTime()}-AM`
+          const morningRef = doc(db, "employees", emp.id, "shifts", morningShiftId)
+          
+          const startTimeAM = new Date(currentDate)
+          startTimeAM.setHours(9, 0, 0)
+          const endTimeAM = new Date(currentDate)
+          endTimeAM.setHours(13, 0, 0)
+
+          setDocumentNonBlocking(morningRef, {
+            id: morningShiftId,
+            employeeId: emp.id,
+            title: "Turno Mattina",
+            date: currentDate.toISOString().split('T')[0],
+            startTime: startTimeAM.toISOString(),
+            endTime: endTimeAM.toISOString(),
+            status: "SCHEDULED",
+            companyId: "default"
+          }, { merge: true })
+
+          // TURNO POMERIGGIO (Solo se Full-time)
+          if (emp.contractType === "full-time") {
+            const afternoonShiftId = `shift-${emp.id}-${currentDate.getTime()}-PM`
+            const afternoonRef = doc(db, "employees", emp.id, "shifts", afternoonShiftId)
+            
+            const startTimePM = new Date(currentDate)
+            startTimePM.setHours(17, 0, 0)
+            const endTimePM = new Date(currentDate)
+            endTimePM.setHours(20, 0, 0)
+
+            setDocumentNonBlocking(afternoonRef, {
+              id: afternoonShiftId,
+              employeeId: emp.id,
+              title: "Turno Pomeriggio",
+              date: currentDate.toISOString().split('T')[0],
+              startTime: startTimePM.toISOString(),
+              endTime: endTimePM.toISOString(),
+              status: "SCHEDULED",
+              companyId: "default"
+            }, { merge: true })
+          }
+        }
+      }
+
+      toast({ title: "Turni generati", description: "La pianificazione settimanale è pronta." })
     } catch (error) {
-      console.error("Ottimizzazione fallita:", error)
+      console.error(error)
+      toast({ variant: "destructive", title: "Errore", description: "Impossibile generare i turni." })
     } finally {
-      setIsOptimizing(false)
+      setIsGenerating(false)
     }
   }
 
+  const handleDeleteShift = (employeeId: string, shiftId: string) => {
+    const shiftRef = doc(db, "employees", employeeId, "shifts", shiftId)
+    deleteDocumentNonBlocking(shiftRef)
+    toast({ title: "Turno eliminato" })
+  }
+
+  const sortedShifts = useMemo(() => {
+    if (!shifts) return [];
+    return [...shifts].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  }, [shifts]);
+
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestione Turni</h1>
-          <p className="text-muted-foreground">Pianifica e ottimizza il flusso di lavoro del tuo team.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Gestione Turni</h1>
+          <p className="text-muted-foreground">Pianifica automaticamente il lavoro basandoti sui contratti.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleAiOptimize} disabled={isOptimizing} className="gap-2 border-accent text-accent hover:bg-accent hover:text-white">
-            <Sparkles className={`h-4 w-4 ${isOptimizing ? 'animate-pulse' : ''}`} />
-            {isOptimizing ? 'Ottimizzazione...' : 'Ottimizzatore AI'}
+          <Button 
+            variant="outline" 
+            onClick={handleAutoGenerate} 
+            disabled={isGenerating} 
+            className="gap-2 border-[#227FD8] text-[#227FD8] hover:bg-[#227FD8] hover:text-white"
+          >
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            Genera Turni Settimanali
           </Button>
-          <Button className="gap-2 bg-primary">
-            <Plus className="h-4 w-4" />
-            Nuovo Turno
+          <Button className="gap-2 bg-[#227FD8]">
+            <Plus className="h-4 w-4" /> Nuovo Turno
           </Button>
         </div>
       </div>
 
-      <Tabs defaultValue="calendar" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="calendar">Vista Calendario</TabsTrigger>
-          <TabsTrigger value="list">Vista Elenco</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="calendar" className="pt-6">
-          <Card className="min-h-[600px] flex items-center justify-center bg-muted/20 border-dashed">
-            <div className="text-center space-y-4">
-              <Calendar className="h-12 w-12 text-muted-foreground mx-auto" />
-              <div>
-                <h3 className="text-lg font-semibold">Calendario Interattivo in Arrivo</h3>
-                <p className="text-muted-foreground max-w-xs mx-auto">Interfaccia completa per la pianificazione tramite drag-and-drop in fase di sviluppo.</p>
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
+      <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle>Programma della Settimana</CardTitle>
+          <CardDescription>Visualizzazione di tutti i turni assegnati.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader className="bg-muted/30">
+              <TableRow>
+                <TableHead className="font-bold">Dipendente</TableHead>
+                <TableHead className="font-bold">Data</TableHead>
+                <TableHead className="font-bold">Orario</TableHead>
+                <TableHead className="font-bold">Tipo</TableHead>
+                <TableHead className="text-right font-bold">Azioni</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isShiftsLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                  </TableCell>
+                </TableRow>
+              ) : sortedShifts.length > 0 ? sortedShifts.map((shift) => {
+                const emp = employeeMap[shift.employeeId];
+                const startDate = new Date(shift.startTime);
+                const endDate = new Date(shift.endTime);
 
-        <TabsContent value="list" className="pt-6">
-          <div className="grid gap-4">
-            {mockShifts.map((shift) => (
-              <Card key={shift.id}>
-                <CardContent className="flex items-center justify-between p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold">
-                      {new Date(shift.startTime).getDate()}
-                    </div>
-                    <div>
-                      <p className="font-semibold">{shift.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(shift.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
-                        {new Date(shift.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-8">
-                    <div className="flex items-center gap-2">
-                      <UserCheck className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">Michael Chen</span>
-                    </div>
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      Confermato
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-accent" />
-              Risultati Ottimizzazione AI
-            </DialogTitle>
-            <DialogDescription>
-              Abbiamo analizzato disponibilità, ruoli e competenze per suggerire i seguenti assegnamenti.
-            </DialogDescription>
-          </DialogHeader>
-
-          {optimizationResult && (
-            <div className="space-y-6 my-4">
-              <div className="p-4 bg-muted/50 rounded-lg border">
-                <p className="text-sm italic text-muted-foreground">"{optimizationResult.optimizationSummary}"</p>
-              </div>
-
-              <div className="space-y-3">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Assegnamenti Suggeriti</h4>
-                {optimizationResult.optimizedAssignments.map((assignment, idx) => (
-                  <div key={idx} className="flex items-start gap-4 p-3 border rounded-lg hover:border-primary/50 transition-colors">
-                    <div className="mt-1 h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-600">
-                      <CheckCircle2 className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold">ID Turno: {assignment.shiftId}</span>
-                        <Badge variant="secondary">Dip: {assignment.employeeId}</Badge>
+                return (
+                  <TableRow key={shift.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7">
+                          <AvatarImage src={emp?.photoUrl} />
+                          <AvatarFallback>{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</span>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">{assignment.justification}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {optimizationResult.unassignedShifts.length > 0 && (
-                <div className="space-y-3">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-red-500">Turni Non Assegnati</h4>
-                  {optimizationResult.unassignedShifts.map((id, idx) => (
-                    <div key={idx} className="flex items-center gap-3 p-3 bg-red-50 border border-red-100 rounded-lg">
-                      <AlertTriangle className="h-4 w-4 text-red-500" />
-                      <span className="text-sm font-medium text-red-700">Impossibile coprire: {id}</span>
-                    </div>
-                  ))}
-                </div>
+                    </TableCell>
+                    <TableCell>
+                      {startDate.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: 'short' })}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {startDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - 
+                      {endDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {shift.title}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteShift(shift.employeeId, shift.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              }) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
+                    Nessun turno programmato. Usa il pulsante in alto per generare i turni settimanali.
+                  </TableCell>
+                </TableRow>
               )}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowResultDialog(false)}>Scarta</Button>
-            <Button onClick={() => setShowResultDialog(false)} className="bg-primary">Applica Suggerimenti</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   )
 }
