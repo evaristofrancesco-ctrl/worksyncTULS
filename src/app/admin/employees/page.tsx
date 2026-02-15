@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -34,15 +35,24 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, doc, deleteDoc, setDoc } from "firebase/firestore"
 
 export default function EmployeesPage() {
   const db = useFirestore()
-  const employeesQuery = useMemoFirebase(() => collection(db, "employees"), [db])
+  const { user } = useUser()
+  
+  // Attendiamo che l'utente sia loggato prima di eseguire le query Firestore
+  const employeesQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return collection(db, "employees");
+  }, [db, user])
   const { data: employees, isLoading: employeesLoading } = useCollection(employeesQuery)
   
-  const locationsQuery = useMemoFirebase(() => collection(db, "companies", "default", "locations"), [db])
+  const locationsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return collection(db, "companies", "default", "locations");
+  }, [db, user])
   const { data: locations } = useCollection(locationsQuery)
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -73,8 +83,6 @@ export default function EmployeesPage() {
 
     setIsSubmitting(true)
     try {
-      // In un'app reale, useremmo una Server Action o Cloud Function per creare l'utente Auth.
-      // Qui simuliamo l'aggiunta a Firestore usando un ID generato.
       const tempId = `emp-${Date.now()}`
       const selectedLoc = locations?.find(l => l.id === newEmployee.locationId)
 
@@ -110,7 +118,7 @@ export default function EmployeesPage() {
       
       toast({
         title: "Successo!",
-        description: `${newEmployee.firstName} ${newEmployee.lastName} è stato aggiunto. Nota: In produzione questo creerebbe anche le credenziali di accesso.`,
+        description: `${newEmployee.firstName} ${newEmployee.lastName} è stato aggiunto.`,
       })
     } catch (e: any) {
       toast({

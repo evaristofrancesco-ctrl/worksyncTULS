@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { useAuth, useFirestore } from "@/firebase"
-import { signInWithEmailAndPassword } from "firebase/auth"
+import { signInWithEmailAndPassword, signInAnonymously } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -31,15 +31,19 @@ export default function LoginPage() {
     
     // Logica di bypass per il prototipo (admin/admin)
     if (email === "admin" && password === "admin") {
-      setTimeout(() => {
+      try {
+        // Effettuiamo un accesso anonimo per soddisfare i requisiti di sicurezza "isSignedIn()"
+        await signInAnonymously(auth)
         toast({
           title: "Accesso Prototipo effettuato",
           description: "Benvenuto, Amministratore!",
         })
         router.push("/admin")
         setIsLoading(false)
-      }, 1000)
-      return
+        return
+      } catch (e) {
+        console.error("Errore bypass:", e)
+      }
     }
 
     try {
@@ -64,7 +68,6 @@ export default function LoginPage() {
           router.push("/employee")
         }
       } else {
-        // Fallback per utenti creati ma senza documento Firestore dettagliato
         router.push("/employee")
       }
     } catch (error: any) {

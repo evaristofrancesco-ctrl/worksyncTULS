@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useState } from "react"
-import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit } from "lucide-react"
+import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -29,12 +30,21 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"
-import { mockLocations as initialLocations } from "@/lib/mock-data"
 import { useToast } from "@/hooks/use-toast"
-import { Location } from "@/lib/types"
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
+import { collection, doc, deleteDoc, setDoc } from "firebase/firestore"
 
 export default function LocationsPage() {
-  const [locations, setLocations] = useState<Location[]>(initialLocations)
+  const db = useFirestore()
+  const { user } = useUser()
+
+  const locationsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return collection(db, "companies", "default", "locations");
+  }, [db, user])
+  
+  const { data: locations, isLoading } = useCollection(locationsQuery)
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
@@ -45,7 +55,7 @@ export default function LocationsPage() {
     city: "",
   })
 
-  const handleAddLocation = () => {
+  const handleAddLocation = async () => {
     if (!newLocation.name || !newLocation.city) {
       toast({
         variant: "destructive",
@@ -55,33 +65,50 @@ export default function LocationsPage() {
       return
     }
 
-    const locationToAdd: Location = {
-      id: `loc-${Date.now()}`,
-      ...newLocation
+    const locId = `loc-${Date.now()}`
+    try {
+      await setDoc(doc(db, "companies", "default", "locations", locId), {
+        id: locId,
+        ...newLocation,
+        companyId: "default"
+      })
+
+      setIsDialogOpen(false)
+      setNewLocation({ name: "", address: "", city: "" })
+      
+      toast({
+        title: "Sede aggiunta",
+        description: `${newLocation.name} è stata registrata correttamente.`,
+      })
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: "Impossibile salvare la sede.",
+      })
     }
-
-    setLocations([...locations, locationToAdd])
-    setIsDialogOpen(false)
-    setNewLocation({ name: "", address: "", city: "" })
-    
-    toast({
-      title: "Sede aggiunta",
-      description: `${newLocation.name} è stata registrata correttamente.`,
-    })
   }
 
-  const handleDeleteLocation = (id: string) => {
-    setLocations(locations.filter(l => l.id !== id))
-    toast({
-      title: "Sede eliminata",
-      description: "La sede è stata rimossa dal sistema.",
-    })
+  const handleDeleteLocation = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "companies", "default", "locations", id))
+      toast({
+        title: "Sede eliminata",
+        description: "La sede è stata rimossa dal sistema.",
+      })
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: "Impossibile eliminare la sede.",
+      })
+    }
   }
 
-  const filteredLocations = locations.filter(loc => 
+  const filteredLocations = locations?.filter(loc => 
     loc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     loc.city.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  ) || []
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -174,7 +201,13 @@ export default function LocationsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLocations.map((loc) => (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                  </TableCell>
+                </TableRow>
+              ) : filteredLocations.map((loc) => (
                 <TableRow key={loc.id} className="hover:bg-muted/20 transition-colors">
                   <TableCell className="font-bold text-[#1e293b]">
                     <div className="flex items-center gap-2">
@@ -206,7 +239,7 @@ export default function LocationsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredLocations.length === 0 && (
+              {!isLoading && filteredLocations.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                     Nessuna sede trovata.
