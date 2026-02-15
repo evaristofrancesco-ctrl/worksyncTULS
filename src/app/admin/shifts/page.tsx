@@ -57,6 +57,11 @@ export default function ShiftsPage() {
     const restStartMinutes = rsH * 60 + rsM;
     const restEndMinutes = reH * 60 + reM;
     
+    // Se la fascia di riposo attraversa la mezzanotte (es. 23:00 - 02:00)
+    if (restStartMinutes > restEndMinutes) {
+      return currentTimeMinutes >= restStartMinutes || currentTimeMinutes < restEndMinutes;
+    }
+    
     return currentTimeMinutes >= restStartMinutes && currentTimeMinutes < restEndMinutes;
   };
 
@@ -70,6 +75,7 @@ export default function ShiftsPage() {
     
     try {
       const today = new Date()
+      // Trova l'inizio della settimana corrente (Lunedì)
       const startOfWeek = new Date(today.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1)))
       startOfWeek.setHours(0, 0, 0, 0)
 
@@ -79,6 +85,7 @@ export default function ShiftsPage() {
           currentDate.setDate(startOfWeek.getDate() + i)
           const dayOfWeek = currentDate.getDay().toString()
           
+          // Salta se è il giorno di riposo settimanale
           if (dayOfWeek === emp.restDay) continue;
 
           // TURNO MATTINA: 09:00-13:00
@@ -87,7 +94,7 @@ export default function ShiftsPage() {
           const endTimeAM = new Date(currentDate)
           endTimeAM.setHours(13, 0, 0)
 
-          // Verifica se l'inizio del turno ricade nell'orario di riposo
+          // Verifica se l'inizio del turno ricade nell'orario di riposo configurato
           if (!isTimeInRestRange(startTimeAM, emp.restStartTime, emp.restEndTime)) {
             const morningShiftId = `shift-${emp.id}-${currentDate.getTime()}-AM`
             const morningRef = doc(db, "employees", emp.id, "shifts", morningShiftId)
@@ -111,6 +118,7 @@ export default function ShiftsPage() {
             const endTimePM = new Date(currentDate)
             endTimePM.setHours(20, 0, 0)
 
+            // Verifica riposo orario anche per il pomeriggio
             if (!isTimeInRestRange(startTimePM, emp.restStartTime, emp.restEndTime)) {
               const afternoonShiftId = `shift-${emp.id}-${currentDate.getTime()}-PM`
               const afternoonRef = doc(db, "employees", emp.id, "shifts", afternoonShiftId)
