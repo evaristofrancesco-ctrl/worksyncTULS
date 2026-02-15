@@ -1,3 +1,4 @@
+
 import { Employee, Shift, LeaveRequest, AttendanceRecord, Location } from './types';
 
 export const mockLocations: Location[] = [
@@ -7,6 +8,21 @@ export const mockLocations: Location[] = [
 ];
 
 export const mockEmployees: Employee[] = [
+  {
+    id: 'admin',
+    name: 'Amministratore Sistema',
+    email: 'admin@tulas.com',
+    role: 'ADMIN',
+    position: 'Super Admin',
+    department: 'Management',
+    avatarUrl: 'https://picsum.photos/seed/admin/200/200',
+    skills: ['System Admin', 'Security', 'Management'],
+    availability: 'H24',
+    joinDate: '2024-01-01',
+    remainingLeave: 30,
+    locationId: 'loc-1',
+    locationName: 'Sede Centrale',
+  },
   {
     id: 'emp-1',
     name: 'Sarah Johnson',

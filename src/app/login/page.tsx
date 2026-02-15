@@ -1,8 +1,9 @@
+
 "use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Lock, Mail, Loader2 } from "lucide-react"
+import { Lock, Mail, Loader2, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -11,6 +12,7 @@ import { useAuth, useFirestore } from "@/firebase"
 import { signInWithEmailAndPassword } from "firebase/auth"
 import { doc, getDoc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -26,11 +28,27 @@ export default function LoginPage() {
     if (!email || !password) return
 
     setIsLoading(true)
+    
+    // Logica di bypass per il prototipo (admin/admin)
+    if (email === "admin" && password === "admin") {
+      setTimeout(() => {
+        toast({
+          title: "Accesso Prototipo effettuato",
+          description: "Benvenuto, Amministratore!",
+        })
+        router.push("/admin")
+        setIsLoading(false)
+      }, 1000)
+      return
+    }
+
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      // Formatta l'email se è un semplice username per compatibilità con Firebase Auth
+      const loginEmail = email.includes("@") ? email : `${email}@tulas.com`
+      
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, password)
       const user = userCredential.user
 
-      // Recupera il ruolo dell'utente da Firestore
       const employeeDoc = await getDoc(doc(db, "employees", user.uid))
       
       if (employeeDoc.exists()) {
@@ -46,7 +64,8 @@ export default function LoginPage() {
           router.push("/employee")
         }
       } else {
-        throw new Error("Profilo utente non trovato.")
+        // Fallback per utenti creati ma senza documento Firestore dettagliato
+        router.push("/employee")
       }
     } catch (error: any) {
       toast({
@@ -66,19 +85,25 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#227FD8] text-white text-2xl font-black shadow-lg">T</div>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">Accedi a TU.L.A.S</CardTitle>
-          <CardDescription>Inserisci le tue credenziali per accedere al portale</CardDescription>
+          <CardTitle className="text-2xl font-bold tracking-tight text-[#1e293b]">Accedi a TU.L.A.S</CardTitle>
+          <CardDescription>Inserisci le tue credenziali aziendali</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
+            <Alert className="bg-blue-50 border-blue-100 py-2">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-xs text-blue-700">
+                Credenziali di test: <strong>admin</strong> / <strong>admin</strong>
+              </AlertDescription>
+            </Alert>
+            
             <div className="space-y-2">
-              <Label htmlFor="email">Email Aziendale</Label>
+              <Label htmlFor="email">Email o Username</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input 
                   id="email" 
-                  type="email" 
-                  placeholder="nome@tulas.com" 
+                  placeholder="admin" 
                   className="pl-10" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -105,9 +130,9 @@ export default function LoginPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90" disabled={isLoading}>
+            <Button className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-bold" disabled={isLoading}>
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Accedi
+              Accedi al Portale
             </Button>
           </CardFooter>
         </form>
