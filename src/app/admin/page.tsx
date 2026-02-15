@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, query, where } from "firebase/firestore"
+import { collection, collectionGroup } from "firebase/firestore"
 import Link from "next/link"
 import { useMemo } from "react"
 
@@ -42,13 +42,10 @@ export default function AdminDashboard() {
   }, [db])
   const { data: employees } = useCollection(employeesQuery)
 
-  // Dati reali presenze recenti tramite collectionGroup
+  // Dati reali presenze
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(
-      collectionGroup(db, "timeentries"),
-      where("companyId", "==", "default")
-    );
+    return collectionGroup(db, "timeentries");
   }, [db])
   const { data: entries, isLoading: isEntriesLoading } = useCollection(timeEntriesQuery)
 
@@ -61,10 +58,11 @@ export default function AdminDashboard() {
     }, {} as any);
   }, [employees]);
 
-  // Voci recenti (Ordinate e sicure)
+  // Voci recenti (Filtrate e ordinate in memoria)
   const recentEntries = useMemo(() => {
-    return (entries || [])
-      .filter(e => e.checkInTime)
+    if (!entries) return [];
+    return entries
+      .filter(e => e.companyId === "default" && e.checkInTime)
       .sort((a, b) => {
         const dateA = new Date(a.checkInTime).getTime();
         const dateB = new Date(b.checkInTime).getTime();
@@ -78,6 +76,7 @@ export default function AdminDashboard() {
     if (!entries) return 0;
     const todayStr = new Date().toDateString();
     return entries.filter(e => {
+      if (e.companyId !== "default") return false;
       const d = e.checkInTime ? new Date(e.checkInTime) : null;
       return d && !isNaN(d.getTime()) && d.toDateString() === todayStr && !e.checkOutTime;
     }).length;

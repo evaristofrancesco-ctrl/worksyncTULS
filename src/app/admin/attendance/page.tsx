@@ -16,31 +16,29 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, query, where } from "firebase/firestore"
+import { collection, collectionGroup, query } from "firebase/firestore"
 import { useState, useMemo } from "react"
 
 export default function AttendancePage() {
   const db = useFirestore()
   const [searchQuery, setSearchQuery] = useState("")
 
-  // Recupera tutti i dipendenti per mappare gli ID ai nomi
+  // Recupera tutti i dipendenti
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
   }, [db])
   const { data: employees } = useCollection(employeesQuery)
 
-  // Recupera i log di presenza reali tramite collectionGroup
+  // Recupera i log di presenza. 
+  // Rimosso il 'where' per evitare errori di indice mancante (collectionGroup index) nel prototipo.
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(
-      collectionGroup(db, "timeentries"),
-      where("companyId", "==", "default")
-    );
+    return collectionGroup(db, "timeentries");
   }, [db])
   const { data: entries, isLoading } = useCollection(timeEntriesQuery)
 
-  // Mappa per accesso rapido ai dati dipendente (Memoizzata per performance)
+  // Mappa per accesso rapido ai dati dipendente
   const employeeMap = useMemo(() => {
     if (!employees) return {};
     return employees.reduce((acc, emp) => {
@@ -49,12 +47,18 @@ export default function AttendancePage() {
     }, {} as any);
   }, [employees]);
 
-  // Filtriamo e ordiniamo in memoria per stabilità (Evita crash se mancano dati)
+  // Filtriamo in memoria per stabilità e velocità
   const filteredEntries = useMemo(() => {
-    return (entries || [])
+    if (!entries) return [];
+    
+    return entries
       .filter(entry => {
+        // Filtro per compagnia (emulato in memoria)
+        if (entry.companyId !== "default") return false;
+        
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
+        
         const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
         return fullName.includes(searchQuery.toLowerCase());
       })
@@ -158,7 +162,7 @@ export default function AttendancePage() {
               }) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
-                    Nessun record di presenza trovato nel database.
+                    Nessun record di presenza trovato.
                   </TableCell>
                 </TableRow>
               )}
