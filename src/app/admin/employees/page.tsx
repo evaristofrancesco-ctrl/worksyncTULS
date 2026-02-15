@@ -1,6 +1,7 @@
 "use client"
 
-import { Plus, Search, Mail, Phone, MapPin, MoreVertical } from "lucide-react"
+import { useState } from "react"
+import { Plus, Search, Mail, Phone, MapPin, MoreVertical, UserPlus, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -20,74 +21,223 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu"
-import { mockEmployees } from "@/lib/mock-data"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { mockEmployees as initialEmployees } from "@/lib/mock-data"
+import { useToast } from "@/hooks/use-toast"
+import { Employee } from "@/lib/types"
 
 export default function EmployeesPage() {
+  const [employees, setEmployees] = useState<Employee[]>(initialEmployees)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const { toast } = useToast()
+
+  // Stato per il nuovo dipendente
+  const [newEmployee, setNewEmployee] = useState({
+    name: "",
+    email: "",
+    position: "",
+    department: "",
+    skills: "",
+  })
+
+  const handleAddEmployee = () => {
+    if (!newEmployee.name || !newEmployee.email || !newEmployee.position) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: "Per favore compila i campi obbligatori (Nome, Email, Ruolo).",
+      })
+      return
+    }
+
+    const employeeToAdd: Employee = {
+      id: `emp-${Date.now()}`,
+      name: newEmployee.name,
+      email: newEmployee.email,
+      role: 'EMPLOYEE',
+      position: newEmployee.position,
+      department: newEmployee.department || "Generale",
+      avatarUrl: `https://picsum.photos/seed/${newEmployee.name}/200/200`,
+      skills: newEmployee.skills.split(',').map(s => s.trim()).filter(s => s !== ""),
+      availability: "Lun-Ven, 9:00-17:00",
+      joinDate: new Date().toISOString().split('T')[0],
+      remainingLeave: 20,
+    }
+
+    setEmployees([employeeToAdd, ...employees])
+    setIsDialogOpen(false)
+    setNewEmployee({ name: "", email: "", position: "", department: "", skills: "" })
+    
+    toast({
+      title: "Successo!",
+      description: `${newEmployee.name} è stato aggiunto al team.`,
+    })
+  }
+
+  const filteredEmployees = employees.filter(emp => 
+    emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.position.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestione Dipendenti</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Gestione Dipendenti</h1>
           <p className="text-muted-foreground">Visualizza e gestisci l'anagrafica del tuo team.</p>
         </div>
-        <Button className="gap-2 bg-primary">
-          <Plus className="h-4 w-4" />
-          Aggiungi Dipendente
-        </Button>
+        
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 bg-[#227FD8] hover:bg-[#227FD8]/90">
+              <Plus className="h-4 w-4" />
+              Aggiungi Dipendente
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-[#227FD8]" />
+                Nuovo Dipendente
+              </DialogTitle>
+              <DialogDescription>
+                Inserisci i dati del nuovo membro del team. Verrà inviata un'email di invito.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">Nome</Label>
+                <Input 
+                  id="name" 
+                  placeholder="Mario Rossi" 
+                  className="col-span-3" 
+                  value={newEmployee.name}
+                  onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="email" className="text-right">Email</Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="mario.rossi@tulas.com" 
+                  className="col-span-3"
+                  value={newEmployee.email}
+                  onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="position" className="text-right">Ruolo</Label>
+                <Input 
+                  id="position" 
+                  placeholder="es. Senior Developer" 
+                  className="col-span-3"
+                  value={newEmployee.position}
+                  onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="department" className="text-right">Dipartimento</Label>
+                <Select onValueChange={(v) => setNewEmployee({...newEmployee, department: v})}>
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Seleziona dipartimento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Engineering">Ingegneria</SelectItem>
+                    <SelectItem value="Product">Prodotto</SelectItem>
+                    <SelectItem value="People Operations">Risorse Umane</SelectItem>
+                    <SelectItem value="Sales">Vendite</SelectItem>
+                    <SelectItem value="Marketing">Marketing</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="skills" className="text-right">Competenze</Label>
+                <Input 
+                  id="skills" 
+                  placeholder="Separati da virgola (es. React, SQL)" 
+                  className="col-span-3"
+                  value={newEmployee.skills}
+                  onChange={(e) => setNewEmployee({...newEmployee, skills: e.target.value})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>Annulla</Button>
+              <Button onClick={handleAddEmployee} className="bg-[#227FD8] hover:bg-[#227FD8]/90">Salva Dipendente</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      <Card>
+      <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle>Team TU.L.A.S</CardTitle>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-xl font-bold text-[#1e293b]">Team TU.L.A.S</CardTitle>
+              <CardDescription>
+                Totale {filteredEmployees.length} dipendenti filtrati nel sistema.
+              </CardDescription>
+            </div>
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Cerca per nome, ruolo o email..."
-                className="pl-8 bg-muted/50 border-none"
+                className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
-          <CardDescription>
-            Totale {mockEmployees.length} dipendenti registrati nel sistema.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead>Dipendente</TableHead>
-                <TableHead>Ruolo / Dipartimento</TableHead>
-                <TableHead>Competenze</TableHead>
-                <TableHead>Data Inizio</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead className="rounded-l-lg font-bold">Dipendente</TableHead>
+                <TableHead className="font-bold">Ruolo / Dipartimento</TableHead>
+                <TableHead className="font-bold">Competenze</TableHead>
+                <TableHead className="font-bold">Data Inizio</TableHead>
+                <TableHead className="text-right rounded-r-lg font-bold">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockEmployees.map((employee) => (
-                <TableRow key={employee.id}>
+              {filteredEmployees.map((employee) => (
+                <TableRow key={employee.id} className="hover:bg-muted/20 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={employee.avatarUrl} />
-                        <AvatarFallback>{employee.name.charAt(0)}</AvatarFallback>
+                      <Avatar className="border-2 border-white shadow-sm">
+                        <AvatarImage src={employee.avatarUrl} alt={employee.name} />
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">{employee.name.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col text-sm">
-                        <span className="font-medium">{employee.name}</span>
+                        <span className="font-bold text-[#1e293b]">{employee.name}</span>
                         <span className="text-muted-foreground text-xs">{employee.email}</span>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col text-sm">
-                      <span className="font-medium">{employee.position}</span>
+                      <span className="font-medium text-[#1e293b]">{employee.position}</span>
                       <span className="text-muted-foreground text-xs">{employee.department}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {employee.skills.slice(0, 2).map((skill) => (
-                        <Badge key={skill} variant="secondary" className="text-[10px] px-1.5 py-0">
+                        <Badge key={skill} variant="secondary" className="text-[10px] px-1.5 py-0 bg-[#33CCCC]/10 text-[#2a9d9d] border-none">
                           {skill}
                         </Badge>
                       ))}
@@ -99,21 +249,21 @@ export default function EmployeesPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground font-medium">
                       {new Date(employee.joinDate).toLocaleDateString('it-IT')}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon" className="hover:bg-muted/50 rounded-full">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Modifica Profilo</DropdownMenuItem>
-                        <DropdownMenuItem>Vedi Turni</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Elimina</DropdownMenuItem>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem className="cursor-pointer">Modifica Profilo</DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-pointer">Vedi Turni</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive cursor-pointer font-medium">Elimina</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -121,6 +271,15 @@ export default function EmployeesPage() {
               ))}
             </TableBody>
           </Table>
+          {filteredEmployees.length === 0 && (
+            <div className="py-20 text-center space-y-3">
+              <div className="h-16 w-16 bg-muted/30 rounded-full flex items-center justify-center mx-auto">
+                <Search className="h-8 w-8 text-muted-foreground/50" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-400">Nessun dipendente trovato</h3>
+              <p className="text-sm text-slate-400">Prova a cambiare i termini della ricerca.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
