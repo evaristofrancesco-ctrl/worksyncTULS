@@ -37,7 +37,7 @@ const SpecificCoverageRequirementSchema = z.object({
 });
 export type SpecificCoverageRequirement = z.infer<typeof SpecificCoverageRequirementSchema>;
 
-export const AiShiftOptimizationInputSchema = z.object({
+const AiShiftOptimizationInputSchema = z.object({
   employees: z.array(EmployeeSchema).describe('Lista dei dipendenti disponibili con i loro dettagli.'),
   shifts: z.array(ShiftSchema).describe('Lista dei turni da coprire.'),
   specificCoverageRequirements: z.array(SpecificCoverageRequirementSchema).optional().describe('Requisiti opzionali di copertura minima per ruolo.'),
@@ -51,7 +51,7 @@ const OptimizedAssignmentSchema = z.object({
 });
 export type OptimizedAssignment = z.infer<typeof OptimizedAssignmentSchema>;
 
-export const AiShiftOptimizationOutputSchema = z.object({
+const AiShiftOptimizationOutputSchema = z.object({
   optimizedAssignments: z.array(OptimizedAssignmentSchema).describe('Gli assegnamenti suggeriti e ottimizzati.'),
   unassignedShifts: z.array(z.string()).describe('Lista degli ID dei turni che non è stato possibile coprire.'),
   unassignedEmployees: z.array(z.string()).describe('Lista degli ID dei dipendenti non assegnati a nessun turno.'),
