@@ -183,8 +183,6 @@
       "required": [
         "id",
         "companyId",
-        "locationId",
-        "departmentId",
         "firstName",
         "lastName",
         "email",
@@ -683,7 +681,7 @@
         }
       },
       {
-        "path": "/companies/{companyId}/companyannouncements/{announcementId}",
+        "path": "/companies/{companyId}/companyannouncements/{id}",
         "definition": {
           "entityName": "CompanyAnnouncement",
           "schema": {

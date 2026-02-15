@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -42,7 +41,6 @@ export default function EmployeesPage() {
   const db = useFirestore()
   const { user } = useUser()
   
-  // Attendiamo che l'utente sia loggato prima di eseguire le query Firestore
   const employeesQuery = useMemoFirebase(() => {
     if (!user) return null;
     return collection(db, "employees");
@@ -72,11 +70,12 @@ export default function EmployeesPage() {
   })
 
   const handleAddEmployee = async () => {
-    if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.email || !newEmployee.jobTitle || !newEmployee.password || !newEmployee.locationId) {
+    // Rimosso l'obbligo di locationId dalla validazione
+    if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.email || !newEmployee.jobTitle || !newEmployee.password) {
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "Per favore compila tutti i campi obbligatori.",
+        description: "Per favore compila i campi obbligatori (Nome, Cognome, Email, Qualifica, Password).",
       })
       return
     }
@@ -97,7 +96,7 @@ export default function EmployeesPage() {
         isActive: true,
         hireDate: new Date().toISOString(),
         companyId: "default",
-        locationId: newEmployee.locationId,
+        locationId: newEmployee.locationId || "",
         locationName: selectedLoc?.name || "Nessuna",
         contractType: "full-time"
       }
@@ -226,12 +225,13 @@ export default function EmployeesPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="location">Sede Operativa</Label>
-                    <Select onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v})}>
+                    <Label htmlFor="location">Sede Operativa (Opzionale)</Label>
+                    <Select value={newEmployee.locationId} onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleziona sede" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">Nessuna Sede</SelectItem>
                         {locations?.map((loc) => (
                           <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
                         ))}
