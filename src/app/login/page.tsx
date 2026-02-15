@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { useAuth, useFirestore } from "@/firebase"
-import { signInAnonymously } from "firebase/auth"
+import { signInAnonymously, updateProfile } from "firebase/auth"
 import { collection, query, where, getDocs, limit } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -26,7 +26,6 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Normalizziamo input: rimuoviamo spazi e convertiamo email/user in minuscolo
     const cleanEmail = email.trim().toLowerCase()
     const cleanPassword = password.trim()
 
@@ -42,24 +41,19 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
-      // 1. Inizializziamo sempre una sessione anonima PRIMA di interrogare il DB
-      // Questo assicura che request.auth non sia null nelle regole di sicurezza
       await signInAnonymously(auth)
 
       let userData: any = null
 
-      // 2. Fallback per admin predefinito
       if (cleanEmail === "admin" && cleanPassword === "admin") {
         userData = { firstName: "Admin", lastName: "Prototipo", role: "admin" }
       } else {
-        // 3. Cerchiamo il dipendente in Firestore (email salvata in minuscolo)
         const employeesRef = collection(db, "employees")
         const q = query(employeesRef, where("email", "==", cleanEmail), limit(1))
         const querySnapshot = await getDocs(q)
         
         if (!querySnapshot.empty) {
           const docData = querySnapshot.docs[0].data()
-          // Verifica password (case sensitive per la password)
           if (docData.password === cleanPassword) {
             userData = docData
           }
@@ -67,12 +61,24 @@ export default function LoginPage() {
       }
 
       if (userData) {
+        const fullName = `${userData.firstName} ${userData.lastName}`
+        
+        // Aggiorniamo il profilo Firebase Auth per persistenza rapida
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, {
+            displayName: fullName
+          });
+        }
+
+        // Memorizziamo il ruolo per i layout
+        localStorage.setItem("userRole", userData.role)
+        localStorage.setItem("userName", fullName)
+
         toast({
           title: "Accesso effettuato",
-          description: `Bentornato, ${userData.firstName}!`,
+          description: `Bentornato, ${fullName}!`,
         })
         
-        // 4. Reindirizzamento in base al ruolo
         if (userData.role === 'admin') {
           router.push("/admin")
         } else {
@@ -82,7 +88,7 @@ export default function LoginPage() {
         toast({
           variant: "destructive",
           title: "Credenziali errate",
-          description: "L'email o la password inserite non sono corrette. Verifica anche le maiuscole/minuscole.",
+          description: "L'email o la password inserite non sono corrette.",
         })
       }
     } catch (error: any) {
@@ -90,7 +96,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Errore di connessione",
-        description: "Impossibile contattare il database. Riprova tra un momento.",
+        description: "Impossibile contattare il database.",
       })
     } finally {
       setIsLoading(false)
@@ -112,7 +118,7 @@ export default function LoginPage() {
             <Alert className="bg-blue-50 border-blue-100 py-2">
               <Info className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-xs text-blue-700">
-                Puoi usare <strong>admin / admin</strong> o gli utenti creati nella gestione dipendenti.
+                Puoi usare <strong>admin / admin</strong> o gli utenti creati.
               </AlertDescription>
             </Alert>
             
