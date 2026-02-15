@@ -1,6 +1,8 @@
 "use client"
 
-import { Bell, Search, User, LogOut, Settings } from "lucide-react"
+import { Bell, Search, User, LogOut, Settings, Loader2 } from "lucide-react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -12,8 +14,37 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from "@/firebase"
+import { signOut } from "firebase/auth"
+import { useToast } from "@/hooks/use-toast"
 
 export function Navbar({ userName, role }: { userName: string, role: string }) {
+  const auth = useAuth()
+  const router = useRouter()
+  const { toast } = useToast()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await signOut(auth)
+      toast({
+        title: "Disconnesso",
+        description: "Sessione terminata con successo.",
+      })
+      router.push("/login")
+    } catch (error) {
+      console.error("Errore durante il logout:", error)
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: "Impossibile disconnettersi al momento.",
+      })
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-6">
       <div className="flex w-full items-center gap-4">
@@ -46,17 +77,25 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Il Mio Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
                 Profilo
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">
                 <Settings className="mr-2 h-4 w-4" />
                 Impostazioni
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                <LogOut className="mr-2 h-4 w-4" />
+              <DropdownMenuItem 
+                className="text-destructive cursor-pointer font-bold" 
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="mr-2 h-4 w-4" />
+                )}
                 Disconnetti
               </DropdownMenuItem>
             </DropdownMenuContent>
