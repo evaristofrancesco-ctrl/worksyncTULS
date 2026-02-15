@@ -73,11 +73,14 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
 
   const handleAddEmployee = () => {
-    if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.email || !newEmployee.jobTitle || !newEmployee.password) {
+    const cleanEmail = newEmployee.email.trim()
+    const cleanPassword = newEmployee.password.trim()
+
+    if (!newEmployee.firstName || !newEmployee.lastName || !cleanEmail || !newEmployee.jobTitle || !cleanPassword) {
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "Per favore compila i campi obbligatori (Nome, Cognome, Email, Qualifica, Password).",
+        description: "Per favore compila tutti i campi obbligatori (Nome, Cognome, Email/Username, Qualifica, Password).",
       })
       return
     }
@@ -88,13 +91,13 @@ export default function EmployeesPage() {
 
     const employeeData = {
       id: tempId,
-      firstName: newEmployee.firstName,
-      lastName: newEmployee.lastName,
-      email: newEmployee.email,
-      password: newEmployee.password,
+      firstName: newEmployee.firstName.trim(),
+      lastName: newEmployee.lastName.trim(),
+      email: cleanEmail,
+      password: cleanPassword,
       role: newEmployee.isAdmin ? 'admin' : 'employee',
-      jobTitle: newEmployee.jobTitle,
-      department: newEmployee.department || "Generale",
+      jobTitle: newEmployee.jobTitle.trim(),
+      department: newEmployee.department.trim() || "Generale",
       isActive: true,
       hireDate: new Date().toISOString(),
       companyId: "default",
@@ -119,14 +122,16 @@ export default function EmployeesPage() {
     
     toast({
       title: "Successo!",
-      description: `${newEmployee.firstName} ${newEmployee.lastName} è stato aggiunto alla lista.`,
+      description: `${employeeData.firstName} ${employeeData.lastName} è stato aggiunto alla lista.`,
     })
   }
 
   const handleUpdateEmployee = () => {
     if (!editingEmployee) return;
 
-    if (!editingEmployee.firstName || !editingEmployee.lastName || !editingEmployee.email || !editingEmployee.jobTitle) {
+    const cleanEmail = editingEmployee.email.trim()
+    
+    if (!editingEmployee.firstName || !editingEmployee.lastName || !cleanEmail || !editingEmployee.jobTitle) {
       toast({
         variant: "destructive",
         title: "Errore",
@@ -140,6 +145,10 @@ export default function EmployeesPage() {
 
     const updateData = {
       ...editingEmployee,
+      firstName: editingEmployee.firstName.trim(),
+      lastName: editingEmployee.lastName.trim(),
+      email: cleanEmail,
+      jobTitle: editingEmployee.jobTitle.trim(),
       locationName: selectedLoc?.name || "Nessuna",
       role: editingEmployee.isAdmin ? 'admin' : 'employee'
     }
@@ -227,10 +236,10 @@ export default function EmployeesPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email / Username</Label>
+                  <Label htmlFor="email">Email / Username di Accesso</Label>
                   <Input 
                     id="email" 
-                    placeholder="mario.rossi o email@tulas.com" 
+                    placeholder="es. mario.rossi" 
                     value={newEmployee.email}
                     onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
                   />
