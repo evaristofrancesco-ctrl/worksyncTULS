@@ -5,8 +5,8 @@ service cloud.firestore {
     /**
      * WORK-SYNC SECURITY RULES - PROTOTYPE VERSION
      * 
-     * Nota: In questa versione di prototipo, abbiamo allentato le restrizioni per la società 'default'
-     * per permettere l'utilizzo del bypass di login "admin/admin".
+     * In questa versione di prototipo, permettiamo l'accesso completo alla società 'default'
+     * per facilitare i test con il bypass di login.
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -20,19 +20,13 @@ service cloud.firestore {
     }
 
     // Role check: Existence of a document in the company's admin role collection
-    // O bypass per il prototipo se la società è 'default'
+    // Bypass totale per la società 'default' nel prototipo
     function isAdmin(companyId) {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/companies/$(companyId)/roles_admin/$(request.auth.uid)) ||
-        (companyId == "default")
-      );
+      return companyId == "default" || (isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/roles_admin/$(request.auth.uid)));
     }
 
     function isManager(companyId) {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/companies/$(companyId)/roles_manager/$(request.auth.uid)) ||
-        (companyId == "default")
-      );
+      return companyId == "default" || (isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/roles_manager/$(request.auth.uid)));
     }
 
     function isStaff(companyId) {
@@ -50,93 +44,67 @@ service cloud.firestore {
     // --- COLLECTION RULES ---
 
     match /companies/{companyId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
+      allow get, list: if true; // Permettiamo la lettura pubblica per il prototipo
+      allow create: if true;
       allow update, delete: if isAdmin(companyId);
     }
 
     match /companies/{companyId}/locations/{id} {
-      allow get, list: if isSignedIn();
-      allow create: if isStaff(companyId);
-      allow update, delete: if isExistingStaff(companyId);
+      allow get, list: if true;
+      allow create, update, delete: if companyId == "default" || isStaff(companyId);
     }
 
     match /companies/{companyId}/departments/{id} {
-      allow get, list: if isSignedIn();
-      allow create: if isStaff(companyId);
-      allow update, delete: if isExistingStaff(companyId);
+      allow get, list: if true;
+      allow create, update, delete: if companyId == "default" || isStaff(companyId);
     }
 
     match /companies/{companyId}/shifttemplates/{id} {
-      allow get, list: if isSignedIn();
-      allow create: if isStaff(companyId);
-      allow update, delete: if isExistingStaff(companyId);
+      allow get, list: if true;
+      allow create, update, delete: if companyId == "default" || isStaff(companyId);
     }
 
     match /companies/{companyId}/leavetypes/{id} {
-      allow get, list: if isSignedIn();
-      allow create: if isStaff(companyId);
-      allow update, delete: if isExistingStaff(companyId);
+      allow get, list: if true;
+      allow create, update, delete: if companyId == "default" || isStaff(companyId);
     }
 
     match /companies/{companyId}/companyholidays/{id} {
-      allow get, list: if isSignedIn();
-      allow create: if isStaff(companyId);
-      allow update, delete: if isExistingStaff(companyId);
+      allow get, list: if true;
+      allow create, update, delete: if companyId == "default" || isStaff(companyId);
     }
 
     match /companies/{companyId}/companyannouncements/{id} {
-      allow get, list: if isSignedIn();
-      allow create: if isAdmin(companyId);
-      allow update, delete: if isAdmin(companyId);
+      allow get, list: if true;
+      allow create, update, delete: if companyId == "default" || isAdmin(companyId);
     }
 
     match /companies/{companyId}/roles_admin/{employeeId} {
-      allow get: if isOwner(employeeId) || isAdmin(companyId);
-      allow list: if isAdmin(companyId);
-      allow create, update, delete: if isAdmin(companyId);
+      allow get, list, create, update, delete: if companyId == "default" || isAdmin(companyId);
     }
 
     match /companies/{companyId}/roles_manager/{employeeId} {
-      allow get: if isOwner(employeeId) || isStaff(companyId);
-      allow list: if isStaff(companyId);
-      allow create, update, delete: if isAdmin(companyId);
+      allow get, list, create, update, delete: if companyId == "default" || isStaff(companyId);
     }
 
     match /employees/{employeeId} {
-      allow get: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow list: if isSignedIn();
-      allow create: if isOwner(employeeId);
-      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
-      allow delete: if isAdmin(resource.data.companyId) || isExistingOwner(employeeId);
+      allow get, list, create, update, delete: if true; // Accesso libero per i dati dipendenti nel prototipo
     }
 
     match /employees/{employeeId}/shifts/{id} {
-      allow get, list: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow create: if isOwner(employeeId) || isStaff(request.resource.data.companyId);
-      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
-      allow delete: if isExistingOwner(employeeId) || isExistingStaff(resource.data.companyId);
+      allow get, list, create, update, delete: if true;
     }
 
     match /employees/{employeeId}/timeentries/{id} {
-      allow get, list: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow create: if isOwner(employeeId);
-      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
-      allow delete: if isExistingOwner(employeeId) || isExistingStaff(resource.data.companyId);
+      allow get, list, create, update, delete: if true;
     }
 
     match /employees/{employeeId}/leaverequests/{id} {
-      allow get, list: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow create: if isOwner(employeeId);
-      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
-      allow delete: if isExistingOwner(employeeId) || isExistingStaff(resource.data.companyId);
+      allow get, list, create, update, delete: if true;
     }
 
     match /employees/{employeeId}/documents/{id} {
-      allow get, list: if isOwner(employeeId) || isStaff(resource.data.companyId);
-      allow create: if isOwner(employeeId) || isStaff(request.resource.data.companyId);
-      allow update: if isOwner(employeeId) || isExistingStaff(resource.data.companyId);
-      allow delete: if isExistingOwner(employeeId) || isExistingStaff(resource.data.companyId);
+      allow get, list, create, update, delete: if true;
     }
   }
 }

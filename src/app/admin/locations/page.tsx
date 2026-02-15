@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit, Loader2 } from "lucide-react"
+import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit, Loader2, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -33,15 +33,18 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function LocationsPage() {
   const db = useFirestore()
-  const { user } = useUser()
+  const { user, isUserLoading } = useUser()
 
   const locationsQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    // Carichiamo le sedi a prescindere dall'utente per il prototipo, 
+    // ma solo se db è disponibile
+    if (!db) return null;
     return collection(db, "companies", "default", "locations");
-  }, [db, user])
+  }, [db])
   
   const { data: locations, isLoading } = useCollection(locationsQuery)
   
@@ -65,6 +68,8 @@ export default function LocationsPage() {
       return
     }
 
+    // Nel prototipo permettiamo il salvataggio anche se user è null 
+    // grazie alle nuove regole rilassate per 'default'
     const locId = `loc-${Date.now()}`
     const locRef = doc(db, "companies", "default", "locations", locId)
     
@@ -80,11 +85,20 @@ export default function LocationsPage() {
 
     setIsDialogOpen(false)
     setNewLocation({ name: "", address: "", city: "" })
+    
+    toast({
+      title: "Sede creata",
+      description: "La nuova sede è stata aggiunta correttamente.",
+    })
   }
 
   const handleDeleteLocation = (id: string) => {
     const locRef = doc(db, "companies", "default", "locations", id)
     deleteDocumentNonBlocking(locRef)
+    toast({
+      title: "Sede eliminata",
+      description: "La sede è stata rimossa dal sistema.",
+    })
   }
 
   const filteredLocations = locations?.filter(loc => 
@@ -117,6 +131,17 @@ export default function LocationsPage() {
                 Inserisci i dettagli del nuovo ufficio o filiale.
               </DialogDescription>
             </DialogHeader>
+            
+            {(!user && !isUserLoading) && (
+              <Alert variant="destructive" className="my-2">
+                <ShieldAlert className="h-4 w-4" />
+                <AlertTitle>Sessione non attiva</AlertTitle>
+                <AlertDescription>
+                  L'accesso non è stato rilevato. Il salvataggio potrebbe fallire se non sei autenticato correttamente.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name" className="text-right">Nome Sede</Label>
