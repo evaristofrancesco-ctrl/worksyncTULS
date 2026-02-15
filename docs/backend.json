@@ -1,0 +1,844 @@
+{
+  "entities": {
+    "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company",
+      "type": "object",
+      "description": "Represents a company or organization managed within the WorkSync application. Supports multi-company management.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Company entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The official name of the company."
+        },
+        "address": {
+          "type": "string",
+          "description": "The primary physical address of the company."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The main contact phone number for the company."
+        },
+        "email": {
+          "type": "string",
+          "description": "The main contact email address for the company.",
+          "format": "email"
+        },
+        "website": {
+          "type": "string",
+          "description": "The official website URL for the company.",
+          "format": "uri"
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the company."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Location": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Location",
+      "type": "object",
+      "description": "Represents a physical office or work site belonging to a company, enabling multi-location management.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Location entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this location belongs to. (Relationship: Company 1:N Location)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the location (e.g., 'Headquarters', 'Branch Office A')."
+        },
+        "address": {
+          "type": "string",
+          "description": "The physical address of the location."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The contact phone number for this location."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "name",
+        "address"
+      ]
+    },
+    "Department": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Department",
+      "type": "object",
+      "description": "Represents a department within a company, organizing employees into functional groups.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Department entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this department belongs to. (Relationship: Company 1:N Department)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the department (e.g., 'Human Resources', 'Engineering')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description of the department's function."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "name"
+      ]
+    },
+    "Employee": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Employee",
+      "type": "object",
+      "description": "Represents an individual employee within a company, including their personal details, contract, and role.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Employee entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company the employee works for. (Relationship: Company 1:N Employee)"
+        },
+        "locationId": {
+          "type": "string",
+          "description": "Reference to the Location where the employee primarily works. (Relationship: Location 1:N Employee)"
+        },
+        "departmentId": {
+          "type": "string",
+          "description": "Reference to the Department the employee belongs to. (Relationship: Department 1:N Employee)"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The employee's first name."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The employee's last name."
+        },
+        "email": {
+          "type": "string",
+          "description": "The employee's professional email address, used for communication.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The employee's contact phone number."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "The employee's date of birth.",
+          "format": "date"
+        },
+        "address": {
+          "type": "string",
+          "description": "The employee's residential address."
+        },
+        "contractType": {
+          "type": "string",
+          "description": "The type of employment contract (e.g., 'full-time', 'part-time', 'contractor')."
+        },
+        "hireDate": {
+          "type": "string",
+          "description": "The date the employee was hired.",
+          "format": "date-time"
+        },
+        "terminationDate": {
+          "type": "string",
+          "description": "The date the employee's employment was terminated, if applicable.",
+          "format": "date-time"
+        },
+        "jobTitle": {
+          "type": "string",
+          "description": "The employee's job title."
+        },
+        "role": {
+          "type": "string",
+          "description": "The employee's role within the application (e.g., 'admin', 'employee', 'manager'). This determines access permissions."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the employee is currently active and employed."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "locationId",
+        "departmentId",
+        "firstName",
+        "lastName",
+        "email",
+        "contractType",
+        "hireDate",
+        "jobTitle",
+        "role",
+        "isActive"
+      ]
+    },
+    "ShiftTemplate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ShiftTemplate",
+      "type": "object",
+      "description": "Defines a reusable template for common or recurring shifts, specifying typical start and end times and other details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ShiftTemplate entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this shift template belongs to. (Relationship: Company 1:N ShiftTemplate)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the shift template (e.g., 'Morning Shift', 'Night Shift')."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The typical start time of the shift in HH:MM:SS format (e.g., '08:00:00')."
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The typical end time of the shift in HH:MM:SS format (e.g., '17:00:00')."
+        },
+        "breakDurationMinutes": {
+          "type": "number",
+          "description": "The typical duration of breaks within the shift, in minutes."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description for the shift template."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "name",
+        "startTime",
+        "endTime"
+      ]
+    },
+    "Shift": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Shift",
+      "type": "object",
+      "description": "Represents a single instance of an assigned work shift for an employee on a specific date.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Shift entity."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to the Employee assigned to this shift. (Relationship: Employee 1:N Shift)"
+        },
+        "shiftTemplateId": {
+          "type": "string",
+          "description": "Optional reference to the ShiftTemplate this shift was generated from. (Relationship: ShiftTemplate 1:N Shift)"
+        },
+        "date": {
+          "type": "string",
+          "description": "The specific date of the shift.",
+          "format": "date"
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The actual start date and time of the shift.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The actual end date and time of the shift.",
+          "format": "date-time"
+        },
+        "breakDurationMinutes": {
+          "type": "number",
+          "description": "The duration of breaks taken during this specific shift, in minutes. Overrides template if present."
+        },
+        "description": {
+          "type": "string",
+          "description": "A specific description for this shift instance."
+        },
+        "isPublished": {
+          "type": "boolean",
+          "description": "Indicates whether the shift has been published and is visible to the employee."
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "date",
+        "startTime",
+        "endTime",
+        "isPublished"
+      ]
+    },
+    "TimeEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TimeEntry",
+      "type": "object",
+      "description": "Records an employee's check-in and check-out times, used for attendance and work hour tracking.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the TimeEntry entity."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to the Employee who made this time entry. (Relationship: Employee 1:N TimeEntry)"
+        },
+        "checkInTime": {
+          "type": "string",
+          "description": "The date and time when the employee checked in.",
+          "format": "date-time"
+        },
+        "checkOutTime": {
+          "type": "string",
+          "description": "The date and time when the employee checked out. Can be null if still checked in.",
+          "format": "date-time"
+        },
+        "geoLocationIn": {
+          "type": "string",
+          "description": "Optional geolocation data (e.g., JSON string '{\"latitude\": \"\", \"longitude\": \"\"}') captured at check-in."
+        },
+        "geoLocationOut": {
+          "type": "string",
+          "description": "Optional geolocation data captured at check-out."
+        },
+        "isApproved": {
+          "type": "boolean",
+          "description": "Indicates if the time entry, particularly for overtime or adjustments, has been approved by an admin."
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "checkInTime",
+        "isApproved"
+      ]
+    },
+    "LeaveType": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaveType",
+      "type": "object",
+      "description": "Defines different categories of leave (e.g., vacation, sick leave) that employees can request, configurable by company.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the LeaveType entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this leave type belongs to. (Relationship: Company 1:N LeaveType)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the leave type (e.g., 'Vacation', 'Sick Leave', 'Personal Day')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the leave type."
+        },
+        "isPaid": {
+          "type": "boolean",
+          "description": "Indicates whether this leave type is typically paid."
+        },
+        "accrualPolicy": {
+          "type": "string",
+          "description": "Describes how leave balance is accrued (e.g., 'yearly', 'monthly', 'none'). This guides balance calculation logic."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "name",
+        "isPaid",
+        "accrualPolicy"
+      ]
+    },
+    "LeaveRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "LeaveRequest",
+      "type": "object",
+      "description": "Records an employee's request for time off, including its type, duration, and approval status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the LeaveRequest entity."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to the Employee who submitted the leave request. (Relationship: Employee 1:N LeaveRequest)"
+        },
+        "leaveTypeId": {
+          "type": "string",
+          "description": "Reference to the LeaveType being requested. (Relationship: LeaveType 1:N LeaveRequest)"
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The start date of the requested leave period.",
+          "format": "date"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "The end date of the requested leave period.",
+          "format": "date"
+        },
+        "requestDate": {
+          "type": "string",
+          "description": "The date and time the leave request was submitted.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the leave request (e.g., 'pending', 'approved', 'rejected')."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The reason provided by the employee for the leave request."
+        },
+        "approverId": {
+          "type": "string",
+          "description": "Reference to the Employee (admin/manager) who approved or rejected the request. (Relationship: Employee 1:N LeaveRequest)"
+        },
+        "approvalDate": {
+          "type": "string",
+          "description": "The date and time the leave request was approved or rejected.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "leaveTypeId",
+        "startDate",
+        "endDate",
+        "requestDate",
+        "status"
+      ]
+    },
+    "CompanyHoliday": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompanyHoliday",
+      "type": "object",
+      "description": "Records company-wide holidays when employees are generally not expected to work.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CompanyHoliday entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this holiday applies to. (Relationship: Company 1:N CompanyHoliday)"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the holiday (e.g., 'New Year's Day', 'Christmas')."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the holiday.",
+          "format": "date"
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the holiday."
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "name",
+        "date"
+      ]
+    },
+    "Document": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Document",
+      "type": "object",
+      "description": "Stores metadata about documents attached to employee profiles (e.g., contracts, certifications).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Document entity."
+        },
+        "employeeId": {
+          "type": "string",
+          "description": "Reference to the Employee this document belongs to. (Relationship: Employee 1:N Document)"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The original file name of the document."
+        },
+        "fileType": {
+          "type": "string",
+          "description": "The file type or extension (e.g., 'pdf', 'docx', 'jpg')."
+        },
+        "storagePath": {
+          "type": "string",
+          "description": "The URL or path where the actual document file is stored (e.g., cloud storage URL)."
+        },
+        "uploadDate": {
+          "type": "string",
+          "description": "The date and time the document was uploaded.",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string",
+          "description": "A description of the document's content or purpose."
+        }
+      },
+      "required": [
+        "id",
+        "employeeId",
+        "fileName",
+        "fileType",
+        "storagePath",
+        "uploadDate"
+      ]
+    },
+    "CompanyAnnouncement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompanyAnnouncement",
+      "type": "object",
+      "description": "Represents official announcements made by the company to its employees.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CompanyAnnouncement entity."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company making the announcement. (Relationship: Company 1:N CompanyAnnouncement)"
+        },
+        "title": {
+          "type": "string",
+          "description": "The title of the announcement."
+        },
+        "content": {
+          "type": "string",
+          "description": "The full content of the announcement."
+        },
+        "publishDate": {
+          "type": "string",
+          "description": "The date and time the announcement was published.",
+          "format": "date-time"
+        },
+        "expirationDate": {
+          "type": "string",
+          "description": "The date and time after which the announcement is no longer active or visible.",
+          "format": "date-time"
+        },
+        "authorId": {
+          "type": "string",
+          "description": "Reference to the Employee (admin) who authored the announcement. (Relationship: Employee 1:N CompanyAnnouncement)"
+        }
+      },
+      "required": [
+        "id",
+        "companyId",
+        "title",
+        "content",
+        "publishDate",
+        "authorId"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Top-level collection for company information. Access is restricted to employees (admins/managers) associated with the specific company, determined by their `companyId` and role through dedicated role collections. Employees can read basic company info."
+        }
+      },
+      {
+        "path": "/companies/{companyId}/locations/{locationId}",
+        "definition": {
+          "entityName": "Location",
+          "schema": {
+            "$ref": "#/backend/entities/Location"
+          },
+          "description": "Subcollection for physical locations belonging to a specific company. Implicitly linked to `companyId` by path. Access requires `request.auth.uid` to be an admin or manager of the parent `companyId`.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the Company."
+            },
+            {
+              "name": "locationId",
+              "description": "The unique identifier of the Location."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/departments/{departmentId}",
+        "definition": {
+          "entityName": "Department",
+          "schema": {
+            "$ref": "#/backend/entities/Department"
+          },
+          "description": "Subcollection for departments within a specific company. Implicitly linked to `companyId` by path. Access requires `request.auth.uid` to be an admin or manager of the parent `companyId`.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the Company."
+            },
+            {
+              "name": "departmentId",
+              "description": "The unique identifier of the Department."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/shifttemplates/{shiftTemplateId}",
+        "definition": {
+          "entityName": "ShiftTemplate",
+          "schema": {
+            "$ref": "#/backend/entities/ShiftTemplate"
+          },
+          "description": "Subcollection for reusable shift templates specific to a company. Implicitly linked to `companyId` by path. Access requires `request.auth.uid` to be an admin or manager of the parent `companyId`.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the Company."
+            },
+            {
+              "name": "shiftTemplateId",
+              "description": "The unique identifier of the ShiftTemplate."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/leavetypes/{leaveTypeId}",
+        "definition": {
+          "entityName": "LeaveType",
+          "schema": {
+            "$ref": "#/backend/entities/LeaveType"
+          },
+          "description": "Subcollection for configurable leave types specific to a company. Implicitly linked to `companyId` by path. Access requires `request.auth.uid` to be an admin or manager of the parent `companyId`.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the Company."
+            },
+            {
+              "name": "leaveTypeId",
+              "description": "The unique identifier of the LeaveType."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/companyholidays/{companyHolidayId}",
+        "definition": {
+          "entityName": "CompanyHoliday",
+          "schema": {
+            "$ref": "#/backend/entities/CompanyHoliday"
+          },
+          "description": "Subcollection for company-wide holidays. Implicitly linked to `companyId` by path. Access requires `request.auth.uid` to be an admin or manager of the parent `companyId` for writes, read for all company employees.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the Company."
+            },
+            {
+              "name": "companyHolidayId",
+              "description": "The unique identifier of the CompanyHoliday."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/companyannouncements/{announcementId}",
+        "definition": {
+          "entityName": "CompanyAnnouncement",
+          "schema": {
+            "$ref": "#/backend/entities/CompanyAnnouncement"
+          },
+          "description": "Subcollection for company-wide announcements. Implicitly linked to `companyId` by path. Write access requires `request.auth.uid` to be an admin of the parent `companyId`. Read access for all employees of the company. Includes denormalized `companyId`.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the Company."
+            },
+            {
+              "name": "announcementId",
+              "description": "The unique identifier of the CompanyAnnouncement."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/roles_admin/{employeeId}",
+        "definition": {
+          "entityName": "EmployeeRoleAdmin",
+          "schema": {
+            "$ref": "#/backend/entities/Employee"
+          },
+          "description": "Dedicated subcollection for admin roles within a specific company. The existence of a document at this path signifies that `employeeId` (which must match `request.auth.uid`) is an admin for the parent `companyId`. This is used for authorization independence in security rules via `exists()` checks. The actual document content can be minimal (e.g., just `true` or a timestamp), as only its existence matters.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the Company."
+            },
+            {
+              "name": "employeeId",
+              "description": "The Firebase UID of the employee who is an admin for this company."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companies/{companyId}/roles_manager/{employeeId}",
+        "definition": {
+          "entityName": "EmployeeRoleManager",
+          "schema": {
+            "$ref": "#/backend/entities/Employee"
+          },
+          "description": "Dedicated subcollection for manager roles within a specific company. The existence of a document at this path signifies that `employeeId` (which must match `request.auth.uid`) is a manager for the parent `companyId`. This is used for authorization independence in security rules via `exists()` checks. The actual document content can be minimal.",
+          "params": [
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the Company."
+            },
+            {
+              "name": "employeeId",
+              "description": "The Firebase UID of the employee who is a manager for this company."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}",
+        "definition": {
+          "entityName": "Employee",
+          "schema": {
+            "$ref": "#/backend/entities/Employee"
+          },
+          "description": "Top-level collection where `employeeId` corresponds to `request.auth.uid`. Each document holds an employee's full profile, including their `companyId`. This document is critical for providing the user's immediate context. The `role` field within this document is primarily for UI/client-side logic, while actual rule-based authorization leverages the `/companies/{companyId}/roles_.../{employeeId}` collections.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The Firebase UID of the employee."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}/shifts/{shiftId}",
+        "definition": {
+          "entityName": "Shift",
+          "schema": {
+            "$ref": "#/backend/entities/Shift"
+          },
+          "description": "Subcollection for individual shifts assigned to a specific employee. Includes denormalized `employeeId` (from path) and `companyId` (copied from the employee's profile upon creation) for authorization independence. Employees can read/write their own shifts. Admins/managers can read/write shifts for employees within their `companyId`.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The Firebase UID of the employee to whom the shift is assigned."
+            },
+            {
+              "name": "shiftId",
+              "description": "The unique identifier of the Shift."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}/timeentries/{timeEntryId}",
+        "definition": {
+          "entityName": "TimeEntry",
+          "schema": {
+            "$ref": "#/backend/entities/TimeEntry"
+          },
+          "description": "Subcollection for time entries (check-in/out) by a specific employee. Includes denormalized `employeeId` (from path) and `companyId` (copied from the employee's profile upon creation) for authorization independence. Employees can read/write their own time entries. Admins/managers can read/write time entries for employees within their `companyId`.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The Firebase UID of the employee who made this time entry."
+            },
+            {
+              "name": "timeEntryId",
+              "description": "The unique identifier of the TimeEntry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}/leaverequests/{leaveRequestId}",
+        "definition": {
+          "entityName": "LeaveRequest",
+          "schema": {
+            "$ref": "#/backend/entities/LeaveRequest"
+          },
+          "description": "Subcollection for leave requests submitted by a specific employee. Includes denormalized `employeeId` (from path) and `companyId` (copied from the employee's profile upon creation) for authorization independence. Employees can read/write their own leave requests. Admins/managers can read/write (approve/reject) leave requests for employees within their `companyId`.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The Firebase UID of the employee who submitted the leave request."
+            },
+            {
+              "name": "leaveRequestId",
+              "description": "The unique identifier of the LeaveRequest."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/employees/{employeeId}/documents/{documentId}",
+        "definition": {
+          "entityName": "Document",
+          "schema": {
+            "$ref": "#/backend/entities/Document"
+          },
+          "description": "Subcollection for personal documents related to a specific employee. Includes denormalized `employeeId` (from path) and `companyId` (copied from the employee's profile upon creation) for authorization independence. Employees can read their own documents. Admins/managers can read documents for employees within their `companyId` and potentially upload/manage some types of documents.",
+          "params": [
+            {
+              "name": "employeeId",
+              "description": "The Firebase UID of the employee to whom the document belongs."
+            },
+            {
+              "name": "documentId",
+              "description": "The unique identifier of the Document."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for WorkSync is designed with a strong emphasis on authorization independence, security, and scalability, adhering strictly to the provided core design principles and strategy mandates. The primary goal is to minimize complexity in security rules and enable robust query patterns (QAPs).\n\n1.  **Authorization Independence & Denormalization:**\n    *   **User Identity and Company Affiliation:** Each authenticated user's Firebase `uid` directly maps to an `Employee` document at `/employees/{employeeId}`. This `Employee` document inherently contains the `companyId` that the user belongs to. This makes a user's company affiliation immediately accessible without needing to perform a `get()` call on another document to resolve their company. This is a critical point for Authorization Independence for the user's own context.\n    *   **Role-Based Access Control (DBAC - Existence over Content):** Instead of storing a 'role' field directly in the `Employee` document for security rule enforcement (which would require a `get()` on the user's profile), authorization roles are denormalized into dedicated subcollections under each company. Specifically, `/companies/{companyId}/roles_admin/{employeeId}` and `/companies/{companyId}/roles_manager/{employeeId}` collections are used. The *existence* of a document with `request.auth.uid` as its ID in one of these collections grants the respective role for that `companyId`. This completely eliminates `get()` calls in rules when checking a user's role, fulfilling the Authorization Independence mandate.\n    *   **Child Document Context:** For documents that logically belong to a specific company or employee (e.g., `Shift`, `TimeEntry`, `LeaveRequest`, `Document`), their respective `companyId` and `employeeId` are explicitly denormalized within the document itself. This ensures that any document can be authorized directly based on its own content and the request context, again avoiding `get()` calls on parent documents (e.g., a `Shift` document contains `companyId` and `employeeId`, allowing an admin to access it if they belong to that `companyId` via an `exists` check, and an employee to access it if the `employeeId` matches their `uid`).\n\n2.  **Structural Segregation & QAPs:**\n    *   **Company-Specific Data:** Core company configurations (`Locations`, `Departments`, `ShiftTemplates`, `LeaveTypes`, `CompanyHolidays`, `CompanyAnnouncements`) are segregated into subcollections under `/companies/{companyId}/`. This ensures that all data within these subcollections shares the same security posture (e.g., only admins/managers of `companyId` can modify them; all employees of `companyId` can read announcements).\n    *   **Employee-Specific Data:** Personal records such as `Shifts`, `TimeEntries`, `LeaveRequests`, and `Documents` are organized under individual employee paths: `/employees/{employeeId}/{collectionName}/{docId}`. This path-based ownership simplifies rules for employees accessing their own data (`request.auth.uid == employeeId`).\n    *   **Secure List Operations (QAPs):** The denormalization of `companyId` into employee-specific documents (`Shift`, `TimeEntry`, `LeaveRequest`, `Document`) is crucial for QAPs. An administrator can perform efficient `collectionGroup` queries (e.g., `db.collectionGroup('shifts').where('companyId', '==', 'myCompanyId').get()`) to retrieve all relevant data for their company. The security rules can then validate that `request.auth.uid` is indeed an admin/manager of `myCompanyId` using the `exists` checks on the role collections, without requiring expensive `get()` calls per document or violating QAPs. Similarly, employees can query their own subcollections directly.\n\n3.  **Role-Based Access Control (DBAC):** Roles (`admin`, `manager`) are explicitly stored in the database in their own role collections per company, using the `exists()` function in rules to verify permissions. The `Employee` entity's `role` field is maintained for UI presentation and client-side logic, not for rule validation.\n\n4.  **Consistency and Debuggability:** Semantic naming conventions are used for all paths and parameters (e.g., `{companyId}`, `{employeeId}`). The explicit structure and denormalization make authorization intent clear and rules easier to write, understand, and debug."
+  }
+}
