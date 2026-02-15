@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ShieldCheck, User, ArrowRight, Zap, Calendar, Smartphone } from "lucide-react"
+import { ShieldCheck, ArrowRight, Zap, Calendar, Smartphone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function Home() {
@@ -18,37 +18,30 @@ export default function Home() {
         </p>
         <div className="pt-6">
           <Link href="/login">
-            <Button size="lg" className="bg-[#227FD8] hover:bg-[#227FD8]/90 h-14 px-8 text-lg font-bold rounded-2xl shadow-lg">
-              Inizia Ora <ArrowRight className="ml-2 h-5 w-5" />
+            <Button size="lg" className="bg-[#227FD8] hover:bg-[#227FD8]/90 h-14 px-8 text-lg font-bold rounded-2xl shadow-lg group">
+              Accedi al Portale <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </Button>
           </Link>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 max-w-4xl w-full animate-in slide-in-from-bottom-8 duration-700">
-        <Link href="/login" className="group text-left">
-          <div className="h-full bg-white p-8 rounded-3xl border-2 border-transparent hover:border-[#227FD8] hover:shadow-2xl transition-all duration-300 space-y-6">
-            <div className="h-14 w-14 rounded-2xl bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8] group-hover:scale-110 transition-transform">
-              <ShieldCheck className="h-8 w-8" />
+      <div className="max-w-4xl w-full animate-in slide-in-from-bottom-8 duration-700">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4 text-left">
+            <div className="h-12 w-12 rounded-xl bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8]">
+              <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-800">Accesso Gestione</h3>
-              <p className="text-slate-500 mt-2">Portale per amministratori e manager per il controllo operativo.</p>
+              <p className="font-bold text-slate-800">Accesso Unificato</p>
+              <p className="text-sm text-slate-500">Il sistema riconosce automaticamente il tuo ruolo.</p>
             </div>
           </div>
-        </Link>
-
-        <Link href="/login" className="group text-left">
-          <div className="h-full bg-white p-8 rounded-3xl border-2 border-transparent hover:border-[#33CCCC] hover:shadow-2xl transition-all duration-300 space-y-6">
-            <div className="h-14 w-14 rounded-2xl bg-[#33CCCC]/10 flex items-center justify-center text-[#33CCCC] group-hover:scale-110 transition-transform">
-              <User className="h-8 w-8" />
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold text-slate-800">Accesso Personale</h3>
-              <p className="text-slate-500 mt-2">Portale per i dipendenti per consultare turni e timbrare.</p>
-            </div>
+          <div className="flex gap-4">
+             <div className="h-1 w-12 rounded-full bg-slate-100" />
+             <div className="h-1 w-12 rounded-full bg-slate-100" />
+             <div className="h-1 w-12 rounded-full bg-slate-100" />
           </div>
-        </Link>
+        </div>
       </div>
 
       <div className="flex flex-wrap justify-center gap-12 text-slate-400 opacity-60 max-w-3xl border-t border-slate-200 pt-12">
