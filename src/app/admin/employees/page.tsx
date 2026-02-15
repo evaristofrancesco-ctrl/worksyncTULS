@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useState } from "react"
-import { Plus, Search, MoreVertical, UserPlus, Lock, User as UserIcon, MapPin, Trash2, Edit, Loader2 } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -34,27 +35,28 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
-import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, doc, deleteDoc, setDoc } from "firebase/firestore"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, doc } from "firebase/firestore"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 export default function EmployeesPage() {
   const db = useFirestore()
-  const { user } = useUser()
   
+  // Query dei dipendenti: nel prototipo carichiamo i dati a prescindere dallo stato utente
   const employeesQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!db) return null;
     return collection(db, "employees");
-  }, [db, user])
+  }, [db])
   const { data: employees, isLoading: employeesLoading } = useCollection(employeesQuery)
   
+  // Query delle sedi per il selettore
   const locationsQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!db) return null;
     return collection(db, "companies", "default", "locations");
-  }, [db, user])
+  }, [db])
   const { data: locations } = useCollection(locationsQuery)
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
 
@@ -69,8 +71,7 @@ export default function EmployeesPage() {
     locationId: "",
   })
 
-  const handleAddEmployee = async () => {
-    // Rimosso l'obbligo di locationId dalla validazione
+  const handleAddEmployee = () => {
     if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.email || !newEmployee.jobTitle || !newEmployee.password) {
       toast({
         variant: "destructive",
@@ -80,76 +81,60 @@ export default function EmployeesPage() {
       return
     }
 
-    setIsSubmitting(true)
-    try {
-      const tempId = `emp-${Date.now()}`
-      const selectedLoc = locations?.find(l => l.id === newEmployee.locationId)
+    const tempId = `emp-${Date.now()}`
+    const selectedLoc = locations?.find(l => l.id === newEmployee.locationId)
+    const employeeRef = doc(db, "employees", tempId)
 
-      const employeeData = {
-        id: tempId,
-        firstName: newEmployee.firstName,
-        lastName: newEmployee.lastName,
-        email: newEmployee.email,
-        role: newEmployee.isAdmin ? 'admin' : 'employee',
-        jobTitle: newEmployee.jobTitle,
-        department: newEmployee.department || "Generale",
-        isActive: true,
-        hireDate: new Date().toISOString(),
-        companyId: "default",
-        locationId: newEmployee.locationId || "",
-        locationName: selectedLoc?.name || "Nessuna",
-        contractType: "full-time"
-      }
-
-      await setDoc(doc(db, "employees", tempId), employeeData)
-
-      setIsDialogOpen(false)
-      setNewEmployee({ 
-        firstName: "", 
-        lastName: "",
-        email: "", 
-        jobTitle: "", 
-        department: "", 
-        isAdmin: false,
-        password: "",
-        locationId: ""
-      })
-      
-      toast({
-        title: "Successo!",
-        description: `${newEmployee.firstName} ${newEmployee.lastName} è stato aggiunto.`,
-      })
-    } catch (e: any) {
-      toast({
-        variant: "destructive",
-        title: "Errore",
-        description: "Impossibile salvare il dipendente.",
-      })
-    } finally {
-      setIsSubmitting(false)
+    const employeeData = {
+      id: tempId,
+      firstName: newEmployee.firstName,
+      lastName: newEmployee.lastName,
+      email: newEmployee.email,
+      role: newEmployee.isAdmin ? 'admin' : 'employee',
+      jobTitle: newEmployee.jobTitle,
+      department: newEmployee.department || "Generale",
+      isActive: true,
+      hireDate: new Date().toISOString(),
+      companyId: "default",
+      locationId: newEmployee.locationId || "",
+      locationName: selectedLoc?.name || "Nessuna",
+      contractType: "full-time"
     }
+
+    // Salvataggio non bloccante: l'UI si aggiorna istantaneamente grazie alla cache locale di Firestore
+    setDocumentNonBlocking(employeeRef, employeeData, { merge: true })
+
+    setIsDialogOpen(false)
+    setNewEmployee({ 
+      firstName: "", 
+      lastName: "",
+      email: "", 
+      jobTitle: "", 
+      department: "", 
+      isAdmin: false,
+      password: "",
+      locationId: ""
+    })
+    
+    toast({
+      title: "Successo!",
+      description: `${newEmployee.firstName} ${newEmployee.lastName} è stato aggiunto alla lista.`,
+    })
   }
 
-  const handleDeleteEmployee = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "employees", id))
-      toast({
-        title: "Dipendente rimosso",
-        description: "Il profilo è stato rimosso con successo.",
-      })
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Errore",
-        description: "Impossibile eliminare il dipendente.",
-      })
-    }
+  const handleDeleteEmployee = (id: string) => {
+    const employeeRef = doc(db, "employees", id)
+    deleteDocumentNonBlocking(employeeRef)
+    toast({
+      title: "Dipendente rimosso",
+      description: "Il profilo è stato rimosso con successo.",
+    })
   }
 
   const filteredEmployees = employees?.filter(emp => 
     `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.jobTitle.toLowerCase().includes(searchQuery.toLowerCase())
+    emp.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.jobTitle?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || []
 
   return (
@@ -269,8 +254,7 @@ export default function EmployeesPage() {
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>Annulla</Button>
-              <Button onClick={handleAddEmployee} disabled={isSubmitting} className="bg-[#227FD8] hover:bg-[#227FD8]/90">
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              <Button onClick={handleAddEmployee} className="bg-[#227FD8] hover:bg-[#227FD8]/90">
                 Salva Dipendente
               </Button>
             </DialogFooter>
@@ -359,6 +343,13 @@ export default function EmployeesPage() {
                   </TableCell>
                 </TableRow>
               ))}
+              {!employeesLoading && filteredEmployees.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    Nessun dipendente trovato. Aggiungine uno nuovo per iniziare.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
