@@ -49,13 +49,13 @@ export function ClockInOut() {
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
-            Attendance
+            Timbratura
           </CardTitle>
           <Badge variant={isClockedIn ? "default" : "secondary"} className={isClockedIn ? "bg-green-500" : ""}>
-            {isClockedIn ? "Clocked In" : "Offline"}
+            {isClockedIn ? "In Servizio" : "Offline"}
           </Badge>
         </div>
-        <CardDescription>Register your working hours for today.</CardDescription>
+        <CardDescription>Registra le tue ore di lavoro per oggi.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center py-6 gap-6">
         <div className="text-center">
@@ -63,13 +63,13 @@ export function ClockInOut() {
             {time ? time.toLocaleTimeString([], { hour12: false }) : "00:00:00"}
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            {time ? time.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : "Loading..."}
+            {time ? time.toLocaleDateString('it-IT', { weekday: 'long', month: 'long', day: 'numeric' }) : "Caricamento..."}
           </p>
         </div>
 
         {isClockedIn && (
           <div className="bg-white dark:bg-slate-900 rounded-lg p-3 w-full border text-center shadow-sm">
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Time Elapsed</p>
+            <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Tempo Trascorso</p>
             <p className="text-2xl font-mono font-bold text-accent">{elapsed}</p>
           </div>
         )}
@@ -80,16 +80,16 @@ export function ClockInOut() {
             className={`flex-1 h-12 gap-2 text-lg font-bold ${isClockedIn ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'}`}
           >
             {isClockedIn ? (
-              <><Square className="h-5 w-5 fill-current" /> Clock Out</>
+              <><Square className="h-5 w-5 fill-current" /> Uscita</>
             ) : (
-              <><Play className="h-5 w-5 fill-current" /> Clock In</>
+              <><Play className="h-5 w-5 fill-current" /> Entrata</>
             )}
           </Button>
         </div>
         
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <MapPin className="h-3 w-3" />
-          <span>Location tracking enabled</span>
+          <span>Localizzazione attiva</span>
         </div>
       </CardContent>
     </Card>

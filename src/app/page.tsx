@@ -9,12 +9,12 @@ export default function Home() {
     <div className="min-h-screen bg-[#F4F8FA] flex flex-col items-center justify-center p-6 text-center space-y-12">
       <div className="space-y-4 max-w-2xl animate-in fade-in zoom-in duration-500">
         <div className="flex justify-center mb-6">
-           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#227FD8] text-white text-3xl font-black shadow-xl">W</div>
+           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#227FD8] text-white text-3xl font-black shadow-xl">T</div>
         </div>
-        <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-[#1e293b]">WorkSync</h1>
+        <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-[#1e293b]">TU.L.A.S</h1>
         <p className="text-xl text-slate-500 font-medium leading-relaxed">
-          The all-in-one workforce management platform designed for modern teams. 
-          Smart scheduling, real-time tracking, and AI-powered optimization.
+          La piattaforma di gestione del personale tutto-in-uno progettata per i team moderni.
+          Pianificazione intelligente, monitoraggio in tempo reale e ottimizzazione basata su AI.
         </p>
       </div>
 
@@ -25,11 +25,11 @@ export default function Home() {
               <ShieldCheck className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-800">Admin Portal</h3>
-              <p className="text-slate-500 mt-2">Manage your workforce, approve requests, and use AI to optimize shift schedules.</p>
+              <h3 className="text-2xl font-bold text-slate-800">Portale Amministratore</h3>
+              <p className="text-slate-500 mt-2">Gestisci il tuo personale, approva le richieste e usa l'AI per ottimizzare i turni.</p>
             </div>
             <div className="flex items-center text-[#227FD8] font-bold gap-2">
-              Enter Dashboard <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              Entra nella Dashboard <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
         </Link>
@@ -40,19 +40,19 @@ export default function Home() {
               <User className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-800">Employee App</h3>
-              <p className="text-slate-500 mt-2">Check your shifts, clock-in with geofencing, and submit time-off requests seamlessly.</p>
+              <h3 className="text-2xl font-bold text-slate-800">App Dipendente</h3>
+              <p className="text-slate-500 mt-2">Controlla i tuoi turni, timbra l'ingresso e invia richieste di ferie in modo semplice.</p>
             </div>
             <div className="flex items-center text-[#33CCCC] font-bold gap-2">
-              Access My Account <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              Accedi al mio Account <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
         </Link>
       </div>
 
       <div className="flex flex-wrap justify-center gap-12 text-slate-400 opacity-60 max-w-3xl border-t border-slate-200 pt-12">
-        <div className="flex items-center gap-2 font-bold"><Zap className="h-5 w-5" /> AI Optimization</div>
-        <div className="flex items-center gap-2 font-bold"><Calendar className="h-5 w-5" /> Smart Scheduling</div>
+        <div className="flex items-center gap-2 font-bold"><Zap className="h-5 w-5" /> Ottimizzazione AI</div>
+        <div className="flex items-center gap-2 font-bold"><Calendar className="h-5 w-5" /> Turni Intelligenti</div>
         <div className="flex items-center gap-2 font-bold"><Smartphone className="h-5 w-5" /> Mobile First</div>
       </div>
     </div>

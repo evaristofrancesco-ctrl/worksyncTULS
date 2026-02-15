@@ -25,7 +25,7 @@ export default function ShiftsPage() {
   const handleAiOptimize = async () => {
     setIsOptimizing(true)
     try {
-      // Map mock data to GenAI types
+      // Mappa i dati mock ai tipi GenAI
       const inputEmployees: Employee[] = mockEmployees.map(e => ({
         id: e.id,
         name: e.name,
@@ -52,7 +52,7 @@ export default function ShiftsPage() {
       setOptimizationResult(result)
       setShowResultDialog(true)
     } catch (error) {
-      console.error("Optimization failed:", error)
+      console.error("Ottimizzazione fallita:", error)
     } finally {
       setIsOptimizing(false)
     }
@@ -62,25 +62,25 @@ export default function ShiftsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Shift Management</h1>
-          <p className="text-muted-foreground">Schedule and optimize your team's workflow.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Gestione Turni</h1>
+          <p className="text-muted-foreground">Pianifica e ottimizza il flusso di lavoro del tuo team.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleAiOptimize} disabled={isOptimizing} className="gap-2 border-accent text-accent hover:bg-accent hover:text-white">
             <Sparkles className={`h-4 w-4 ${isOptimizing ? 'animate-pulse' : ''}`} />
-            {isOptimizing ? 'Optimizing...' : 'AI Optimizer'}
+            {isOptimizing ? 'Ottimizzazione...' : 'Ottimizzatore AI'}
           </Button>
           <Button className="gap-2 bg-primary">
             <Plus className="h-4 w-4" />
-            New Shift
+            Nuovo Turno
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="calendar" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="calendar">Calendar View</TabsTrigger>
-          <TabsTrigger value="list">List View</TabsTrigger>
+          <TabsTrigger value="calendar">Vista Calendario</TabsTrigger>
+          <TabsTrigger value="list">Vista Elenco</TabsTrigger>
         </TabsList>
         
         <TabsContent value="calendar" className="pt-6">
@@ -88,8 +88,8 @@ export default function ShiftsPage() {
             <div className="text-center space-y-4">
               <Calendar className="h-12 w-12 text-muted-foreground mx-auto" />
               <div>
-                <h3 className="text-lg font-semibold">Interactive Calendar Coming Soon</h3>
-                <p className="text-muted-foreground max-w-xs mx-auto">Full drag-and-drop scheduling interface currently in development.</p>
+                <h3 className="text-lg font-semibold">Calendario Interattivo in Arrivo</h3>
+                <p className="text-muted-foreground max-w-xs mx-auto">Interfaccia completa per la pianificazione tramite drag-and-drop in fase di sviluppo.</p>
               </div>
             </div>
           </Card>
@@ -118,7 +118,7 @@ export default function ShiftsPage() {
                       <span className="text-sm font-medium">Michael Chen</span>
                     </div>
                     <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      Confirmed
+                      Confermato
                     </Badge>
                   </div>
                 </CardContent>
@@ -133,10 +133,10 @@ export default function ShiftsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-accent" />
-              AI Shift Optimization Results
+              Risultati Ottimizzazione AI
             </DialogTitle>
             <DialogDescription>
-              We've analyzed employee availability, roles, and skills to suggest the following assignments.
+              Abbiamo analizzato disponibilità, ruoli e competenze per suggerire i seguenti assegnamenti.
             </DialogDescription>
           </DialogHeader>
 
@@ -147,7 +147,7 @@ export default function ShiftsPage() {
               </div>
 
               <div className="space-y-3">
-                <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Suggested Assignments</h4>
+                <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Assegnamenti Suggeriti</h4>
                 {optimizationResult.optimizedAssignments.map((assignment, idx) => (
                   <div key={idx} className="flex items-start gap-4 p-3 border rounded-lg hover:border-primary/50 transition-colors">
                     <div className="mt-1 h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-600">
@@ -155,8 +155,8 @@ export default function ShiftsPage() {
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-center">
-                        <span className="font-bold">Shift ID: {assignment.shiftId}</span>
-                        <Badge variant="secondary">Emp: {assignment.employeeId}</Badge>
+                        <span className="font-bold">ID Turno: {assignment.shiftId}</span>
+                        <Badge variant="secondary">Dip: {assignment.employeeId}</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{assignment.justification}</p>
                     </div>
@@ -166,11 +166,11 @@ export default function ShiftsPage() {
 
               {optimizationResult.unassignedShifts.length > 0 && (
                 <div className="space-y-3">
-                  <h4 className="text-sm font-bold uppercase tracking-wider text-red-500">Unassigned Shifts</h4>
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-red-500">Turni Non Assegnati</h4>
                   {optimizationResult.unassignedShifts.map((id, idx) => (
                     <div key={idx} className="flex items-center gap-3 p-3 bg-red-50 border border-red-100 rounded-lg">
                       <AlertTriangle className="h-4 w-4 text-red-500" />
-                      <span className="text-sm font-medium text-red-700">Unable to fill: {id}</span>
+                      <span className="text-sm font-medium text-red-700">Impossibile coprire: {id}</span>
                     </div>
                   ))}
                 </div>
@@ -179,8 +179,8 @@ export default function ShiftsPage() {
           )}
 
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowResultDialog(false)}>Discard</Button>
-            <Button onClick={() => setShowResultDialog(false)} className="bg-primary">Apply Suggestions</Button>
+            <Button variant="ghost" onClick={() => setShowResultDialog(false)}>Scarta</Button>
+            <Button onClick={() => setShowResultDialog(false)} className="bg-primary">Applica Suggerimenti</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

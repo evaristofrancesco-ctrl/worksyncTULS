@@ -21,7 +21,7 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search for employees, shifts..."
+            placeholder="Cerca dipendenti, turni..."
             className="pl-8 bg-muted/50 border-none h-9 w-full md:w-[300px] lg:w-[400px]"
           />
         </div>
@@ -44,20 +44,20 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuLabel>Il Mio Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <User className="mr-2 h-4 w-4" />
-                Profile
+                Profilo
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Settings className="mr-2 h-4 w-4" />
-                Settings
+                Impostazioni
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive">
                 <LogOut className="mr-2 h-4 w-4" />
-                Log out
+                Disconnetti
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

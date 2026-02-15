@@ -1,61 +1,61 @@
 'use server';
 /**
- * @fileOverview A Genkit flow for optimizing shift assignments.
+ * @fileOverview Un flusso Genkit per ottimizzare l'assegnazione dei turni.
  *
- * - aiShiftOptimization - A function that handles the AI-powered shift optimization process.
- * - AiShiftOptimizationInput - The input type for the aiShiftOptimization function.
- * - AiShiftOptimizationOutput - The return type for the aiShiftOptimization function.
+ * - aiShiftOptimization - Una funzione che gestisce il processo di ottimizzazione dei turni tramite AI.
+ * - AiShiftOptimizationInput - Il tipo di input per la funzione aiShiftOptimization.
+ * - AiShiftOptimizationOutput - Il tipo di ritorno per la funzione aiShiftOptimization.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const EmployeeSchema = z.object({
-  id: z.string().describe('Unique identifier for the employee.'),
-  name: z.string().describe('Full name of the employee.'),
-  roles: z.array(z.string()).describe('List of roles the employee can perform (e.g., "Manager", "Cashier").'),
-  skills: z.array(z.string()).describe('List of skills the employee possesses (e.g., "First Aid", "Forklift Certified").'),
-  availability: z.string().describe('A free-text description of the employee\'s general availability (e.g., "Mon-Fri, 9am-5pm", "Weekends only").'),
+  id: z.string().describe('Identificativo unico per il dipendente.'),
+  name: z.string().describe('Nome completo del dipendente.'),
+  roles: z.array(z.string()).describe('Lista dei ruoli che il dipendente può ricoprire (es. "Manager", "Cassiere").'),
+  skills: z.array(z.string()).describe('Lista di competenze possedute (es. "Primo Soccorso", "Certificato Carrello Elevatore").'),
+  availability: z.string().describe('Descrizione testuale della disponibilità generale (es. "Lun-Ven, 9-17", "Solo weekend").'),
 });
 export type Employee = z.infer<typeof EmployeeSchema>;
 
 const ShiftSchema = z.object({
-  id: z.string().describe('Unique identifier for the shift.'),
-  name: z.string().describe('Descriptive name of the shift (e.g., "Morning Shift", "Evening Shift").'),
-  startTime: z.string().datetime().describe('ISO 8601 formatted start datetime of the shift (e.g., "2023-10-27T08:00:00").'),
-  endTime: z.string().datetime().describe('ISO 8601 formatted end datetime of the shift (e.g., "2023-10-27T16:00:00").'),
-  requiredRoles: z.array(z.string()).describe('Roles required for this shift (e.g., ["Cashier", "Stocker"]).'),
-  requiredSkills: z.array(z.string()).describe('Skills required for this shift (e.g., ["First Aid"]).'),
-  minCoverage: z.number().int().min(1).describe('Minimum number of employees required for this shift.'),
+  id: z.string().describe('Identificativo unico per il turno.'),
+  name: z.string().describe('Nome descrittivo del turno (es. "Turno Mattutino").'),
+  startTime: z.string().datetime().describe('Data e ora di inizio in formato ISO 8601.'),
+  endTime: z.string().datetime().describe('Data e ora di fine in formato ISO 8601.'),
+  requiredRoles: z.array(z.string()).describe('Ruoli richiesti per questo turno.'),
+  requiredSkills: z.array(z.string()).describe('Competenze richieste per questo turno.'),
+  minCoverage: z.number().int().min(1).describe('Numero minimo di dipendenti richiesti per questo turno.'),
 });
 export type Shift = z.infer<typeof ShiftSchema>;
 
 const SpecificCoverageRequirementSchema = z.object({
-  shiftId: z.string().describe('The ID of the shift this requirement applies to.'),
-  role: z.string().describe('The specific role that needs a minimum count.'),
-  count: z.number().int().min(1).describe('The minimum number of employees with this role required for the specified shift.'),
+  shiftId: z.string().describe('L\'ID del turno a cui si applica questo requisito.'),
+  role: z.string().describe('Il ruolo specifico che richiede un conteggio minimo.'),
+  count: z.number().int().min(1).describe('Il numero minimo di dipendenti con questo ruolo richiesti.'),
 });
 export type SpecificCoverageRequirement = z.infer<typeof SpecificCoverageRequirementSchema>;
 
 export const AiShiftOptimizationInputSchema = z.object({
-  employees: z.array(EmployeeSchema).describe('List of available employees with their details.'),
-  shifts: z.array(ShiftSchema).describe('List of shifts that need to be filled.'),
-  specificCoverageRequirements: z.array(SpecificCoverageRequirementSchema).optional().describe('Optional specific minimum coverage requirements per role for certain shifts.'),
+  employees: z.array(EmployeeSchema).describe('Lista dei dipendenti disponibili con i loro dettagli.'),
+  shifts: z.array(ShiftSchema).describe('Lista dei turni da coprire.'),
+  specificCoverageRequirements: z.array(SpecificCoverageRequirementSchema).optional().describe('Requisiti opzionali di copertura minima per ruolo.'),
 });
 export type AiShiftOptimizationInput = z.infer<typeof AiShiftOptimizationInputSchema>;
 
 const OptimizedAssignmentSchema = z.object({
-  shiftId: z.string().describe('The ID of the assigned shift.'),
-  employeeId: z.string().describe('The ID of the employee assigned to the shift.'),
-  justification: z.string().describe('A brief explanation of why this employee was assigned to this shift, considering roles, skills, and availability.'),
+  shiftId: z.string().describe('L\'ID del turno assegnato.'),
+  employeeId: z.string().describe('L\'ID del dipendente assegnato.'),
+  justification: z.string().describe('Una breve spiegazione del perché questo dipendente è stato scelto.'),
 });
 export type OptimizedAssignment = z.infer<typeof OptimizedAssignmentSchema>;
 
 export const AiShiftOptimizationOutputSchema = z.object({
-  optimizedAssignments: z.array(OptimizedAssignmentSchema).describe('The suggested optimized shift assignments.'),
-  unassignedShifts: z.array(z.string()).describe('List of shift IDs that could not be assigned to any employee due to constraints.'),
-  unassignedEmployees: z.array(z.string()).describe('List of employee IDs who were not assigned any shifts.'),
-  optimizationSummary: z.string().describe('A summary of the optimization process, highlighting any challenges or specific considerations.'),
+  optimizedAssignments: z.array(OptimizedAssignmentSchema).describe('Gli assegnamenti suggeriti e ottimizzati.'),
+  unassignedShifts: z.array(z.string()).describe('Lista degli ID dei turni che non è stato possibile coprire.'),
+  unassignedEmployees: z.array(z.string()).describe('Lista degli ID dei dipendenti non assegnati a nessun turno.'),
+  optimizationSummary: z.string().describe('Un riepilogo del processo di ottimizzazione.'),
 });
 export type AiShiftOptimizationOutput = z.infer<typeof AiShiftOptimizationOutputSchema>;
 
@@ -67,33 +67,31 @@ const aiShiftOptimizationPrompt = ai.definePrompt({
   name: 'aiShiftOptimizationPrompt',
   input: {schema: AiShiftOptimizationInputSchema},
   output: {schema: AiShiftOptimizationOutputSchema},
-  prompt: `You are an expert workforce manager AI. Your task is to optimize shift assignments for a company based on employee details, shift requirements, and coverage rules.
-Ensure that all assignments respect employee availability, roles, and skills. Prioritize filling all shifts while adhering to minimum coverage requirements.
+  prompt: `Sei un esperto AI di gestione della forza lavoro. Il tuo compito è ottimizzare l'assegnazione dei turni per un'azienda chiamata TU.L.A.S. basandoti sui dettagli dei dipendenti e sui requisiti dei turni.
+Assicurati che tutti gli assegnamenti rispettino la disponibilità, i ruoli e le competenze. Dai priorità alla copertura di tutti i turni.
 
-Here is the data:
+Dati:
 
-Employees:
+Dipendenti:
 {{{json employees}}}
 
-Shifts to fill:
+Turni da coprire:
 {{{json shifts}}}
 
-Minimum specific coverage requirements (e.g., "at least 1 manager for shift X"):
+Requisiti specifici:
 {{#if specificCoverageRequirements}}
 {{{json specificCoverageRequirements}}}
 {{else}}
-None specified.
+Nessuno specificato.
 {{/if}}
 
-Constraints and Guidelines:
-1. Each shift must meet its 'minCoverage' requirement.
-2. Employees can only be assigned to shifts they are available for. Interpret 'availability' from the employee data.
-3. Employees must possess all 'requiredRoles' and 'requiredSkills' for an assigned shift.
-4. If 'specificCoverageRequirements' are provided, ensure those are met in addition to 'minCoverage'.
-5. Avoid assigning an employee to overlapping shifts.
-6. Provide a 'justification' for each assignment, explaining why that employee was chosen (e.g., "Employee has required role/skill and is available").
+Linee guida:
+1. Ogni turno deve soddisfare il suo 'minCoverage'.
+2. I dipendenti possono essere assegnati solo se disponibili.
+3. Evita sovrapposizioni di turni per lo stesso dipendente.
+4. Fornisci una 'justification' per ogni scelta in lingua italiana.
 
-Provide the output in a JSON format matching the following structure:
+Rispondi in formato JSON seguendo questo schema:
 {{json output.schema}}`,
 });
 
@@ -106,7 +104,7 @@ const aiShiftOptimizationFlow = ai.defineFlow(
   async (input) => {
     const {output} = await aiShiftOptimizationPrompt(input);
     if (!output) {
-      throw new Error('No output received from the AI shift optimization prompt.');
+      throw new Error('Nessun output ricevuto dal prompt di ottimizzazione.');
     }
     return output;
   }
