@@ -1,8 +1,7 @@
-
 "use client"
 
 import { useState } from "react"
-import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2, Edit, Save } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2, Edit, Save, ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -68,6 +67,7 @@ export default function EmployeesPage() {
     isAdmin: false,
     password: "",
     locationId: "",
+    photoUrl: "",
   })
 
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
@@ -103,7 +103,8 @@ export default function EmployeesPage() {
       companyId: "default",
       locationId: newEmployee.locationId || "",
       locationName: selectedLoc?.name || "Nessuna",
-      contractType: "full-time"
+      contractType: "full-time",
+      photoUrl: newEmployee.photoUrl || `https://picsum.photos/seed/${tempId}/200/200`
     }
 
     setDocumentNonBlocking(employeeRef, employeeData, { merge: true })
@@ -117,12 +118,13 @@ export default function EmployeesPage() {
       department: "", 
       isAdmin: false,
       password: "",
-      locationId: ""
+      locationId: "",
+      photoUrl: ""
     })
     
     toast({
       title: "Successo!",
-      description: `${employeeData.firstName} ${employeeData.lastName} è stato aggiunto. Credenziali: ${cleanEmail}`,
+      description: `${employeeData.firstName} ${employeeData.lastName} è stato aggiunto.`,
     })
   }
 
@@ -150,7 +152,8 @@ export default function EmployeesPage() {
       email: cleanEmail,
       jobTitle: (editingEmployee.jobTitle || "").trim(),
       locationName: selectedLoc?.name || "Nessuna",
-      role: editingEmployee.isAdmin ? 'admin' : 'employee'
+      role: editingEmployee.isAdmin ? 'admin' : 'employee',
+      photoUrl: editingEmployee.photoUrl || `https://picsum.photos/seed/${editingEmployee.id}/200/200`
     }
 
     updateDocumentNonBlocking(employeeRef, updateData)
@@ -214,7 +217,22 @@ export default function EmployeesPage() {
             </DialogHeader>
             <div className="grid gap-6 py-4">
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Informazioni Personali</h4>
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Foto e Identità</h4>
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-16 w-16 border-2 border-primary/20">
+                    <AvatarImage src={newEmployee.photoUrl || `https://picsum.photos/seed/new/200/200`} />
+                    <AvatarFallback><ImageIcon className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="photoUrl">URL Foto Profilo</Label>
+                    <Input 
+                      id="photoUrl" 
+                      placeholder="https://esempio.com/foto.jpg" 
+                      value={newEmployee.photoUrl || ""}
+                      onChange={(e) => setNewEmployee({...newEmployee, photoUrl: e.target.value})}
+                    />
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="firstName">Nome</Label>
@@ -243,7 +261,6 @@ export default function EmployeesPage() {
                     value={newEmployee.email || ""}
                     onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
                   />
-                  <p className="text-[10px] text-muted-foreground">Verrà convertito in minuscolo per l'accesso.</p>
                 </div>
               </div>
 
@@ -352,7 +369,7 @@ export default function EmployeesPage() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="border-2 border-white shadow-sm">
-                        <AvatarImage src={`https://picsum.photos/seed/${employee.id}/200/200`} alt={employee.firstName} />
+                        <AvatarImage src={employee.photoUrl || `https://picsum.photos/seed/${employee.id}/200/200`} alt={employee.firstName} />
                         <AvatarFallback className="bg-primary/10 text-primary font-bold">{(employee.firstName || "").charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col text-sm">
@@ -421,6 +438,21 @@ export default function EmployeesPage() {
           {editingEmployee && (
             <div className="grid gap-6 py-4">
               <div className="space-y-4">
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Foto e Identità</h4>
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-16 w-16 border-2 border-primary/20">
+                    <AvatarImage src={editingEmployee.photoUrl || `https://picsum.photos/seed/${editingEmployee.id}/200/200`} />
+                    <AvatarFallback><ImageIcon className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="edit-photoUrl">URL Foto Profilo</Label>
+                    <Input 
+                      id="edit-photoUrl" 
+                      value={editingEmployee.photoUrl || ""}
+                      onChange={(e) => setEditingEmployee({...editingEmployee, photoUrl: e.target.value})}
+                    />
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit-firstName">Nome</Label>
