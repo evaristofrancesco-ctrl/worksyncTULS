@@ -1,5 +1,12 @@
 export type Role = 'ADMIN' | 'EMPLOYEE';
 
+export interface Location {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+}
+
 export interface Employee {
   id: string;
   name: string;
@@ -12,6 +19,8 @@ export interface Employee {
   availability: string;
   joinDate: string;
   remainingLeave: number;
+  locationId?: string;
+  locationName?: string;
 }
 
 export interface Shift {

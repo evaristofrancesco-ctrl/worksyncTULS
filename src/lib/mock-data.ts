@@ -1,44 +1,56 @@
-import { Employee, Shift, LeaveRequest, AttendanceRecord } from './types';
+import { Employee, Shift, LeaveRequest, AttendanceRecord, Location } from './types';
+
+export const mockLocations: Location[] = [
+  { id: 'loc-1', name: 'Sede Centrale', address: 'Via Roma 123', city: 'Milano' },
+  { id: 'loc-2', name: 'Filiale Nord', address: 'Via Milano 45', city: 'Torino' },
+  { id: 'loc-3', name: 'Hub Creativo', address: 'Piazza Dante 10', city: 'Firenze' },
+];
 
 export const mockEmployees: Employee[] = [
   {
     id: 'emp-1',
     name: 'Sarah Johnson',
-    email: 'sarah.j@worksync.com',
+    email: 'sarah.j@tulas.com',
     role: 'ADMIN',
-    position: 'HR Manager',
+    position: 'Responsabile HR',
     department: 'People Operations',
     avatarUrl: 'https://picsum.photos/seed/sarah/200/200',
     skills: ['Management', 'Communication', 'Payroll'],
-    availability: 'Mon-Fri, 9:00-17:00',
+    availability: 'Lun-Ven, 9:00-17:00',
     joinDate: '2022-01-15',
     remainingLeave: 15,
+    locationId: 'loc-1',
+    locationName: 'Sede Centrale',
   },
   {
     id: 'emp-2',
     name: 'Michael Chen',
-    email: 'm.chen@worksync.com',
+    email: 'm.chen@tulas.com',
     role: 'EMPLOYEE',
-    position: 'Senior Developer',
+    position: 'Sviluppatore Senior',
     department: 'Engineering',
     avatarUrl: 'https://picsum.photos/seed/michael/200/200',
     skills: ['React', 'Node.js', 'PostgreSQL'],
-    availability: 'Flexible',
+    availability: 'Flessibile',
     joinDate: '2022-03-20',
     remainingLeave: 12,
+    locationId: 'loc-1',
+    locationName: 'Sede Centrale',
   },
   {
     id: 'emp-3',
     name: 'Elena Rodriguez',
-    email: 'elena.r@worksync.com',
+    email: 'elena.r@tulas.com',
     role: 'EMPLOYEE',
     position: 'UX Designer',
     department: 'Product',
     avatarUrl: 'https://picsum.photos/seed/elena/200/200',
     skills: ['Figma', 'Prototyping', 'User Research'],
-    availability: 'Mon-Fri, 10:00-18:00',
+    availability: 'Lun-Ven, 10:00-18:00',
     joinDate: '2023-05-10',
     remainingLeave: 18,
+    locationId: 'loc-3',
+    locationName: 'Hub Creativo',
   },
 ];
 
@@ -46,7 +58,7 @@ export const mockShifts: Shift[] = [
   {
     id: 'shift-1',
     employeeId: 'emp-2',
-    title: 'Development Sprint',
+    title: 'Sprint di Sviluppo',
     startTime: new Date(new Date().setHours(9, 0)).toISOString(),
     endTime: new Date(new Date().setHours(17, 0)).toISOString(),
     status: 'SCHEDULED',
@@ -54,7 +66,7 @@ export const mockShifts: Shift[] = [
   {
     id: 'shift-2',
     employeeId: 'emp-3',
-    title: 'Design Review',
+    title: 'Revisione Progetto',
     startTime: new Date(new Date().setHours(10, 0)).toISOString(),
     endTime: new Date(new Date().setHours(14, 0)).toISOString(),
     status: 'SCHEDULED',
@@ -69,7 +81,7 @@ export const mockLeaveRequests: LeaveRequest[] = [
     startDate: '2024-05-01',
     endDate: '2024-05-05',
     status: 'PENDING',
-    reason: 'Family trip to Italy',
+    reason: 'Viaggio di famiglia in Italia',
   },
 ];
 

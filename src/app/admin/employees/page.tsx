@@ -1,8 +1,7 @@
-
 "use client"
 
 import { useState } from "react"
-import { Plus, Search, MoreVertical, UserPlus, Lock, User as UserIcon } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, Lock, User as UserIcon, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -34,7 +33,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { mockEmployees as initialEmployees } from "@/lib/mock-data"
+import { mockEmployees as initialEmployees, mockLocations } from "@/lib/mock-data"
 import { useToast } from "@/hooks/use-toast"
 import { Employee, Role } from "@/lib/types"
 
@@ -54,6 +53,7 @@ export default function EmployeesPage() {
     isAdmin: false,
     username: "",
     password: "",
+    locationId: "",
   })
 
   const handleAddEmployee = () => {
@@ -65,6 +65,8 @@ export default function EmployeesPage() {
       })
       return
     }
+
+    const selectedLoc = mockLocations.find(l => l.id === newEmployee.locationId);
 
     const employeeToAdd: Employee = {
       id: `emp-${Date.now()}`,
@@ -78,6 +80,8 @@ export default function EmployeesPage() {
       availability: "Lun-Ven, 9:00-17:00",
       joinDate: new Date().toISOString().split('T')[0],
       remainingLeave: 20,
+      locationId: newEmployee.locationId,
+      locationName: selectedLoc?.name || "Nessuna",
     }
 
     setEmployees([employeeToAdd, ...employees])
@@ -90,12 +94,13 @@ export default function EmployeesPage() {
       skills: "", 
       isAdmin: false,
       username: "",
-      password: "" 
+      password: "",
+      locationId: ""
     })
     
     toast({
       title: "Successo!",
-      description: `${newEmployee.name} è stato aggiunto al team come ${newEmployee.isAdmin ? 'Amministratore' : 'Dipendente'}.`,
+      description: `${newEmployee.name} è stato aggiunto al team.`,
     })
   }
 
@@ -157,7 +162,7 @@ export default function EmployeesPage() {
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Ruolo e Competenze</h4>
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Ruolo e Sede</h4>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="position" className="text-right">Qualifica</Label>
                   <Input 
@@ -167,6 +172,19 @@ export default function EmployeesPage() {
                     value={newEmployee.position}
                     onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
                   />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="location" className="text-right">Sede Operativa</Label>
+                  <Select onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v})}>
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Seleziona sede" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {mockLocations.map((loc) => (
+                        <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="department" className="text-right">Dipartimento</Label>
@@ -270,7 +288,7 @@ export default function EmployeesPage() {
               <TableRow>
                 <TableHead className="rounded-l-lg font-bold">Dipendente</TableHead>
                 <TableHead className="font-bold">Ruolo / Dipartimento</TableHead>
-                <TableHead className="font-bold">Competenze</TableHead>
+                <TableHead className="font-bold">Sede</TableHead>
                 <TableHead className="font-bold">Data Inizio</TableHead>
                 <TableHead className="text-right rounded-r-lg font-bold">Azioni</TableHead>
               </TableRow>
@@ -302,17 +320,9 @@ export default function EmployeesPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {employee.skills.slice(0, 2).map((skill) => (
-                        <Badge key={skill} variant="secondary" className="text-[10px] px-1.5 py-0 bg-[#33CCCC]/10 text-[#2a9d9d] border-none">
-                          {skill}
-                        </Badge>
-                      ))}
-                      {employee.skills.length > 2 && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          +{employee.skills.length - 2}
-                        </Badge>
-                      )}
+                    <div className="flex items-center gap-1 text-sm">
+                      <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <span className="font-medium">{employee.locationName || "Non assegnata"}</span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -338,15 +348,6 @@ export default function EmployeesPage() {
               ))}
             </TableBody>
           </Table>
-          {filteredEmployees.length === 0 && (
-            <div className="py-20 text-center space-y-3">
-              <div className="h-16 w-16 bg-muted/30 rounded-full flex items-center justify-center mx-auto">
-                <Search className="h-8 w-8 text-muted-foreground/50" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-400">Nessun dipendente trovato</h3>
-              <p className="text-sm text-slate-400">Prova a cambiare i termini della ricerca.</p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

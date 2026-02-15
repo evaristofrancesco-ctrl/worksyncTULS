@@ -8,17 +8,16 @@ import {
   Calendar, 
   Clock, 
   FileText, 
-  Briefcase,
+  MapPin,
   Layers,
-  HelpCircle,
-  Menu
+  HelpCircle
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 
 const adminLinks = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Dipendenti", href: "/admin/employees", icon: Users },
+  { name: "Sedi Operative", href: "/admin/locations", icon: MapPin },
   { name: "Turni", href: "/admin/shifts", icon: Calendar },
   { name: "Presenze", href: "/admin/attendance", icon: Clock },
   { name: "Richieste", href: "/admin/requests", icon: FileText },
