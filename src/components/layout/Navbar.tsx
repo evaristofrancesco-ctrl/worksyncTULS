@@ -28,11 +28,16 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
     setIsLoggingOut(true)
     try {
       await signOut(auth)
+      // Puliamo anche i dati locali per sicurezza
+      localStorage.removeItem("userRole")
+      localStorage.removeItem("userName")
+      
       toast({
         title: "Disconnesso",
         description: "Sessione terminata con successo.",
       })
-      router.push("/login")
+      // Reindirizzamento alla pagina iniziale
+      router.push("/")
     } catch (error) {
       console.error("Errore durante il logout:", error)
       toast({
