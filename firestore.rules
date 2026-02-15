@@ -5,8 +5,8 @@ service cloud.firestore {
     /**
      * WORK-SYNC SECURITY RULES - PROTOTYPE VERSION
      * 
-     * In questa versione di prototipo, permettiamo l'accesso completo alla società 'default'
-     * per facilitare i test con il bypass di login.
+     * In questa versione di prototipo, permettiamo l'accesso completo per facilitare i test.
+     * Supportiamo le query collectionGroup tramite il pattern {path=**}.
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -15,12 +15,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
     // Role check: Existence of a document in the company's admin role collection
-    // Bypass totale per la società 'default' nel prototipo
     function isAdmin(companyId) {
       return companyId == "default" || (isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/roles_admin/$(request.auth.uid)));
     }
@@ -33,78 +28,49 @@ service cloud.firestore {
       return isAdmin(companyId) || isManager(companyId);
     }
 
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
-    }
-
-    function isExistingStaff(companyId) {
-      return resource != null && isStaff(companyId);
-    }
-
     // --- COLLECTION RULES ---
 
+    // Regole per le società e configurazioni
     match /companies/{companyId} {
-      allow get, list: if true; // Permettiamo la lettura pubblica per il prototipo
-      allow create: if true;
-      allow update, delete: if isAdmin(companyId);
+      allow read, write: if true;
+      
+      match /locations/{id} { allow read, write: if true; }
+      match /departments/{id} { allow read, write: if true; }
+      match /shifttemplates/{id} { allow read, write: if true; }
+      match /leavetypes/{id} { allow read, write: if true; }
+      match /companyholidays/{id} { allow read, write: if true; }
+      match /companyannouncements/{id} { allow read, write: if true; }
+      match /roles_admin/{id} { allow read, write: if true; }
+      match /roles_manager/{id} { allow read, write: if true; }
     }
 
-    match /companies/{companyId}/locations/{id} {
-      allow get, list: if true;
-      allow create, update, delete: if companyId == "default" || isStaff(companyId);
-    }
-
-    match /companies/{companyId}/departments/{id} {
-      allow get, list: if true;
-      allow create, update, delete: if companyId == "default" || isStaff(companyId);
-    }
-
-    match /companies/{companyId}/shifttemplates/{id} {
-      allow get, list: if true;
-      allow create, update, delete: if companyId == "default" || isStaff(companyId);
-    }
-
-    match /companies/{companyId}/leavetypes/{id} {
-      allow get, list: if true;
-      allow create, update, delete: if companyId == "default" || isStaff(companyId);
-    }
-
-    match /companies/{companyId}/companyholidays/{id} {
-      allow get, list: if true;
-      allow create, update, delete: if companyId == "default" || isStaff(companyId);
-    }
-
-    match /companies/{companyId}/companyannouncements/{id} {
-      allow get, list: if true;
-      allow create, update, delete: if companyId == "default" || isAdmin(companyId);
-    }
-
-    match /companies/{companyId}/roles_admin/{employeeId} {
-      allow get, list, create, update, delete: if companyId == "default" || isAdmin(companyId);
-    }
-
-    match /companies/{companyId}/roles_manager/{employeeId} {
-      allow get, list, create, update, delete: if companyId == "default" || isStaff(companyId);
-    }
-
+    // Regole per i dipendenti e le loro sottocollezioni
     match /employees/{employeeId} {
-      allow get, list, create, update, delete: if true; // Accesso libero per i dati dipendenti nel prototipo
+      allow read, write: if true;
+      
+      match /shifts/{id} { allow read, write: if true; }
+      match /timeentries/{id} { allow read, write: if true; }
+      match /leaverequests/{id} { allow read, write: if true; }
+      match /documents/{id} { allow read, write: if true; }
     }
 
-    match /employees/{employeeId}/shifts/{id} {
-      allow get, list, create, update, delete: if true;
+    // REGOLE CRITICHE PER COLLECTION GROUP QUERIES
+    // Queste regole permettono a db.collectionGroup('...') di funzionare
+    
+    match /{path=**}/timeentries/{id} {
+      allow read, write: if true;
     }
-
-    match /employees/{employeeId}/timeentries/{id} {
-      allow get, list, create, update, delete: if true;
+    
+    match /{path=**}/shifts/{id} {
+      allow read, write: if true;
     }
-
-    match /employees/{employeeId}/leaverequests/{id} {
-      allow get, list, create, update, delete: if true;
+    
+    match /{path=**}/leaverequests/{id} {
+      allow read, write: if true;
     }
-
-    match /employees/{employeeId}/documents/{id} {
-      allow get, list, create, update, delete: if true;
+    
+    match /{path=**}/documents/{id} {
+      allow read, write: if true;
     }
   }
 }
