@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Lock, Mail, Loader2, Info } from "lucide-react"
-import { Button } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -153,7 +153,7 @@ export default function LoginPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-bold h-11" disabled={isLoading}>
+            <Button type="submit" className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-bold h-11" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
