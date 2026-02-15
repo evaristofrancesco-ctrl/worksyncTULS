@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MapPin, Plus, Search, MoreVertical, Building2 } from "lucide-react"
+import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -23,6 +23,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu"
 import { mockLocations as initialLocations } from "@/lib/mock-data"
 import { useToast } from "@/hooks/use-toast"
 import { Location } from "@/lib/types"
@@ -61,6 +67,14 @@ export default function LocationsPage() {
     toast({
       title: "Sede aggiunta",
       description: `${newLocation.name} è stata registrata correttamente.`,
+    })
+  }
+
+  const handleDeleteLocation = (id: string) => {
+    setLocations(locations.filter(l => l.id !== id))
+    toast({
+      title: "Sede eliminata",
+      description: "La sede è stata rimossa dal sistema.",
     })
   }
 
@@ -134,7 +148,7 @@ export default function LocationsPage() {
         </Dialog>
       </div>
 
-      <Card className="border-none shadow-sm">
+      <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
         <CardHeader className="pb-3">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <CardTitle className="text-xl font-bold">Elenco Sedi</CardTitle>
@@ -142,7 +156,7 @@ export default function LocationsPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Cerca sede o città..."
-                className="pl-8 bg-muted/30 border-none"
+                className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -153,25 +167,52 @@ export default function LocationsPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Città</TableHead>
-                <TableHead>Indirizzo</TableHead>
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead className="font-bold">Nome</TableHead>
+                <TableHead className="font-bold">Città</TableHead>
+                <TableHead className="font-bold">Indirizzo</TableHead>
+                <TableHead className="text-right font-bold">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredLocations.map((loc) => (
-                <TableRow key={loc.id}>
-                  <TableCell className="font-bold text-[#1e293b]">{loc.name}</TableCell>
+                <TableRow key={loc.id} className="hover:bg-muted/20 transition-colors">
+                  <TableCell className="font-bold text-[#1e293b]">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-[#227FD8]" />
+                      {loc.name}
+                    </div>
+                  </TableCell>
                   <TableCell>{loc.city}</TableCell>
                   <TableCell className="text-muted-foreground">{loc.address}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem className="cursor-pointer">
+                          <Edit className="h-4 w-4 mr-2" /> Modifica
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-destructive cursor-pointer"
+                          onClick={() => handleDeleteLocation(loc.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))}
+              {filteredLocations.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    Nessuna sede trovata.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

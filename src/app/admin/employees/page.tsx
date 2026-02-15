@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Search, MoreVertical, UserPlus, Lock, User as UserIcon, MapPin } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, Lock, User as UserIcon, MapPin, Trash2, Edit } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -57,11 +57,11 @@ export default function EmployeesPage() {
   })
 
   const handleAddEmployee = () => {
-    if (!newEmployee.name || !newEmployee.email || !newEmployee.position || !newEmployee.username || !newEmployee.password) {
+    if (!newEmployee.name || !newEmployee.email || !newEmployee.position || !newEmployee.username || !newEmployee.password || !newEmployee.locationId) {
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "Per favore compila i campi obbligatori (Nome, Email, Ruolo, Username e Password).",
+        description: "Per favore compila tutti i campi obbligatori inclusa la Sede Operativa.",
       })
       return
     }
@@ -100,7 +100,15 @@ export default function EmployeesPage() {
     
     toast({
       title: "Successo!",
-      description: `${newEmployee.name} è stato aggiunto al team.`,
+      description: `${newEmployee.name} è stato aggiunto al team e assegnato a ${employeeToAdd.locationName}.`,
+    })
+  }
+
+  const handleDeleteEmployee = (id: string) => {
+    setEmployees(employees.filter(e => e.id !== id))
+    toast({
+      title: "Dipendente rimosso",
+      description: "Il profilo è stato rimosso con successo.",
     })
   }
 
@@ -181,7 +189,7 @@ export default function EmployeesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {mockLocations.map((loc) => (
-                        <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                        <SelectItem key={loc.id} value={loc.id}>{loc.name} ({loc.city})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -268,7 +276,7 @@ export default function EmployeesPage() {
             <div>
               <CardTitle className="text-xl font-bold text-[#1e293b]">Team TU.L.A.S</CardTitle>
               <CardDescription>
-                Totale {filteredEmployees.length} dipendenti filtrati nel sistema.
+                Totale {filteredEmployees.length} dipendenti registrati nel sistema.
               </CardDescription>
             </div>
             <div className="relative w-full max-w-sm">
@@ -321,7 +329,7 @@ export default function EmployeesPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
-                      <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <MapPin className="h-3 w-3 text-[#227FD8]" />
                       <span className="font-medium">{employee.locationName || "Non assegnata"}</span>
                     </div>
                   </TableCell>
@@ -338,9 +346,15 @@ export default function EmployeesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem className="cursor-pointer">Modifica Profilo</DropdownMenuItem>
-                        <DropdownMenuItem className="cursor-pointer">Vedi Turni</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive cursor-pointer font-medium">Elimina</DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-pointer">
+                          <Edit className="h-4 w-4 mr-2" /> Modifica Profilo
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-destructive cursor-pointer font-medium"
+                          onClick={() => handleDeleteEmployee(employee.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
