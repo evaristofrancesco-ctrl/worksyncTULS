@@ -16,35 +16,36 @@ export default function Home() {
           La piattaforma di gestione del personale tutto-in-uno progettata per i team moderni.
           Pianificazione intelligente, monitoraggio in tempo reale e ottimizzazione basata su AI.
         </p>
+        <div className="pt-6">
+          <Link href="/login">
+            <Button size="lg" className="bg-[#227FD8] hover:bg-[#227FD8]/90 h-14 px-8 text-lg font-bold rounded-2xl shadow-lg">
+              Inizia Ora <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 max-w-4xl w-full animate-in slide-in-from-bottom-8 duration-700">
-        <Link href="/admin" className="group">
-          <div className="h-full bg-white p-8 rounded-3xl border-2 border-transparent hover:border-[#227FD8] hover:shadow-2xl transition-all duration-300 text-left space-y-6">
+        <Link href="/login" className="group text-left">
+          <div className="h-full bg-white p-8 rounded-3xl border-2 border-transparent hover:border-[#227FD8] hover:shadow-2xl transition-all duration-300 space-y-6">
             <div className="h-14 w-14 rounded-2xl bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8] group-hover:scale-110 transition-transform">
               <ShieldCheck className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-800">Portale Amministratore</h3>
-              <p className="text-slate-500 mt-2">Gestisci il tuo personale, approva le richieste e usa l'AI per ottimizzare i turni.</p>
-            </div>
-            <div className="flex items-center text-[#227FD8] font-bold gap-2">
-              Entra nella Dashboard <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              <h3 className="text-2xl font-bold text-slate-800">Accesso Gestione</h3>
+              <p className="text-slate-500 mt-2">Portale per amministratori e manager per il controllo operativo.</p>
             </div>
           </div>
         </Link>
 
-        <Link href="/employee" className="group">
-          <div className="h-full bg-white p-8 rounded-3xl border-2 border-transparent hover:border-[#33CCCC] hover:shadow-2xl transition-all duration-300 text-left space-y-6">
+        <Link href="/login" className="group text-left">
+          <div className="h-full bg-white p-8 rounded-3xl border-2 border-transparent hover:border-[#33CCCC] hover:shadow-2xl transition-all duration-300 space-y-6">
             <div className="h-14 w-14 rounded-2xl bg-[#33CCCC]/10 flex items-center justify-center text-[#33CCCC] group-hover:scale-110 transition-transform">
               <User className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-800">App Dipendente</h3>
-              <p className="text-slate-500 mt-2">Controlla i tuoi turni, timbra l'ingresso e invia richieste di ferie in modo semplice.</p>
-            </div>
-            <div className="flex items-center text-[#33CCCC] font-bold gap-2">
-              Accedi al mio Account <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              <h3 className="text-2xl font-bold text-slate-800">Accesso Personale</h3>
+              <p className="text-slate-500 mt-2">Portale per i dipendenti per consultare turni e timbrare.</p>
             </div>
           </div>
         </Link>

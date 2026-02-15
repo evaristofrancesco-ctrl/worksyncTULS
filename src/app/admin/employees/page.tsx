@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Search, MoreVertical, UserPlus, Lock, User as UserIcon, MapPin, Trash2, Edit } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, Lock, User as UserIcon, MapPin, Trash2, Edit, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -33,90 +33,117 @@ import {
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { mockEmployees as initialEmployees, mockLocations } from "@/lib/mock-data"
 import { useToast } from "@/hooks/use-toast"
-import { Employee, Role } from "@/lib/types"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, doc, deleteDoc, setDoc } from "firebase/firestore"
 
 export default function EmployeesPage() {
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees)
+  const db = useFirestore()
+  const employeesQuery = useMemoFirebase(() => collection(db, "employees"), [db])
+  const { data: employees, isLoading: employeesLoading } = useCollection(employeesQuery)
+  
+  const locationsQuery = useMemoFirebase(() => collection(db, "companies", "default", "locations"), [db])
+  const { data: locations } = useCollection(locationsQuery)
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
 
-  // Stato per il nuovo dipendente
   const [newEmployee, setNewEmployee] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
-    position: "",
+    jobTitle: "",
     department: "",
-    skills: "",
     isAdmin: false,
-    username: "",
     password: "",
     locationId: "",
   })
 
-  const handleAddEmployee = () => {
-    if (!newEmployee.name || !newEmployee.email || !newEmployee.position || !newEmployee.username || !newEmployee.password || !newEmployee.locationId) {
+  const handleAddEmployee = async () => {
+    if (!newEmployee.firstName || !newEmployee.lastName || !newEmployee.email || !newEmployee.jobTitle || !newEmployee.password || !newEmployee.locationId) {
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "Per favore compila tutti i campi obbligatori inclusa la Sede Operativa.",
+        description: "Per favore compila tutti i campi obbligatori.",
       })
       return
     }
 
-    const selectedLoc = mockLocations.find(l => l.id === newEmployee.locationId);
+    setIsSubmitting(true)
+    try {
+      // In un'app reale, useremmo una Server Action o Cloud Function per creare l'utente Auth.
+      // Qui simuliamo l'aggiunta a Firestore usando un ID generato.
+      const tempId = `emp-${Date.now()}`
+      const selectedLoc = locations?.find(l => l.id === newEmployee.locationId)
 
-    const employeeToAdd: Employee = {
-      id: `emp-${Date.now()}`,
-      name: newEmployee.name,
-      email: newEmployee.email,
-      role: newEmployee.isAdmin ? 'ADMIN' as Role : 'EMPLOYEE' as Role,
-      position: newEmployee.position,
-      department: newEmployee.department || "Generale",
-      avatarUrl: `https://picsum.photos/seed/${newEmployee.name}/200/200`,
-      skills: newEmployee.skills.split(',').map(s => s.trim()).filter(s => s !== ""),
-      availability: "Lun-Ven, 9:00-17:00",
-      joinDate: new Date().toISOString().split('T')[0],
-      remainingLeave: 20,
-      locationId: newEmployee.locationId,
-      locationName: selectedLoc?.name || "Nessuna",
+      const employeeData = {
+        id: tempId,
+        firstName: newEmployee.firstName,
+        lastName: newEmployee.lastName,
+        email: newEmployee.email,
+        role: newEmployee.isAdmin ? 'admin' : 'employee',
+        jobTitle: newEmployee.jobTitle,
+        department: newEmployee.department || "Generale",
+        isActive: true,
+        hireDate: new Date().toISOString(),
+        companyId: "default",
+        locationId: newEmployee.locationId,
+        locationName: selectedLoc?.name || "Nessuna",
+        contractType: "full-time"
+      }
+
+      await setDoc(doc(db, "employees", tempId), employeeData)
+
+      setIsDialogOpen(false)
+      setNewEmployee({ 
+        firstName: "", 
+        lastName: "",
+        email: "", 
+        jobTitle: "", 
+        department: "", 
+        isAdmin: false,
+        password: "",
+        locationId: ""
+      })
+      
+      toast({
+        title: "Successo!",
+        description: `${newEmployee.firstName} ${newEmployee.lastName} è stato aggiunto. Nota: In produzione questo creerebbe anche le credenziali di accesso.`,
+      })
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: "Impossibile salvare il dipendente.",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setEmployees([employeeToAdd, ...employees])
-    setIsDialogOpen(false)
-    setNewEmployee({ 
-      name: "", 
-      email: "", 
-      position: "", 
-      department: "", 
-      skills: "", 
-      isAdmin: false,
-      username: "",
-      password: "",
-      locationId: ""
-    })
-    
-    toast({
-      title: "Successo!",
-      description: `${newEmployee.name} è stato aggiunto al team e assegnato a ${employeeToAdd.locationName}.`,
-    })
   }
 
-  const handleDeleteEmployee = (id: string) => {
-    setEmployees(employees.filter(e => e.id !== id))
-    toast({
-      title: "Dipendente rimosso",
-      description: "Il profilo è stato rimosso con successo.",
-    })
+  const handleDeleteEmployee = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "employees", id))
+      toast({
+        title: "Dipendente rimosso",
+        description: "Il profilo è stato rimosso con successo.",
+      })
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Errore",
+        description: "Impossibile eliminare il dipendente.",
+      })
+    }
   }
 
-  const filteredEmployees = employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredEmployees = employees?.filter(emp => 
+    `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.position.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+    emp.jobTitle.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || []
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -146,23 +173,32 @@ export default function EmployeesPage() {
             <div className="grid gap-6 py-4">
               <div className="space-y-4">
                 <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Informazioni Personali</h4>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">Nome</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="Mario Rossi" 
-                    className="col-span-3" 
-                    value={newEmployee.name}
-                    onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Nome</Label>
+                    <Input 
+                      id="firstName" 
+                      placeholder="Mario" 
+                      value={newEmployee.firstName}
+                      onChange={(e) => setNewEmployee({...newEmployee, firstName: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Cognome</Label>
+                    <Input 
+                      id="lastName" 
+                      placeholder="Rossi" 
+                      value={newEmployee.lastName}
+                      onChange={(e) => setNewEmployee({...newEmployee, lastName: e.target.value})}
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email" className="text-right">Email</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
                   <Input 
                     id="email" 
                     type="email" 
                     placeholder="mario.rossi@tulas.com" 
-                    className="col-span-3"
                     value={newEmployee.email}
                     onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
                   />
@@ -171,53 +207,29 @@ export default function EmployeesPage() {
 
               <div className="space-y-4">
                 <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Ruolo e Sede</h4>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="position" className="text-right">Qualifica</Label>
-                  <Input 
-                    id="position" 
-                    placeholder="es. Senior Developer" 
-                    className="col-span-3"
-                    value={newEmployee.position}
-                    onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="location" className="text-right">Sede Operativa</Label>
-                  <Select onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v})}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Seleziona sede" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mockLocations.map((loc) => (
-                        <SelectItem key={loc.id} value={loc.id}>{loc.name} ({loc.city})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="department" className="text-right">Dipartimento</Label>
-                  <Select onValueChange={(v) => setNewEmployee({...newEmployee, department: v})}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Seleziona dipartimento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Engineering">Ingegneria</SelectItem>
-                      <SelectItem value="Product">Prodotto</SelectItem>
-                      <SelectItem value="People Operations">Risorse Umane</SelectItem>
-                      <SelectItem value="Sales">Vendite</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="skills" className="text-right">Competenze</Label>
-                  <Input 
-                    id="skills" 
-                    placeholder="Separati da virgola (es. React, SQL)" 
-                    className="col-span-3"
-                    value={newEmployee.skills}
-                    onChange={(e) => setNewEmployee({...newEmployee, skills: e.target.value})}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="jobTitle">Qualifica</Label>
+                    <Input 
+                      id="jobTitle" 
+                      placeholder="es. Senior Developer" 
+                      value={newEmployee.jobTitle}
+                      onChange={(e) => setNewEmployee({...newEmployee, jobTitle: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Sede Operativa</Label>
+                    <Select onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleziona sede" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations?.map((loc) => (
+                          <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
@@ -235,27 +247,12 @@ export default function EmployeesPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="username" className="text-right flex items-center justify-end gap-2">
-                    <UserIcon className="h-3 w-3" /> Username
-                  </Label>
-                  <Input 
-                    id="username" 
-                    placeholder="m.rossi" 
-                    className="col-span-3"
-                    value={newEmployee.username}
-                    onChange={(e) => setNewEmployee({...newEmployee, username: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="password" className="text-right flex items-center justify-end gap-2">
-                    <Lock className="h-3 w-3" /> Password
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password Iniziale</Label>
                   <Input 
                     id="password" 
                     type="password"
                     placeholder="••••••••" 
-                    className="col-span-3"
                     value={newEmployee.password}
                     onChange={(e) => setNewEmployee({...newEmployee, password: e.target.value})}
                   />
@@ -264,7 +261,10 @@ export default function EmployeesPage() {
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setIsDialogOpen(false)}>Annulla</Button>
-              <Button onClick={handleAddEmployee} className="bg-[#227FD8] hover:bg-[#227FD8]/90">Salva Dipendente</Button>
+              <Button onClick={handleAddEmployee} disabled={isSubmitting} className="bg-[#227FD8] hover:bg-[#227FD8]/90">
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Salva Dipendente
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -295,25 +295,30 @@ export default function EmployeesPage() {
             <TableHeader className="bg-muted/30">
               <TableRow>
                 <TableHead className="rounded-l-lg font-bold">Dipendente</TableHead>
-                <TableHead className="font-bold">Ruolo / Dipartimento</TableHead>
+                <TableHead className="font-bold">Ruolo</TableHead>
                 <TableHead className="font-bold">Sede</TableHead>
-                <TableHead className="font-bold">Data Inizio</TableHead>
                 <TableHead className="text-right rounded-r-lg font-bold">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEmployees.map((employee) => (
+              {employeesLoading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                  </TableCell>
+                </TableRow>
+              ) : filteredEmployees.map((employee) => (
                 <TableRow key={employee.id} className="hover:bg-muted/20 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="border-2 border-white shadow-sm">
-                        <AvatarImage src={employee.avatarUrl} alt={employee.name} />
-                        <AvatarFallback className="bg-primary/10 text-primary font-bold">{employee.name.charAt(0)}</AvatarFallback>
+                        <AvatarImage src={`https://picsum.photos/seed/${employee.id}/200/200`} alt={employee.firstName} />
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">{employee.firstName?.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col text-sm">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-[#1e293b]">{employee.name}</span>
-                          {employee.role === 'ADMIN' && (
+                          <span className="font-bold text-[#1e293b]">{employee.firstName} {employee.lastName}</span>
+                          {employee.role === 'admin' && (
                             <Badge className="bg-[#227FD8]/10 text-[#227FD8] border-none text-[9px] h-4 px-1">ADMIN</Badge>
                           )}
                         </div>
@@ -322,21 +327,13 @@ export default function EmployeesPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col text-sm">
-                      <span className="font-medium text-[#1e293b]">{employee.position}</span>
-                      <span className="text-muted-foreground text-xs">{employee.department}</span>
-                    </div>
+                    <span className="text-sm font-medium">{employee.jobTitle}</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 text-sm">
                       <MapPin className="h-3 w-3 text-[#227FD8]" />
                       <span className="font-medium">{employee.locationName || "Non assegnata"}</span>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-muted-foreground font-medium">
-                      {new Date(employee.joinDate).toLocaleDateString('it-IT')}
-                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -346,13 +343,7 @@ export default function EmployeesPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem className="cursor-pointer">
-                          <Edit className="h-4 w-4 mr-2" /> Modifica Profilo
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-destructive cursor-pointer font-medium"
-                          onClick={() => handleDeleteEmployee(employee.id)}
-                        >
+                        <DropdownMenuItem className="text-destructive cursor-pointer font-medium" onClick={() => handleDeleteEmployee(employee.id)}>
                           <Trash2 className="h-4 w-4 mr-2" /> Elimina
                         </DropdownMenuItem>
                       </DropdownMenuContent>
