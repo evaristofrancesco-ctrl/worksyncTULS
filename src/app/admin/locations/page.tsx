@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -40,8 +41,6 @@ export default function LocationsPage() {
   const { user, isUserLoading } = useUser()
 
   const locationsQuery = useMemoFirebase(() => {
-    // Carichiamo le sedi a prescindere dall'utente per il prototipo, 
-    // ma solo se db è disponibile
     if (!db) return null;
     return collection(db, "companies", "default", "locations");
   }, [db])
@@ -68,16 +67,14 @@ export default function LocationsPage() {
       return
     }
 
-    // Nel prototipo permettiamo il salvataggio anche se user è null 
-    // grazie alle nuove regole rilassate per 'default'
     const locId = `loc-${Date.now()}`
     const locRef = doc(db, "companies", "default", "locations", locId)
     
     const locationData = {
       id: locId,
-      name: newLocation.name,
-      address: newLocation.address,
-      city: newLocation.city,
+      name: (newLocation.name || "").trim(),
+      address: (newLocation.address || "").trim(),
+      city: (newLocation.city || "").trim(),
       companyId: "default"
     }
 
@@ -102,8 +99,8 @@ export default function LocationsPage() {
   }
 
   const filteredLocations = locations?.filter(loc => 
-    loc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    loc.city.toLowerCase().includes(searchQuery.toLowerCase())
+    (loc.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (loc.city || "").toLowerCase().includes(searchQuery.toLowerCase())
   ) || []
 
   return (
@@ -149,7 +146,7 @@ export default function LocationsPage() {
                   id="name" 
                   placeholder="es. Ufficio Nord" 
                   className="col-span-3" 
-                  value={newLocation.name}
+                  value={newLocation.name || ""}
                   onChange={(e) => setNewLocation({...newLocation, name: e.target.value})}
                 />
               </div>
@@ -159,7 +156,7 @@ export default function LocationsPage() {
                   id="city" 
                   placeholder="es. Milano" 
                   className="col-span-3"
-                  value={newLocation.city}
+                  value={newLocation.city || ""}
                   onChange={(e) => setNewLocation({...newLocation, city: e.target.value})}
                 />
               </div>
@@ -169,7 +166,7 @@ export default function LocationsPage() {
                   id="address" 
                   placeholder="es. Via delle Industrie 1" 
                   className="col-span-3"
-                  value={newLocation.address}
+                  value={newLocation.address || ""}
                   onChange={(e) => setNewLocation({...newLocation, address: e.target.value})}
                 />
               </div>

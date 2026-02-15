@@ -73,9 +73,8 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
 
   const handleAddEmployee = () => {
-    // Normalizziamo l'email/username in minuscolo per facilitare il login
-    const cleanEmail = newEmployee.email.trim().toLowerCase()
-    const cleanPassword = newEmployee.password.trim()
+    const cleanEmail = (newEmployee.email || "").trim().toLowerCase()
+    const cleanPassword = (newEmployee.password || "").trim()
 
     if (!newEmployee.firstName || !newEmployee.lastName || !cleanEmail || !newEmployee.jobTitle || !cleanPassword) {
       toast({
@@ -92,13 +91,13 @@ export default function EmployeesPage() {
 
     const employeeData = {
       id: tempId,
-      firstName: newEmployee.firstName.trim(),
-      lastName: newEmployee.lastName.trim(),
+      firstName: (newEmployee.firstName || "").trim(),
+      lastName: (newEmployee.lastName || "").trim(),
       email: cleanEmail,
       password: cleanPassword,
       role: newEmployee.isAdmin ? 'admin' : 'employee',
-      jobTitle: newEmployee.jobTitle.trim(),
-      department: newEmployee.department.trim() || "Generale",
+      jobTitle: (newEmployee.jobTitle || "").trim(),
+      department: (newEmployee.department || "").trim() || "Generale",
       isActive: true,
       hireDate: new Date().toISOString(),
       companyId: "default",
@@ -130,7 +129,7 @@ export default function EmployeesPage() {
   const handleUpdateEmployee = () => {
     if (!editingEmployee) return;
 
-    const cleanEmail = editingEmployee.email.trim().toLowerCase()
+    const cleanEmail = (editingEmployee.email || "").trim().toLowerCase()
     
     if (!editingEmployee.firstName || !editingEmployee.lastName || !cleanEmail || !editingEmployee.jobTitle) {
       toast({
@@ -146,10 +145,10 @@ export default function EmployeesPage() {
 
     const updateData = {
       ...editingEmployee,
-      firstName: editingEmployee.firstName.trim(),
-      lastName: editingEmployee.lastName.trim(),
+      firstName: (editingEmployee.firstName || "").trim(),
+      lastName: (editingEmployee.lastName || "").trim(),
       email: cleanEmail,
-      jobTitle: editingEmployee.jobTitle.trim(),
+      jobTitle: (editingEmployee.jobTitle || "").trim(),
       locationName: selectedLoc?.name || "Nessuna",
       role: editingEmployee.isAdmin ? 'admin' : 'employee'
     }
@@ -222,7 +221,7 @@ export default function EmployeesPage() {
                     <Input 
                       id="firstName" 
                       placeholder="Mario" 
-                      value={newEmployee.firstName}
+                      value={newEmployee.firstName || ""}
                       onChange={(e) => setNewEmployee({...newEmployee, firstName: e.target.value})}
                     />
                   </div>
@@ -231,7 +230,7 @@ export default function EmployeesPage() {
                     <Input 
                       id="lastName" 
                       placeholder="Rossi" 
-                      value={newEmployee.lastName}
+                      value={newEmployee.lastName || ""}
                       onChange={(e) => setNewEmployee({...newEmployee, lastName: e.target.value})}
                     />
                   </div>
@@ -241,7 +240,7 @@ export default function EmployeesPage() {
                   <Input 
                     id="email" 
                     placeholder="es. mario.rossi" 
-                    value={newEmployee.email}
+                    value={newEmployee.email || ""}
                     onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
                   />
                   <p className="text-[10px] text-muted-foreground">Verrà convertito in minuscolo per l'accesso.</p>
@@ -256,13 +255,13 @@ export default function EmployeesPage() {
                     <Input 
                       id="jobTitle" 
                       placeholder="es. Senior Developer" 
-                      value={newEmployee.jobTitle}
+                      value={newEmployee.jobTitle || ""}
                       onChange={(e) => setNewEmployee({...newEmployee, jobTitle: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="location">Sede Operativa (Opzionale)</Label>
-                    <Select value={newEmployee.locationId} onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v})}>
+                    <Select value={newEmployee.locationId || "none"} onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v === "none" ? "" : v})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleziona sede" />
                       </SelectTrigger>
@@ -285,7 +284,7 @@ export default function EmployeesPage() {
                     <p className="text-xs text-muted-foreground">Consente l'accesso alla dashboard admin</p>
                   </div>
                   <Switch 
-                    checked={newEmployee.isAdmin} 
+                    checked={newEmployee.isAdmin || false} 
                     onCheckedChange={(checked) => setNewEmployee({...newEmployee, isAdmin: checked})} 
                   />
                 </div>
@@ -295,7 +294,7 @@ export default function EmployeesPage() {
                     id="password" 
                     type="password"
                     placeholder="••••••••" 
-                    value={newEmployee.password}
+                    value={newEmployee.password || ""}
                     onChange={(e) => setNewEmployee({...newEmployee, password: e.target.value})}
                   />
                 </div>
@@ -354,7 +353,7 @@ export default function EmployeesPage() {
                     <div className="flex items-center gap-3">
                       <Avatar className="border-2 border-white shadow-sm">
                         <AvatarImage src={`https://picsum.photos/seed/${employee.id}/200/200`} alt={employee.firstName} />
-                        <AvatarFallback className="bg-primary/10 text-primary font-bold">{employee.firstName?.charAt(0)}</AvatarFallback>
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold">{(employee.firstName || "").charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col text-sm">
                         <div className="flex items-center gap-2">
@@ -427,7 +426,7 @@ export default function EmployeesPage() {
                     <Label htmlFor="edit-firstName">Nome</Label>
                     <Input 
                       id="edit-firstName" 
-                      value={editingEmployee.firstName}
+                      value={editingEmployee.firstName || ""}
                       onChange={(e) => setEditingEmployee({...editingEmployee, firstName: e.target.value})}
                     />
                   </div>
@@ -435,7 +434,7 @@ export default function EmployeesPage() {
                     <Label htmlFor="edit-lastName">Cognome</Label>
                     <Input 
                       id="edit-lastName" 
-                      value={editingEmployee.lastName}
+                      value={editingEmployee.lastName || ""}
                       onChange={(e) => setEditingEmployee({...editingEmployee, lastName: e.target.value})}
                     />
                   </div>
@@ -444,7 +443,7 @@ export default function EmployeesPage() {
                   <Label htmlFor="edit-email">Email / Username</Label>
                   <Input 
                     id="edit-email" 
-                    value={editingEmployee.email}
+                    value={editingEmployee.email || ""}
                     onChange={(e) => setEditingEmployee({...editingEmployee, email: e.target.value})}
                   />
                 </div>
@@ -456,13 +455,13 @@ export default function EmployeesPage() {
                     <Label htmlFor="edit-jobTitle">Qualifica</Label>
                     <Input 
                       id="edit-jobTitle" 
-                      value={editingEmployee.jobTitle}
+                      value={editingEmployee.jobTitle || ""}
                       onChange={(e) => setEditingEmployee({...editingEmployee, jobTitle: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-location">Sede Operativa</Label>
-                    <Select value={editingEmployee.locationId} onValueChange={(v) => setEditingEmployee({...editingEmployee, locationId: v})}>
+                    <Select value={editingEmployee.locationId || "none"} onValueChange={(v) => setEditingEmployee({...editingEmployee, locationId: v === "none" ? "" : v})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleziona sede" />
                       </SelectTrigger>
@@ -483,7 +482,7 @@ export default function EmployeesPage() {
                     <Label className="text-base">Privilegi Amministratore</Label>
                   </div>
                   <Switch 
-                    checked={editingEmployee.isAdmin} 
+                    checked={editingEmployee.isAdmin || false} 
                     onCheckedChange={(checked) => setEditingEmployee({...editingEmployee, isAdmin: checked})} 
                   />
                 </div>
@@ -493,7 +492,7 @@ export default function EmployeesPage() {
                     id="edit-password" 
                     type="password"
                     placeholder="••••••••" 
-                    value={editingEmployee.password}
+                    value={editingEmployee.password || ""}
                     onChange={(e) => setEditingEmployee({...editingEmployee, password: e.target.value})}
                   />
                 </div>
