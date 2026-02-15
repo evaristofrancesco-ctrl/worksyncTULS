@@ -42,14 +42,12 @@ import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/no
 export default function EmployeesPage() {
   const db = useFirestore()
   
-  // Query dei dipendenti: nel prototipo carichiamo i dati a prescindere dallo stato utente
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
   }, [db])
   const { data: employees, isLoading: employeesLoading } = useCollection(employeesQuery)
   
-  // Query delle sedi per il selettore
   const locationsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "companies", "default", "locations");
@@ -90,6 +88,7 @@ export default function EmployeesPage() {
       firstName: newEmployee.firstName,
       lastName: newEmployee.lastName,
       email: newEmployee.email,
+      password: newEmployee.password, // Salviamo la password per il login del prototipo
       role: newEmployee.isAdmin ? 'admin' : 'employee',
       jobTitle: newEmployee.jobTitle,
       department: newEmployee.department || "Generale",
@@ -101,7 +100,6 @@ export default function EmployeesPage() {
       contractType: "full-time"
     }
 
-    // Salvataggio non bloccante: l'UI si aggiorna istantaneamente grazie alla cache locale di Firestore
     setDocumentNonBlocking(employeeRef, employeeData, { merge: true })
 
     setIsDialogOpen(false)
@@ -186,11 +184,10 @@ export default function EmployeesPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">Email / Username</Label>
                   <Input 
                     id="email" 
-                    type="email" 
-                    placeholder="mario.rossi@tulas.com" 
+                    placeholder="mario.rossi o email@tulas.com" 
                     value={newEmployee.email}
                     onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
                   />
@@ -271,7 +268,7 @@ export default function EmployeesPage() {
                 Totale {filteredEmployees.length} dipendenti registrati nel sistema.
               </CardDescription>
             </div>
-            <div className="relative w-full max-w-sm">
+            <div className="relative w-full max-sm:max-w-none max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Cerca per nome, ruolo o email..."

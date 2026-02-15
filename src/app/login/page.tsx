@@ -3,16 +3,16 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Lock, Mail, Loader2, Info } from "lucide-react"
+import { Lock, Mail, Loader2, Info, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { useAuth, useFirestore } from "@/firebase"
-import { signInWithEmailAndPassword, signInAnonymously } from "firebase/auth"
-import { doc, getDoc } from "firebase/firestore"
+import { signInAnonymously } from "firebase/auth"
+import { collection, query, where, getDocs, limit } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -29,52 +29,51 @@ export default function LoginPage() {
 
     setIsLoading(true)
     
-    // Logica di bypass per il prototipo (admin/admin)
-    if (email === "admin" && password === "admin") {
-      try {
-        // Effettuiamo un accesso anonimo per soddisfare i requisiti di sicurezza "isSignedIn()"
-        await signInAnonymously(auth)
-        toast({
-          title: "Accesso Prototipo effettuato",
-          description: "Benvenuto, Amministratore!",
-        })
-        router.push("/admin")
-        setIsLoading(false)
-        return
-      } catch (e) {
-        console.error("Errore bypass:", e)
-      }
-    }
-
+    // Logica di Login per il Prototipo: Cerchiamo l'utente in Firestore
     try {
-      // Formatta l'email se è un semplice username per compatibilità con Firebase Auth
-      const loginEmail = email.includes("@") ? email : `${email}@tulas.com`
+      // 1. Cerchiamo il dipendente per email o username
+      const employeesRef = collection(db, "employees")
+      const q = query(employeesRef, where("email", "==", email), limit(1))
+      const querySnapshot = await getDocs(q)
       
-      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, password)
-      const user = userCredential.user
+      let userData: any = null
 
-      const employeeDoc = await getDoc(doc(db, "employees", user.uid))
-      
-      if (employeeDoc.exists()) {
-        const userData = employeeDoc.data()
+      if (!querySnapshot.empty) {
+        userData = querySnapshot.docs[0].data()
+      } else if (email === "admin" && password === "admin") {
+        // Fallback per l'admin predefinito
+        userData = { firstName: "Admin", lastName: "Prototipo", role: "admin", password: "admin" }
+      }
+
+      // 2. Verifica password
+      if (userData && userData.password === password) {
+        // Effettuiamo un accesso anonimo per soddisfare i requisiti di sicurezza "isSignedIn()" di Firebase
+        await signInAnonymously(auth)
+        
         toast({
           title: "Accesso effettuato",
-          description: `Benvenuto, ${userData.firstName || 'Utente'}!`,
+          description: `Bentornato, ${userData.firstName}!`,
         })
         
+        // 3. Reindirizzamento in base al ruolo
         if (userData.role === 'admin') {
           router.push("/admin")
         } else {
           router.push("/employee")
         }
       } else {
-        router.push("/employee")
+        toast({
+          variant: "destructive",
+          title: "Errore di accesso",
+          description: "Email o password non corretti.",
+        })
       }
     } catch (error: any) {
+      console.error("Login Error:", error)
       toast({
         variant: "destructive",
-        title: "Errore di accesso",
-        description: "Credenziali non valide o utente non trovato.",
+        title: "Errore di sistema",
+        description: "Impossibile completare l'accesso. Riprova più tardi.",
       })
     } finally {
       setIsLoading(false)
@@ -96,7 +95,7 @@ export default function LoginPage() {
             <Alert className="bg-blue-50 border-blue-100 py-2">
               <Info className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-xs text-blue-700">
-                Credenziali di test: <strong>admin</strong> / <strong>admin</strong>
+                Usa <strong>admin</strong> / <strong>admin</strong> o qualsiasi account creato nella gestione dipendenti.
               </AlertDescription>
             </Alert>
             
@@ -106,7 +105,7 @@ export default function LoginPage() {
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input 
                   id="email" 
-                  placeholder="admin" 
+                  placeholder="es. mario.rossi" 
                   className="pl-10" 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
