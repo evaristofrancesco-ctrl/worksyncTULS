@@ -12,7 +12,7 @@ import {
   TableHead, 
   TableHeader, 
   TableRow 
-} from "@/table"
+} from "@/components/ui/table"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc, collectionGroup } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
