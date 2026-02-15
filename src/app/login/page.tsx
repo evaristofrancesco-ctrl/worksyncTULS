@@ -1,10 +1,9 @@
-
 "use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Lock, Mail, Loader2, Info } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/input"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -26,8 +25,8 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const cleanEmail = email.trim().toLowerCase()
-    const cleanPassword = password.trim()
+    const cleanEmail = (email || "").trim().toLowerCase()
+    const cleanPassword = (password || "").trim()
 
     if (!cleanEmail || !cleanPassword) {
       toast({
@@ -41,22 +40,21 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
+      // Autenticazione anonima preventiva per i permessi Firestore
       await signInAnonymously(auth)
 
       let userData: any = null
 
-      if (cleanEmail === "admin" && cleanPassword === "admin") {
-        userData = { firstName: "Admin", lastName: "Prototipo", role: "admin" }
-      } else {
-        const employeesRef = collection(db, "employees")
-        const q = query(employeesRef, where("email", "==", cleanEmail), limit(1))
-        const querySnapshot = await getDocs(q)
-        
-        if (!querySnapshot.empty) {
-          const docData = querySnapshot.docs[0].data()
-          if (docData.password === cleanPassword) {
-            userData = docData
-          }
+      // Ricerca dell'utente esclusivamente nel database Firestore
+      const employeesRef = collection(db, "employees")
+      const q = query(employeesRef, where("email", "==", cleanEmail), limit(1))
+      const querySnapshot = await getDocs(q)
+      
+      if (!querySnapshot.empty) {
+        const docData = querySnapshot.docs[0].data()
+        // Verifica esplicita della password salvata nel documento
+        if (docData.password === cleanPassword) {
+          userData = docData
         }
       }
 
@@ -70,7 +68,7 @@ export default function LoginPage() {
           });
         }
 
-        // Memorizziamo il ruolo per i layout
+        // Memorizziamo il ruolo e il nome per i layout
         localStorage.setItem("userRole", userData.role)
         localStorage.setItem("userName", fullName)
 
@@ -96,7 +94,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Errore di connessione",
-        description: "Impossibile contattare il database.",
+        description: "Impossibile contattare il database o errore di autenticazione.",
       })
     } finally {
       setIsLoading(false)
@@ -118,7 +116,7 @@ export default function LoginPage() {
             <Alert className="bg-blue-50 border-blue-100 py-2">
               <Info className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-xs text-blue-700">
-                Puoi usare <strong>admin / admin</strong> o gli utenti creati.
+                Usa le credenziali associate al tuo profilo dipendente.
               </AlertDescription>
             </Alert>
             
@@ -130,7 +128,7 @@ export default function LoginPage() {
                   id="email" 
                   placeholder="es. mario.rossi" 
                   className="pl-10" 
-                  value={email}
+                  value={email || ""}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="username"
                 />
@@ -147,7 +145,7 @@ export default function LoginPage() {
                   type="password" 
                   placeholder="••••••••" 
                   className="pl-10"
-                  value={password}
+                  value={password || ""}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
                 />
