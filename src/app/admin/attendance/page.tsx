@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Clock, Download, Filter, Search, Loader2 } from "lucide-react"
@@ -15,7 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, query, where, orderBy } from "firebase/firestore"
+import { collection, collectionGroup, query, where } from "firebase/firestore"
 import { useState } from "react"
 
 export default function AttendancePage() {
@@ -30,12 +31,12 @@ export default function AttendancePage() {
   const { data: employees } = useCollection(employeesQuery)
 
   // Recupera i log di presenza reali tramite collectionGroup
+  // Rimuoviamo l'orderBy per evitare errori di indici mancanti nel prototipo
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collectionGroup(db, "timeentries"),
-      where("companyId", "==", "default"),
-      orderBy("checkInTime", "desc")
+      where("companyId", "==", "default")
     );
   }, [db])
   const { data: entries, isLoading } = useCollection(timeEntriesQuery)
@@ -46,12 +47,17 @@ export default function AttendancePage() {
     return acc;
   }, {} as any) || {};
 
-  const filteredEntries = entries?.filter(entry => {
-    const emp = employeeMap[entry.employeeId];
-    if (!emp) return false;
-    const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
-    return fullName.includes(searchQuery.toLowerCase());
-  }) || [];
+  // Filtriamo e ordiniamo in memoria per stabilità
+  const filteredEntries = (entries || [])
+    .filter(entry => {
+      const emp = employeeMap[entry.employeeId];
+      if (!emp) return false;
+      const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+      return fullName.includes(searchQuery.toLowerCase());
+    })
+    .sort((a, b) => {
+      return new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime();
+    });
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -128,13 +134,13 @@ export default function AttendancePage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {checkInDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      {isNaN(checkInDate.getTime()) ? "Data non valida" : checkInDate.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                     </TableCell>
                     <TableCell className="text-sm font-mono">
-                      {checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      {isNaN(checkInDate.getTime()) ? "--:--" : checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                     </TableCell>
                     <TableCell className="text-sm font-mono">
-                      {checkOutDate ? checkOutDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
+                      {checkOutDate && !isNaN(checkOutDate.getTime()) ? checkOutDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                     </TableCell>
                     <TableCell>
                       <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500 hover:bg-green-600" : ""}>

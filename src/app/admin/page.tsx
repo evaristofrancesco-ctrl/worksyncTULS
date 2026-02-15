@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Users, Calendar, Clock, FileText, ArrowUpRight, Loader2 } from "lucide-react"
@@ -17,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, query, where, orderBy, limit } from "firebase/firestore"
+import { collection, collectionGroup, query, where } from "firebase/firestore"
 import Link from "next/link"
 
 const weeklyStats = [
@@ -45,23 +46,29 @@ export default function AdminDashboard() {
     if (!db) return null;
     return query(
       collectionGroup(db, "timeentries"),
-      where("companyId", "==", "default"),
-      orderBy("checkInTime", "desc"),
-      limit(5)
+      where("companyId", "==", "default")
     );
   }, [db])
-  const { data: recentEntries, isLoading: isEntriesLoading } = useCollection(timeEntriesQuery)
+  const { data: entries, isLoading: isEntriesLoading } = useCollection(timeEntriesQuery)
 
   const employeeMap = employees?.reduce((acc, emp) => {
     acc[emp.id] = emp;
     return acc;
   }, {} as any) || {};
 
-  const activeEmployeesCount = entriesCountToday(recentEntries || []);
+  // Ordiniamo e limitiamo in memoria per evitare errori di indici complessi
+  const recentEntries = (entries || [])
+    .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime())
+    .slice(0, 5);
+
+  const activeEmployeesCount = entriesCountToday(entries || []);
 
   function entriesCountToday(entries: any[]) {
-    const today = new Date().toDateString();
-    return entries.filter(e => new Date(e.checkInTime).toDateString() === today && !e.checkOutTime).length;
+    const todayStr = new Date().toDateString();
+    return entries.filter(e => {
+      const d = new Date(e.checkInTime);
+      return !isNaN(d.getTime()) && d.toDateString() === todayStr && !e.checkOutTime;
+    }).length;
   }
 
   return (
@@ -147,6 +154,7 @@ export default function AdminDashboard() {
                 <div className="flex justify-center py-10"><Loader2 className="animate-spin h-6 w-6" /></div>
               ) : recentEntries && recentEntries.length > 0 ? recentEntries.map((log) => {
                 const emp = employeeMap[log.employeeId];
+                const checkInDate = new Date(log.checkInTime);
                 return (
                   <div key={log.id} className="flex items-center gap-4">
                     <Avatar>
@@ -159,7 +167,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="text-right">
                       <Badge variant={!log.checkOutTime ? "default" : "secondary"}>
-                        {new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                        {!isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                       </Badge>
                     </div>
                   </div>

@@ -5,23 +5,35 @@ import { useState, useEffect } from "react"
 import { Sidebar } from "@/components/layout/Sidebar"
 import { Navbar } from "@/components/layout/Navbar"
 import { useUser } from "@/firebase"
+import { Loader2 } from "lucide-react"
 
 export default function EmployeeLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { user } = useUser()
+  const { user, isUserLoading } = useUser()
   const [displayName, setDisplayName] = useState("Dipendente")
 
   useEffect(() => {
-    const savedName = localStorage.getItem("userName")
     if (user?.displayName) {
       setDisplayName(user.displayName)
-    } else if (savedName) {
-      setDisplayName(savedName)
+    } else {
+      const savedName = localStorage.getItem("userName")
+      if (savedName) setDisplayName(savedName)
     }
   }, [user])
+
+  if (isUserLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F4F8FA]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" />
+          <p className="text-muted-foreground font-medium">Accesso in corso...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -31,8 +43,6 @@ export default function EmployeeLayout({
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
           {children}
         </main>
-      </div>
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t flex items-center justify-around px-4 z-50">
       </div>
     </div>
   )
