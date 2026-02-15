@@ -16,7 +16,8 @@ import {
   Clock, 
   ShieldCheck, 
   User, 
-  Briefcase 
+  Briefcase,
+  Lock
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -306,7 +307,10 @@ export default function EmployeesPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password" className="font-bold">Password di Accesso *</Label>
-                    <Input id="password" type="password" value={newEmployee.password} onChange={(e) => setNewEmployee({...newEmployee, password: e.target.value})} />
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input id="password" type="password" className="pl-10" value={newEmployee.password} onChange={(e) => setNewEmployee({...newEmployee, password: e.target.value})} />
+                    </div>
                   </div>
                 </div>
 
@@ -405,7 +409,7 @@ export default function EmployeesPage() {
               <CardTitle className="text-xl font-black text-[#1e293b]">Database Collaboratori</CardTitle>
               <CardDescription>Gestione completa dei ruoli e dei contratti aziendali.</CardDescription>
             </div>
-            <div className="relative w-full max-w-sm">
+            <div className="relative w-full max-sm-xs:w-full max-w-sm">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Cerca dipendente..."
@@ -539,9 +543,18 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="font-bold">Email di Accesso</Label>
-                  <Input value={editingEmployee.email} onChange={(e) => setEditingEmployee({...editingEmployee, email: e.target.value})} />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="font-bold">Email di Accesso</Label>
+                    <Input value={editingEmployee.email} onChange={(e) => setEditingEmployee({...editingEmployee, email: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-bold">Password di Accesso</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input type="password" placeholder="Lascia vuoto per non cambiare" className="pl-10" value={editingEmployee.password || ""} onChange={(e) => setEditingEmployee({...editingEmployee, password: e.target.value})} />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
