@@ -5,72 +5,21 @@ service cloud.firestore {
     /**
      * WORK-SYNC SECURITY RULES - PROTOTYPE VERSION
      * 
-     * In questa versione di prototipo, permettiamo l'accesso completo per facilitare i test.
-     * Supportiamo le query collectionGroup tramite il pattern {path=**}.
+     * In questa versione di prototipo, permettiamo l'accesso completo a tutti i documenti
+     * per facilitare lo sviluppo e i test, incluse le query collectionGroup.
      */
 
-    // --- GLOBAL HELPER FUNCTIONS ---
+    match /{document=**} {
+      allow read, write: if true;
+    }
 
+    // Funzioni helper mantenute per riferimento futuro quando verranno ristretti i permessi
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Role check: Existence of a document in the company's admin role collection
-    function isAdmin(companyId) {
-      return companyId == "default" || (isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/roles_admin/$(request.auth.uid)));
-    }
-
-    function isManager(companyId) {
-      return companyId == "default" || (isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/roles_manager/$(request.auth.uid)));
-    }
-
-    function isStaff(companyId) {
-      return isAdmin(companyId) || isManager(companyId);
-    }
-
-    // --- COLLECTION RULES ---
-
-    // Regole per le società e configurazioni
-    match /companies/{companyId} {
-      allow read, write: if true;
-      
-      match /locations/{id} { allow read, write: if true; }
-      match /departments/{id} { allow read, write: if true; }
-      match /shifttemplates/{id} { allow read, write: if true; }
-      match /leavetypes/{id} { allow read, write: if true; }
-      match /companyholidays/{id} { allow read, write: if true; }
-      match /companyannouncements/{id} { allow read, write: if true; }
-      match /roles_admin/{id} { allow read, write: if true; }
-      match /roles_manager/{id} { allow read, write: if true; }
-    }
-
-    // Regole per i dipendenti e le loro sottocollezioni
-    match /employees/{employeeId} {
-      allow read, write: if true;
-      
-      match /shifts/{id} { allow read, write: if true; }
-      match /timeentries/{id} { allow read, write: if true; }
-      match /leaverequests/{id} { allow read, write: if true; }
-      match /documents/{id} { allow read, write: if true; }
-    }
-
-    // REGOLE CRITICHE PER COLLECTION GROUP QUERIES
-    // Queste regole permettono a db.collectionGroup('...') di funzionare
-    
-    match /{path=**}/timeentries/{id} {
-      allow read, write: if true;
-    }
-    
-    match /{path=**}/shifts/{id} {
-      allow read, write: if true;
-    }
-    
-    match /{path=**}/leaverequests/{id} {
-      allow read, write: if true;
-    }
-    
-    match /{path=**}/documents/{id} {
-      allow read, write: if true;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
   }
 }
