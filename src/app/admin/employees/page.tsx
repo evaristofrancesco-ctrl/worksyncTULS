@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2, Edit, Save, ImageIcon, CalendarDays, Clock } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, MapPin, Trash2, Loader2, Edit, Save, ImageIcon, CalendarDays, Clock, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -95,7 +95,7 @@ export default function EmployeesPage() {
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "Per favore compila tutti i campi obbligatori.",
+        description: "Per favore compila tutti i campi obbligatori (Nome, Cognome, Email, Qualifica, Password).",
       })
       return
     }
@@ -162,9 +162,10 @@ export default function EmployeesPage() {
       lastName: (editingEmployee.lastName || "").trim(),
       email: (editingEmployee.email || "").trim().toLowerCase(),
       jobTitle: (editingEmployee.jobTitle || "").trim(),
+      department: (editingEmployee.department || "").trim() || "Generale",
       locationName: selectedLoc?.name || "Nessuna",
       role: editingEmployee.isAdmin ? 'admin' : 'employee',
-      photoUrl: editingEmployee.photoUrl || `https://picsum.photos/seed/${editingEmployee.id}/200/200`
+      photoUrl: editingEmployee.photoUrl || editingEmployee.photoUrl || `https://picsum.photos/seed/${editingEmployee.id}/200/200`
     }
 
     updateDocumentNonBlocking(employeeRef, updateData)
@@ -210,7 +211,7 @@ export default function EmployeesPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Gestione Dipendenti</h1>
-          <p className="text-muted-foreground">Visualizza e gestisci l'anagrafica del tuo team con orari di riposo.</p>
+          <p className="text-muted-foreground">Visualizza e gestisci l'anagrafica, i contratti e gli orari del tuo team.</p>
         </div>
         
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -220,148 +221,140 @@ export default function EmployeesPage() {
               Aggiungi Dipendente
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5 text-[#227FD8]" />
                 Nuovo Dipendente
               </DialogTitle>
               <DialogDescription>
-                Inserisci i dati del nuovo membro, inclusi orari di riposo settimanali.
+                Inserisci i dati completi del nuovo membro del team.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Identità</h4>
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-16 w-16 border-2 border-primary/20">
-                    <AvatarImage src={newEmployee.photoUrl || ""} />
-                    <AvatarFallback><ImageIcon className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="photoUrl">URL Foto Profilo</Label>
-                    <Input 
-                      id="photoUrl" 
-                      placeholder="https://esempio.com/foto.jpg" 
-                      value={newEmployee.photoUrl || ""}
-                      onChange={(e) => setNewEmployee({...newEmployee, photoUrl: e.target.value})}
-                    />
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Colonna Sinistra: Identità e Contratto */}
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-[#1e293b] flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4 text-primary" /> Identità
+                    </h4>
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-16 w-16 border-2 border-primary/20">
+                        <AvatarImage src={newEmployee.photoUrl || ""} />
+                        <AvatarFallback><ImageIcon className="h-8 w-8 text-muted-foreground" /></AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor="photoUrl">URL Foto Profilo</Label>
+                        <Input 
+                          id="photoUrl" 
+                          placeholder="https://esempio.com/foto.jpg" 
+                          value={newEmployee.photoUrl || ""}
+                          onChange={(e) => setNewEmployee({...newEmployee, photoUrl: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="firstName">Nome*</Label>
+                        <Input id="firstName" value={newEmployee.firstName} onChange={(e) => setNewEmployee({...newEmployee, firstName: e.target.value})} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName">Cognome*</Label>
+                        <Input id="lastName" value={newEmployee.lastName} onChange={(e) => setNewEmployee({...newEmployee, lastName: e.target.value})} />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">Nome</Label>
-                    <Input 
-                      id="firstName" 
-                      placeholder="Mario" 
-                      value={newEmployee.firstName || ""}
-                      onChange={(e) => setNewEmployee({...newEmployee, firstName: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lastName">Cognome</Label>
-                    <Input 
-                      id="lastName" 
-                      placeholder="Rossi" 
-                      value={newEmployee.lastName || ""}
-                      onChange={(e) => setNewEmployee({...newEmployee, lastName: e.target.value})}
-                    />
-                  </div>
-                </div>
-              </div>
 
-              <div className="space-y-4">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contratto e Orari di Riposo</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="contractType">Tipo Contratto</Label>
-                    <Select value={newEmployee.contractType} onValueChange={(v) => setNewEmployee({...newEmployee, contractType: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="full-time">Full-time (7h/giorno)</SelectItem>
-                        <SelectItem value="part-time">Part-time (4h/giorno)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="restDay">Giorno di Riposo</Label>
-                    <Select value={newEmployee.restDay} onValueChange={(v) => setNewEmployee({...newEmployee, restDay: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {DAYS_OF_WEEK.map(d => (
-                          <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border border-dashed">
-                  <div className="space-y-2">
-                    <Label htmlFor="restStartTime" className="flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5" /> Inizio Riposo Orario
-                    </Label>
-                    <Input 
-                      id="restStartTime" 
-                      type="time" 
-                      value={newEmployee.restStartTime || ""}
-                      onChange={(e) => setNewEmployee({...newEmployee, restStartTime: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="restEndTime" className="flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5" /> Fine Riposo Orario
-                    </Label>
-                    <Input 
-                      id="restEndTime" 
-                      type="time" 
-                      value={newEmployee.restEndTime || ""}
-                      onChange={(e) => setNewEmployee({...newEmployee, restEndTime: e.target.value})}
-                    />
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-[#1e293b] flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-primary" /> Contratto e Sede
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="contractType">Tipo Contratto</Label>
+                        <Select value={newEmployee.contractType} onValueChange={(v) => setNewEmployee({...newEmployee, contractType: v})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="full-time">Full-time (7h/giorno)</SelectItem>
+                            <SelectItem value="part-time">Part-time (4h/giorno)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="location">Sede</Label>
+                        <Select value={newEmployee.locationId || "none"} onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v === "none" ? "" : v})}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nessuna Sede</SelectItem>
+                            {locations?.map((loc) => (
+                              <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="jobTitle">Qualifica*</Label>
+                        <Input id="jobTitle" value={newEmployee.jobTitle} onChange={(e) => setNewEmployee({...newEmployee, jobTitle: e.target.value})} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="department">Dipartimento</Label>
+                        <Input id="department" value={newEmployee.department} onChange={(e) => setNewEmployee({...newEmployee, department: e.target.value})} />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="jobTitle">Qualifica</Label>
-                    <Input 
-                      id="jobTitle" 
-                      placeholder="es. Senior Developer" 
-                      value={newEmployee.jobTitle || ""}
-                      onChange={(e) => setNewEmployee({...newEmployee, jobTitle: e.target.value})}
-                    />
+                {/* Colonna Destra: Accesso e Riposo */}
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold text-[#1e293b] flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-primary" /> Gestione Riposo
+                    </h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="restDay">Giorno di Riposo Settimanale</Label>
+                      <Select value={newEmployee.restDay} onValueChange={(v) => setNewEmployee({...newEmployee, restDay: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {DAYS_OF_WEEK.map(d => (
+                            <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border border-dashed">
+                      <div className="space-y-2">
+                        <Label htmlFor="restStartTime" className="text-xs">Inizio Riposo Orario</Label>
+                        <Input type="time" id="restStartTime" value={newEmployee.restStartTime} onChange={(e) => setNewEmployee({...newEmployee, restStartTime: e.target.value})} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="restEndTime" className="text-xs">Fine Riposo Orario</Label>
+                        <Input type="time" id="restEndTime" value={newEmployee.restEndTime} onChange={(e) => setNewEmployee({...newEmployee, restEndTime: e.target.value})} />
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Sede Operativa</Label>
-                    <Select value={newEmployee.locationId || "none"} onValueChange={(v) => setNewEmployee({...newEmployee, locationId: v === "none" ? "" : v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nessuna Sede</SelectItem>
-                        {locations?.map((loc) => (
-                          <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
 
-              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-bold">Privilegi Amministratore</Label>
-                  <Switch 
-                    checked={newEmployee.isAdmin || false} 
-                    onCheckedChange={(checked) => setNewEmployee({...newEmployee, isAdmin: checked})} 
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email / Username</Label>
-                    <Input id="email" value={newEmployee.email || ""} onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input id="password" type="password" value={newEmployee.password || ""} onChange={(e) => setNewEmployee({...newEmployee, password: e.target.value})} />
+                  <div className="space-y-4 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                    <h4 className="text-sm font-bold text-primary flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4" /> Account Aziendale
+                    </h4>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email / Username*</Label>
+                      <Input id="email" value={newEmployee.email} onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password*</Label>
+                      <Input id="password" type="password" value={newEmployee.password} onChange={(e) => setNewEmployee({...newEmployee, password: e.target.value})} />
+                    </div>
+                    <div className="flex items-center justify-between pt-2">
+                      <Label className="text-sm font-medium">Privilegi Amministratore</Label>
+                      <Switch 
+                        checked={newEmployee.isAdmin} 
+                        onCheckedChange={(v) => setNewEmployee({...newEmployee, isAdmin: v})} 
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -379,12 +372,12 @@ export default function EmployeesPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <CardTitle className="text-xl font-bold text-[#1e293b]">Anagrafica Personale</CardTitle>
-              <CardDescription>Gestione dei contratti e delle fasce orarie di riposo.</CardDescription>
+              <CardDescription>Gestione completa dei profili e delle configurazioni contrattuali.</CardDescription>
             </div>
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca dipendente..."
+                placeholder="Cerca per nome, email o qualifica..."
                 className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -397,9 +390,9 @@ export default function EmployeesPage() {
             <TableHeader className="bg-muted/30">
               <TableRow>
                 <TableHead className="font-bold">Dipendente</TableHead>
+                <TableHead className="font-bold">Sede / Qualifica</TableHead>
                 <TableHead className="font-bold">Contratto</TableHead>
-                <TableHead className="font-bold">Riposo Settimanale</TableHead>
-                <TableHead className="font-bold">Riposo Orario</TableHead>
+                <TableHead className="font-bold">Riposo</TableHead>
                 <TableHead className="text-right font-bold">Azioni</TableHead>
               </TableRow>
             </TableHeader>
@@ -415,27 +408,36 @@ export default function EmployeesPage() {
                         <AvatarFallback className="bg-primary/10 text-primary font-bold">{(employee.firstName || "U").charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
-                        <span className="font-bold text-[#1e293b]">{employee.firstName} {employee.lastName}</span>
-                        <span className="text-muted-foreground text-[10px]">{employee.jobTitle}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-[#1e293b]">{employee.firstName} {employee.lastName}</span>
+                          {employee.role === 'admin' && <ShieldCheck className="h-3 w-3 text-primary" />}
+                        </div>
+                        <span className="text-muted-foreground text-[10px]">{employee.email}</span>
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell><Badge variant="outline" className="capitalize">{employee.contractType}</Badge></TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                      {DAYS_OF_WEEK.find(d => d.value === employee.restDay)?.label}
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{employee.jobTitle}</span>
+                      <span className="text-xs text-muted-foreground">{employee.locationName || "Sede non assegnata"}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    {employee.restStartTime && employee.restEndTime ? (
-                      <div className="flex items-center gap-1.5 text-xs text-amber-600 font-medium">
-                        <Clock className="h-3.5 w-3.5" />
-                        {employee.restStartTime} - {employee.restEndTime}
+                    <Badge variant="outline" className="capitalize text-[10px]">{employee.contractType}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1 text-[11px]">
+                        <CalendarDays className="h-3 w-3 text-muted-foreground" />
+                        {DAYS_OF_WEEK.find(d => d.value === employee.restDay)?.label}
                       </div>
-                    ) : (
-                      <span className="text-muted-foreground text-xs italic">Nessun orario</span>
-                    )}
+                      {employee.restStartTime && (
+                        <div className="flex items-center gap-1 text-[10px] text-amber-600 font-bold">
+                          <Clock className="h-2.5 w-2.5" />
+                          {employee.restStartTime}-{employee.restEndTime}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -444,7 +446,7 @@ export default function EmployeesPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEditDialog(employee)}><Edit className="h-4 w-4 mr-2" /> Modifica</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteEmployee(employee.id)}><Trash2 className="h-4 w-4 mr-2" /> Elimina</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive font-bold" onClick={() => handleDeleteEmployee(employee.id)}><Trash2 className="h-4 w-4 mr-2" /> Elimina</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -455,42 +457,81 @@ export default function EmployeesPage() {
         </CardContent>
       </Card>
 
+      {/* Dialog Modifica Dipendente */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Modifica Dipendente</DialogTitle></DialogHeader>
           {editingEmployee && (
             <div className="grid gap-6 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tipo Contratto</Label>
-                  <Select value={editingEmployee.contractType} onValueChange={(v) => setEditingEmployee({...editingEmployee, contractType: v})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="full-time">Full-time</SelectItem>
-                      <SelectItem value="part-time">Part-time</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-[#1e293b]">Identità e Contratto</h4>
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-14 w-14 border-2">
+                      <AvatarImage src={editingEmployee.photoUrl} />
+                      <AvatarFallback>{editingEmployee.firstName?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 space-y-1">
+                      <Label>URL Foto</Label>
+                      <Input value={editingEmployee.photoUrl} onChange={(e) => setEditingEmployee({...editingEmployee, photoUrl: e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Nome</Label><Input value={editingEmployee.firstName} onChange={(e) => setEditingEmployee({...editingEmployee, firstName: e.target.value})} /></div>
+                    <div className="space-y-2"><Label>Cognome</Label><Input value={editingEmployee.lastName} onChange={(e) => setEditingEmployee({...editingEmployee, lastName: e.target.value})} /></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Contratto</Label>
+                      <Select value={editingEmployee.contractType} onValueChange={(v) => setEditingEmployee({...editingEmployee, contractType: v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="full-time">Full-time</SelectItem><SelectItem value="part-time">Part-time</SelectItem></SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Sede</Label>
+                      <Select value={editingEmployee.locationId || "none"} onValueChange={(v) => setEditingEmployee({...editingEmployee, locationId: v === "none" ? "" : v})}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nessuna Sede</SelectItem>
+                          {locations?.map((loc) => (
+                            <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Qualifica</Label><Input value={editingEmployee.jobTitle} onChange={(e) => setEditingEmployee({...editingEmployee, jobTitle: e.target.value})} /></div>
+                    <div className="space-y-2"><Label>Dipartimento</Label><Input value={editingEmployee.department} onChange={(e) => setEditingEmployee({...editingEmployee, department: e.target.value})} /></div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Giorno Riposo</Label>
-                  <Select value={editingEmployee.restDay} onValueChange={(v) => setEditingEmployee({...editingEmployee, restDay: v})}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {DAYS_OF_WEEK.map(d => (
-                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border">
-                <div className="space-y-2">
-                  <Label>Inizio Riposo Orario</Label>
-                  <Input type="time" value={editingEmployee.restStartTime || ""} onChange={(e) => setEditingEmployee({...editingEmployee, restStartTime: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Fine Riposo Orario</Label>
-                  <Input type="time" value={editingEmployee.restEndTime || ""} onChange={(e) => setEditingEmployee({...editingEmployee, restEndTime: e.target.value})} />
+
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-[#1e293b]">Accesso e Riposo</h4>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input value={editingEmployee.email} onChange={(e) => setEditingEmployee({...editingEmployee, email: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Giorno di Riposo</Label>
+                    <Select value={editingEmployee.restDay} onValueChange={(v) => setEditingEmployee({...editingEmployee, restDay: v})}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {DAYS_OF_WEEK.map(d => (
+                          <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-lg border border-dashed">
+                    <div className="space-y-2"><Label>Inizio Riposo Orario</Label><Input type="time" value={editingEmployee.restStartTime} onChange={(e) => setEditingEmployee({...editingEmployee, restStartTime: e.target.value})} /></div>
+                    <div className="space-y-2"><Label>Fine Riposo Orario</Label><Input type="time" value={editingEmployee.restEndTime} onChange={(e) => setEditingEmployee({...editingEmployee, restEndTime: e.target.value})} /></div>
+                  </div>
+                  <div className="flex items-center justify-between pt-4 p-4 bg-muted/30 rounded-lg">
+                    <Label className="font-bold">Privilegi Admin</Label>
+                    <Switch checked={editingEmployee.isAdmin} onCheckedChange={(v) => setEditingEmployee({...editingEmployee, isAdmin: v})} />
+                  </div>
                 </div>
               </div>
             </div>
