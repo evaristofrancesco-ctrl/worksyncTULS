@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useState } from "react"
-import { Plus, Search, Mail, Phone, MapPin, MoreVertical, UserPlus, Check } from "lucide-react"
+import { Plus, Search, MoreVertical, UserPlus, Lock, User as UserIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -32,9 +33,10 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import { mockEmployees as initialEmployees } from "@/lib/mock-data"
 import { useToast } from "@/hooks/use-toast"
-import { Employee } from "@/lib/types"
+import { Employee, Role } from "@/lib/types"
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees)
@@ -49,14 +51,17 @@ export default function EmployeesPage() {
     position: "",
     department: "",
     skills: "",
+    isAdmin: false,
+    username: "",
+    password: "",
   })
 
   const handleAddEmployee = () => {
-    if (!newEmployee.name || !newEmployee.email || !newEmployee.position) {
+    if (!newEmployee.name || !newEmployee.email || !newEmployee.position || !newEmployee.username || !newEmployee.password) {
       toast({
         variant: "destructive",
         title: "Errore",
-        description: "Per favore compila i campi obbligatori (Nome, Email, Ruolo).",
+        description: "Per favore compila i campi obbligatori (Nome, Email, Ruolo, Username e Password).",
       })
       return
     }
@@ -65,7 +70,7 @@ export default function EmployeesPage() {
       id: `emp-${Date.now()}`,
       name: newEmployee.name,
       email: newEmployee.email,
-      role: 'EMPLOYEE',
+      role: newEmployee.isAdmin ? 'ADMIN' as Role : 'EMPLOYEE' as Role,
       position: newEmployee.position,
       department: newEmployee.department || "Generale",
       avatarUrl: `https://picsum.photos/seed/${newEmployee.name}/200/200`,
@@ -77,11 +82,20 @@ export default function EmployeesPage() {
 
     setEmployees([employeeToAdd, ...employees])
     setIsDialogOpen(false)
-    setNewEmployee({ name: "", email: "", position: "", department: "", skills: "" })
+    setNewEmployee({ 
+      name: "", 
+      email: "", 
+      position: "", 
+      department: "", 
+      skills: "", 
+      isAdmin: false,
+      username: "",
+      password: "" 
+    })
     
     toast({
       title: "Successo!",
-      description: `${newEmployee.name} è stato aggiunto al team.`,
+      description: `${newEmployee.name} è stato aggiunto al team come ${newEmployee.isAdmin ? 'Amministratore' : 'Dipendente'}.`,
     })
   }
 
@@ -106,72 +120,120 @@ export default function EmployeesPage() {
               Aggiungi Dipendente
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <UserPlus className="h-5 w-5 text-[#227FD8]" />
                 Nuovo Dipendente
               </DialogTitle>
               <DialogDescription>
-                Inserisci i dati del nuovo membro del team. Verrà inviata un'email di invito.
+                Inserisci i dati del nuovo membro e le sue credenziali di accesso.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">Nome</Label>
-                <Input 
-                  id="name" 
-                  placeholder="Mario Rossi" 
-                  className="col-span-3" 
-                  value={newEmployee.name}
-                  onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
-                />
+            <div className="grid gap-6 py-4">
+              <div className="space-y-4">
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Informazioni Personali</h4>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="name" className="text-right">Nome</Label>
+                  <Input 
+                    id="name" 
+                    placeholder="Mario Rossi" 
+                    className="col-span-3" 
+                    value={newEmployee.name}
+                    onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="email" className="text-right">Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="mario.rossi@tulas.com" 
+                    className="col-span-3"
+                    value={newEmployee.email}
+                    onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="text-right">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="mario.rossi@tulas.com" 
-                  className="col-span-3"
-                  value={newEmployee.email}
-                  onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})}
-                />
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Ruolo e Competenze</h4>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="position" className="text-right">Qualifica</Label>
+                  <Input 
+                    id="position" 
+                    placeholder="es. Senior Developer" 
+                    className="col-span-3"
+                    value={newEmployee.position}
+                    onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="department" className="text-right">Dipartimento</Label>
+                  <Select onValueChange={(v) => setNewEmployee({...newEmployee, department: v})}>
+                    <SelectTrigger className="col-span-3">
+                      <SelectValue placeholder="Seleziona dipartimento" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Engineering">Ingegneria</SelectItem>
+                      <SelectItem value="Product">Prodotto</SelectItem>
+                      <SelectItem value="People Operations">Risorse Umane</SelectItem>
+                      <SelectItem value="Sales">Vendite</SelectItem>
+                      <SelectItem value="Marketing">Marketing</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="skills" className="text-right">Competenze</Label>
+                  <Input 
+                    id="skills" 
+                    placeholder="Separati da virgola (es. React, SQL)" 
+                    className="col-span-3"
+                    value={newEmployee.skills}
+                    onChange={(e) => setNewEmployee({...newEmployee, skills: e.target.value})}
+                  />
+                </div>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="position" className="text-right">Ruolo</Label>
-                <Input 
-                  id="position" 
-                  placeholder="es. Senior Developer" 
-                  className="col-span-3"
-                  value={newEmployee.position}
-                  onChange={(e) => setNewEmployee({...newEmployee, position: e.target.value})}
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="department" className="text-right">Dipartimento</Label>
-                <Select onValueChange={(v) => setNewEmployee({...newEmployee, department: v})}>
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Seleziona dipartimento" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Engineering">Ingegneria</SelectItem>
-                    <SelectItem value="Product">Prodotto</SelectItem>
-                    <SelectItem value="People Operations">Risorse Umane</SelectItem>
-                    <SelectItem value="Sales">Vendite</SelectItem>
-                    <SelectItem value="Marketing">Marketing</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="skills" className="text-right">Competenze</Label>
-                <Input 
-                  id="skills" 
-                  placeholder="Separati da virgola (es. React, SQL)" 
-                  className="col-span-3"
-                  value={newEmployee.skills}
-                  onChange={(e) => setNewEmployee({...newEmployee, skills: e.target.value})}
-                />
+
+              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Credenziali e Accessi</h4>
+                
+                <div className="flex items-center justify-between py-2">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Privilegi Amministratore</Label>
+                    <p className="text-xs text-muted-foreground">Consente l'accesso alla dashboard admin</p>
+                  </div>
+                  <Switch 
+                    checked={newEmployee.isAdmin} 
+                    onCheckedChange={(checked) => setNewEmployee({...newEmployee, isAdmin: checked})} 
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="username" className="text-right flex items-center justify-end gap-2">
+                    <UserIcon className="h-3 w-3" /> Username
+                  </Label>
+                  <Input 
+                    id="username" 
+                    placeholder="m.rossi" 
+                    className="col-span-3"
+                    value={newEmployee.username}
+                    onChange={(e) => setNewEmployee({...newEmployee, username: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="password" className="text-right flex items-center justify-end gap-2">
+                    <Lock className="h-3 w-3" /> Password
+                  </Label>
+                  <Input 
+                    id="password" 
+                    type="password"
+                    placeholder="••••••••" 
+                    className="col-span-3"
+                    value={newEmployee.password}
+                    onChange={(e) => setNewEmployee({...newEmployee, password: e.target.value})}
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -223,7 +285,12 @@ export default function EmployeesPage() {
                         <AvatarFallback className="bg-primary/10 text-primary font-bold">{employee.name.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col text-sm">
-                        <span className="font-bold text-[#1e293b]">{employee.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#1e293b]">{employee.name}</span>
+                          {employee.role === 'ADMIN' && (
+                            <Badge className="bg-[#227FD8]/10 text-[#227FD8] border-none text-[9px] h-4 px-1">ADMIN</Badge>
+                          )}
+                        </div>
                         <span className="text-muted-foreground text-xs">{employee.email}</span>
                       </div>
                     </div>
