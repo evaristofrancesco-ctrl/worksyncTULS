@@ -1,10 +1,11 @@
+
 # TU.L.S. - Gestione Moderna del Personale
 
 Piattaforma avanzata per la gestione di dipendenti, turni e presenze, ottimizzata per il web e dispositivi mobili.
 
 ## Caratteristiche principali
-- **Anagrafica Completa**: Gestione dettagliata dei dati personali e contrattuali (FT 46h / PT 23h).
-- **Turni Intelligenti**: Generazione automatica basata sui riposi e sulle fasce orarie.
+- **Anagrafica Completa**: Gestione dettagliata dei dati personali e contrattuali (FT 40h / PT 20h).
+- **Turni Intelligenti**: Generazione automatica basata sui riposi e sulle fasce orarie (Mattina 9-13, Pomeriggio 17-20).
 - **Registro Presenze**: Timbratura manuale e automatica sincronizzata in tempo reale.
 - **Gestione Richieste**: Sistema di approvazione/rifiuto con feedback e note dell'amministratore.
 

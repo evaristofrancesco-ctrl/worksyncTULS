@@ -194,7 +194,7 @@
         },
         "weeklyHours": {
           "type": "number",
-          "description": "Weekly working hours (e.g., 22 for part-time, 44 for full-time)."
+          "description": "Weekly working hours (e.g., 20 for part-time, 40 for full-time)."
         }
       },
       "required": [

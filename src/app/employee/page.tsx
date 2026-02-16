@@ -52,7 +52,7 @@ export default function EmployeeDashboard() {
     return recentEntries.length * 4; 
   }, [recentEntries]);
 
-  const goalHours = 46; // Standard TU.L.S.
+  const goalHours = 40; // Standard TU.L.S. aggiornato a 40h
   const progress = Math.min(100, (weeklyHours / goalHours) * 100);
 
   return (

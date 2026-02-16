@@ -101,13 +101,13 @@ export default function EmployeesPage() {
     restDay: "0",
     restStartTime: "00:00",
     restEndTime: "00:00",
-    weeklyHours: 46,
+    weeklyHours: 40,
   })
 
   const [editingEmployee, setEditingEmployee] = useState<any>(null)
 
   const handleContractChange = (type: string, target: 'new' | 'edit') => {
-    const hours = type === 'full-time' ? 46 : 23
+    const hours = type === 'full-time' ? 40 : 20
     if (target === 'new') {
       setNewEmployee({ ...newEmployee, contractType: type, weeklyHours: hours })
     } else {
@@ -268,8 +268,8 @@ export default function EmployeesPage() {
                     <Select value={newEmployee.contractType} onValueChange={v => handleContractChange(v, 'new')}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="full-time">Full-time (46h)</SelectItem>
-                        <SelectItem value="part-time">Part-time (23h)</SelectItem>
+                        <SelectItem value="full-time">Full-time (40h)</SelectItem>
+                        <SelectItem value="part-time">Part-time (20h)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -401,7 +401,7 @@ export default function EmployeesPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog Modifica (Ripristinato con Tab) */}
+      {/* Dialog Modifica */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[750px] p-0 overflow-hidden border-none shadow-2xl">
           <div className="bg-[#227FD8] p-6 text-white">
@@ -432,7 +432,7 @@ export default function EmployeesPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="font-bold">Password (lascia vuoto per non cambiare)</Label>
+                    <Label className="font-bold">Password</Label>
                     <Input type="password" value={editingEmployee.password} onChange={e => setEditingEmployee({...editingEmployee, password: e.target.value})} />
                   </div>
                   <div className="space-y-2">
@@ -461,8 +461,8 @@ export default function EmployeesPage() {
                     <Select value={editingEmployee.contractType} onValueChange={v => handleContractChange(v, 'edit')}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="full-time">Full-time (46h)</SelectItem>
-                        <SelectItem value="part-time">Part-time (23h)</SelectItem>
+                        <SelectItem value="full-time">Full-time (40h)</SelectItem>
+                        <SelectItem value="part-time">Part-time (20h)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
