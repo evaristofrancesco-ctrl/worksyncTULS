@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Clock, Download, Filter, Search, Loader2 } from "lucide-react"
+import { Clock, Download, Filter, Search, Loader2, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -16,12 +16,16 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, query } from "firebase/firestore"
+import { collection, collectionGroup, doc } from "firebase/firestore"
 import { useState, useMemo } from "react"
+import { useToast } from "@/hooks/use-toast"
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 export default function AttendancePage() {
   const db = useFirestore()
+  const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
+  const [isGenerating, setIsGenerating] = useState(false)
 
   // Recupera tutti i dipendenti
   const employeesQuery = useMemoFirebase(() => {
@@ -30,8 +34,7 @@ export default function AttendancePage() {
   }, [db])
   const { data: employees } = useCollection(employeesQuery)
 
-  // Recupera i log di presenza. 
-  // Rimosso il 'where' per evitare errori di indice mancante (collectionGroup index) nel prototipo.
+  // Recupera i log di presenza
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collectionGroup(db, "timeentries");
@@ -47,18 +50,15 @@ export default function AttendancePage() {
     }, {} as any);
   }, [employees]);
 
-  // Filtriamo in memoria per stabilità e velocità
+  // Filtriamo in memoria per stabilità
   const filteredEntries = useMemo(() => {
     if (!entries) return [];
     
     return entries
       .filter(entry => {
-        // Filtro per compagnia (emulato in memoria)
         if (entry.companyId !== "default") return false;
-        
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
-        
         const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
         return fullName.includes(searchQuery.toLowerCase());
       })
@@ -69,19 +69,120 @@ export default function AttendancePage() {
       });
   }, [entries, employeeMap, searchQuery]);
 
+  const handleAutoClockIn = async () => {
+    if (!employees || employees.length === 0) {
+      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente trovato." });
+      return;
+    }
+
+    setIsGenerating(true);
+    const now = new Date();
+    const dayOfWeek = now.getDay().toString(); // 0-6
+
+    // Il punto vendita è aperto da Lunedì (1) a Sabato (6)
+    const isWorkingDay = now.getDay() >= 1 && now.getDay() <= 6;
+
+    if (!isWorkingDay) {
+      toast({ title: "Chiusura Punto Vendita", description: "Oggi è domenica, il punto vendita è chiuso." });
+      setIsGenerating(false);
+      return;
+    }
+
+    try {
+      let count = 0;
+      for (const emp of employees) {
+        // Salta se è il suo giorno di riposo
+        if (emp.restDay === dayOfWeek) continue;
+
+        const dateStr = now.toISOString().split('T')[0];
+
+        // LOGICA FULL TIME: 09-13 e 17-20
+        if (emp.contractType === 'full-time') {
+          // Mattina
+          const idAM = `auto-${emp.id}-${dateStr}-AM`;
+          const refAM = doc(db, "employees", emp.id, "timeentries", idAM);
+          const startAM = new Date(now); startAM.setHours(9, 0, 0, 0);
+          const endAM = new Date(now); endAM.setHours(13, 0, 0, 0);
+          
+          setDocumentNonBlocking(refAM, {
+            id: idAM,
+            employeeId: emp.id,
+            companyId: "default",
+            checkInTime: startAM.toISOString(),
+            checkOutTime: endAM.toISOString(),
+            status: "PRESENT",
+            isApproved: true,
+            type: "AUTO"
+          }, { merge: true });
+
+          // Pomeriggio
+          const idPM = `auto-${emp.id}-${dateStr}-PM`;
+          const refPM = doc(db, "employees", emp.id, "timeentries", idPM);
+          const startPM = new Date(now); startPM.setHours(17, 0, 0, 0);
+          const endPM = new Date(now); endPM.setHours(20, 0, 0, 0);
+
+          setDocumentNonBlocking(refPM, {
+            id: idPM,
+            employeeId: emp.id,
+            companyId: "default",
+            checkInTime: startPM.toISOString(),
+            checkOutTime: endPM.toISOString(),
+            status: "PRESENT",
+            isApproved: true,
+            type: "AUTO"
+          }, { merge: true });
+          
+          count += 2;
+        } 
+        // LOGICA PART TIME: Solo 17-20
+        else {
+          const idPT = `auto-${emp.id}-${dateStr}-PT`;
+          const refPT = doc(db, "employees", emp.id, "timeentries", idPT);
+          const startPT = new Date(now); startPT.setHours(17, 0, 0, 0);
+          const endPT = new Date(now); endPT.setHours(20, 0, 0, 0);
+
+          setDocumentNonBlocking(refPT, {
+            id: idPT,
+            employeeId: emp.id,
+            companyId: "default",
+            checkInTime: startPT.toISOString(),
+            checkOutTime: endPT.toISOString(),
+            status: "PRESENT",
+            isApproved: true,
+            type: "AUTO"
+          }, { merge: true });
+          
+          count += 1;
+        }
+      }
+
+      toast({ title: "Timbratura Completata", description: `Generate ${count} timbrature automatiche per oggi.` });
+    } catch (e) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Errore", description: "Impossibile generare le timbrature." });
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Registro Presenze</h1>
+          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Registro Presenze TU.L.S.</h1>
           <p className="text-muted-foreground">Monitora gli ingressi e le uscite del personale in tempo reale.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <Filter className="h-4 w-4" /> Filtra
+          <Button 
+            onClick={handleAutoClockIn} 
+            disabled={isGenerating || isLoading}
+            className="gap-2 bg-amber-500 hover:bg-amber-600 font-bold shadow-md"
+          >
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4 fill-current" />}
+            Timbratura Automatica
           </Button>
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" /> Esporta CSV
+          <Button variant="outline" className="gap-2 font-bold">
+            <Download className="h-4 w-4" /> Esporta
           </Button>
         </div>
       </div>
@@ -91,7 +192,7 @@ export default function AttendancePage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-[#227FD8]" />
-              <CardTitle className="text-xl font-bold">Log Attività Recente</CardTitle>
+              <CardTitle className="text-xl font-black">Log Attività</CardTitle>
             </div>
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -118,8 +219,8 @@ export default function AttendancePage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                  <TableCell colSpan={5} className="text-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
               ) : filteredEntries.length > 0 ? filteredEntries.map((log) => {
@@ -128,12 +229,12 @@ export default function AttendancePage() {
                 const checkOutDate = log.checkOutTime ? new Date(log.checkOutTime) : null;
 
                 return (
-                  <TableRow key={log.id} className="hover:bg-muted/20 transition-colors">
+                  <TableRow key={log.id} className="hover:bg-muted/10 transition-colors">
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8 border shadow-sm">
+                        <Avatar className="h-9 w-9 border shadow-sm">
                           <AvatarImage src={emp?.photoUrl || `https://picsum.photos/seed/${log.employeeId}/100/100`} />
-                          <AvatarFallback className="bg-primary/10 text-primary">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                          <AvatarFallback className="bg-primary/10 text-primary font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
                           <span className="font-bold text-sm text-[#1e293b]">
@@ -143,26 +244,26 @@ export default function AttendancePage() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm font-medium">
                       {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleDateString('it-IT') : "--/--/----"}
                     </TableCell>
-                    <TableCell className="text-sm font-mono">
+                    <TableCell className="text-sm font-mono font-bold text-[#227FD8]">
                       {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                     </TableCell>
-                    <TableCell className="text-sm font-mono">
+                    <TableCell className="text-sm font-mono font-bold">
                       {checkOutDate && !isNaN(checkOutDate.getTime()) ? checkOutDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500 hover:bg-green-600" : ""}>
-                        {!log.checkOutTime ? "In Servizio" : "Completato"}
+                      <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500" : ""}>
+                        {!log.checkOutTime ? "In Servizio" : log.type === "AUTO" ? "Auto-Log" : "Completato"}
                       </Badge>
                     </TableCell>
                   </TableRow>
                 )
               }) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
-                    Nessun record di presenza trovato.
+                  <TableCell colSpan={5} className="h-40 text-center text-muted-foreground italic">
+                    Nessun record di presenza trovato. Clicca su "Timbratura Automatica" per popolare oggi.
                   </TableCell>
                 </TableRow>
               )}
