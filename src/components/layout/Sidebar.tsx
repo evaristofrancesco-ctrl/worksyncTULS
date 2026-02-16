@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from "next/link"
@@ -19,14 +20,14 @@ const adminLinks = [
   { name: "Dipendenti", href: "/admin/employees", icon: Users },
   { name: "Sedi Operative", href: "/admin/locations", icon: MapPin },
   { name: "Turni", href: "/admin/shifts", icon: Calendar },
-  { name: "Presenze", href: "/admin/attendance", icon: Clock },
+  { name: "Registro Presenze", href: "/admin/attendance", icon: Clock },
   { name: "Richieste", href: "/admin/requests", icon: FileText },
 ]
 
 const employeeLinks = [
   { name: "Dashboard", href: "/employee", icon: LayoutDashboard },
   { name: "I Miei Turni", href: "/employee/shifts", icon: Calendar },
-  { name: "Presenze", href: "/employee/attendance", icon: Clock },
+  { name: "Le Mie Presenze", href: "/employee/attendance", icon: Clock },
   { name: "Le Mie Richieste", href: "/employee/requests", icon: FileText },
 ]
 
@@ -67,7 +68,7 @@ export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {
         
         <div className="space-y-1 pt-4 border-t">
           <Link
-            href="/settings"
+            href="/admin/settings"
             className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Layers className="h-4 w-4" />

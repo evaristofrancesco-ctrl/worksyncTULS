@@ -34,7 +34,7 @@ export default function AttendancePage() {
   }, [db])
   const { data: employees } = useCollection(employeesQuery)
 
-  // Recupera i log di presenza
+  // Recupera i log di presenza tramite collectionGroup
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collectionGroup(db, "timeentries");
@@ -50,12 +50,13 @@ export default function AttendancePage() {
     }, {} as any);
   }, [employees]);
 
-  // Filtriamo in memoria per stabilità
+  // Filtriamo in memoria per stabilità ed evitare crash su query complesse
   const filteredEntries = useMemo(() => {
     if (!entries) return [];
     
     return entries
       .filter(entry => {
+        // Mostriamo solo log della compagnia default
         if (entry.companyId !== "default") return false;
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
@@ -71,7 +72,7 @@ export default function AttendancePage() {
 
   const handleAutoClockIn = async () => {
     if (!employees || employees.length === 0) {
-      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente trovato." });
+      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente trovato nell'anagrafica." });
       return;
     }
 
@@ -83,7 +84,7 @@ export default function AttendancePage() {
     const isWorkingDay = now.getDay() >= 1 && now.getDay() <= 6;
 
     if (!isWorkingDay) {
-      toast({ title: "Chiusura Punto Vendita", description: "Oggi è domenica, il punto vendita è chiuso." });
+      toast({ title: "Punto Vendita Chiuso", description: "Oggi è domenica, non è possibile generare timbrature automatiche." });
       setIsGenerating(false);
       return;
     }
@@ -91,7 +92,7 @@ export default function AttendancePage() {
     try {
       let count = 0;
       for (const emp of employees) {
-        // Salta se è il suo giorno di riposo
+        // Salta se è il suo giorno di riposo impostato in anagrafica
         if (emp.restDay === dayOfWeek) continue;
 
         const dateStr = now.toISOString().split('T')[0];
@@ -135,7 +136,7 @@ export default function AttendancePage() {
           count += 2;
         } 
         // LOGICA PART TIME: Solo 17-20
-        else {
+        else if (emp.contractType === 'part-time') {
           const idPT = `auto-${emp.id}-${dateStr}-PT`;
           const refPT = doc(db, "employees", emp.id, "timeentries", idPT);
           const startPT = new Date(now); startPT.setHours(17, 0, 0, 0);
@@ -156,10 +157,10 @@ export default function AttendancePage() {
         }
       }
 
-      toast({ title: "Timbratura Completata", description: `Generate ${count} timbrature automatiche per oggi.` });
+      toast({ title: "Operazione Completata", description: `Generate ${count} timbrature automatiche per il personale in servizio oggi.` });
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Errore", description: "Impossibile generare le timbrature." });
+      toast({ variant: "destructive", title: "Errore", description: "Si è verificato un problema durante la generazione." });
     } finally {
       setIsGenerating(false);
     }
@@ -170,7 +171,7 @@ export default function AttendancePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Registro Presenze TU.L.S.</h1>
-          <p className="text-muted-foreground">Monitora gli ingressi e le uscite del personale in tempo reale.</p>
+          <p className="text-muted-foreground">Gestione centralizzata di ingressi e uscite automatiche.</p>
         </div>
         <div className="flex gap-2">
           <Button 
@@ -182,7 +183,7 @@ export default function AttendancePage() {
             Timbratura Automatica
           </Button>
           <Button variant="outline" className="gap-2 font-bold">
-            <Download className="h-4 w-4" /> Esporta
+            <Download className="h-4 w-4" /> Esporta Log
           </Button>
         </div>
       </div>
@@ -192,12 +193,12 @@ export default function AttendancePage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-[#227FD8]" />
-              <CardTitle className="text-xl font-black">Log Attività</CardTitle>
+              <CardTitle className="text-xl font-black">Storico Attività</CardTitle>
             </div>
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Cerca dipendente..." 
+                placeholder="Cerca per nome dipendente..." 
                 className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -209,7 +210,7 @@ export default function AttendancePage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="font-bold">Dipendente</TableHead>
+                <TableHead className="font-bold">Collaboratore</TableHead>
                 <TableHead className="font-bold">Data</TableHead>
                 <TableHead className="font-bold">Entrata</TableHead>
                 <TableHead className="font-bold">Uscita</TableHead>
@@ -238,24 +239,24 @@ export default function AttendancePage() {
                         </Avatar>
                         <div className="flex flex-col">
                           <span className="font-bold text-sm text-[#1e293b]">
-                            {emp ? `${emp.firstName || ""} ${emp.lastName || ""}` : "Utente Sconosciuto"}
+                            {emp ? `${emp.firstName || ""} ${emp.lastName || ""}` : "Sconosciuto"}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">{emp?.jobTitle || "Dipendente"}</span>
+                          <span className="text-[10px] text-muted-foreground">{emp?.jobTitle || "Personale"}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm font-medium">
-                      {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleDateString('it-IT') : "--/--/----"}
+                      {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleDateString('it-IT') : "--"}
                     </TableCell>
                     <TableCell className="text-sm font-mono font-bold text-[#227FD8]">
                       {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                     </TableCell>
-                    <TableCell className="text-sm font-mono font-bold">
+                    <TableCell className="text-sm font-mono font-bold text-slate-500">
                       {checkOutDate && !isNaN(checkOutDate.getTime()) ? checkOutDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500" : ""}>
-                        {!log.checkOutTime ? "In Servizio" : log.type === "AUTO" ? "Auto-Log" : "Completato"}
+                      <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500" : "font-bold"}>
+                        {!log.checkOutTime ? "In Servizio" : log.type === "AUTO" ? "Automatica" : "Manuale"}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -263,7 +264,7 @@ export default function AttendancePage() {
               }) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-40 text-center text-muted-foreground italic">
-                    Nessun record di presenza trovato. Clicca su "Timbratura Automatica" per popolare oggi.
+                    Nessun log trovato. Usa il tasto in alto per generare le timbrature di oggi.
                   </TableCell>
                 </TableRow>
               )}
