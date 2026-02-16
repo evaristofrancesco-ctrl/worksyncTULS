@@ -35,7 +35,10 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
-// Componente isolato per il form delle sedi per evitare re-render pesanti della pagina durante la digitazione
+/**
+ * Componente isolato per il form delle sedi.
+ * Previene il re-render dell'intera pagina durante la digitazione.
+ */
 function LocationForm({ 
   initialData, 
   onSubmit, 
@@ -51,43 +54,53 @@ function LocationForm({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2 font-black">
-          {title.includes('Modifica') ? <Edit className="h-5 w-5 text-[#227FD8]" /> : <Building2 className="h-5 w-5 text-[#227FD8]" />} {title}
+      <div className="bg-[#227FD8] p-6 text-white rounded-t-lg">
+        <DialogTitle className="flex items-center gap-2 text-2xl font-black">
+          {title.includes('Modifica') ? <Edit className="h-6 w-6" /> : <Building2 className="h-6 w-6" />} {title}
         </DialogTitle>
-        <DialogDescription>Inserisci i dettagli per la gestione della sede operativa.</DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-4 py-4">
+        <DialogDescription className="text-blue-100">
+          Inserisci i dettagli per la gestione della sede operativa dell'azienda.
+        </DialogDescription>
+      </div>
+      <div className="grid gap-6 p-6">
         <div className="space-y-2">
-          <Label className="font-bold">Nome Sede *</Label>
+          <Label className="font-bold text-sm uppercase tracking-wider text-slate-500">Nome Sede *</Label>
           <Input 
-            placeholder="es. Ufficio Nord" 
+            placeholder="es. Punto Vendita Centro" 
+            className="h-12 border-slate-200 focus-visible:ring-[#227FD8]"
             value={formData.name || ""} 
             onChange={(e) => setFormData({...formData, name: e.target.value})} 
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label className="font-bold">Città *</Label>
+            <Label className="font-bold text-sm uppercase tracking-wider text-slate-500">Città *</Label>
             <Input 
-              placeholder="es. Milano" 
+              placeholder="es. Roma" 
+              className="h-12 border-slate-200 focus-visible:ring-[#227FD8]"
               value={formData.city || ""} 
               onChange={(e) => setFormData({...formData, city: e.target.value})} 
             />
           </div>
           <div className="space-y-2">
-            <Label className="font-bold">Indirizzo</Label>
+            <Label className="font-bold text-sm uppercase tracking-wider text-slate-500">Indirizzo</Label>
             <Input 
-              placeholder="es. Via delle Industrie 1" 
+              placeholder="es. Via del Corso 15" 
+              className="h-12 border-slate-200 focus-visible:ring-[#227FD8]"
               value={formData.address || ""} 
               onChange={(e) => setFormData({...formData, address: e.target.value})} 
             />
           </div>
         </div>
       </div>
-      <DialogFooter>
+      <DialogFooter className="p-6 bg-slate-50 rounded-b-lg border-t">
         <Button variant="ghost" onClick={onCancel} className="font-bold">Annulla</Button>
-        <Button onClick={() => onSubmit(formData)} className="bg-[#227FD8] font-black uppercase">Salva Sede</Button>
+        <Button 
+          onClick={() => onSubmit(formData)} 
+          className="bg-[#227FD8] hover:bg-[#227FD8]/90 h-12 px-8 font-black uppercase shadow-md"
+        >
+          Salva Sede
+        </Button>
       </DialogFooter>
     </>
   )
@@ -112,7 +125,11 @@ export default function LocationsPage() {
 
   const handleAddLocation = (data: any) => {
     if (!data.name || !data.city) {
-      toast({ variant: "destructive", title: "Errore", description: "Nome e Città sono obbligatori." })
+      toast({ 
+        variant: "destructive", 
+        title: "Campi Obbligatori", 
+        description: "Il nome della sede e la città sono necessari." 
+      })
       return
     }
 
@@ -128,7 +145,7 @@ export default function LocationsPage() {
     }, { merge: true })
 
     setIsAddDialogOpen(false)
-    toast({ title: "Sede creata", description: "La nuova sede è stata aggiunta correttamente." })
+    toast({ title: "Sede Aggiunta", description: `${data.name} è stata registrata correttamente.` })
   }
 
   const handleUpdateLocation = (data: any) => {
@@ -143,16 +160,16 @@ export default function LocationsPage() {
 
     setIsEditDialogOpen(false)
     setEditingLocation(null)
-    toast({ title: "Sede Aggiornata", description: "Le modifiche sono state salvate." })
+    toast({ title: "Sede Aggiornata", description: "Le modifiche sono state salvate nel sistema." })
   }
 
   const handleDeleteLocation = useCallback((id: string) => {
     const locRef = doc(db, "companies", "default", "locations", id)
     deleteDocumentNonBlocking(locRef)
-    toast({ title: "Sede eliminata", description: "La sede è stata rimossa dal sistema." })
+    toast({ title: "Sede Rimossa", description: "La sede è stata eliminata." })
   }, [db, toast])
 
-  // Memoizzazione della ricerca per evitare ricalcoli costosi
+  // Memoizzazione della ricerca per evitare ricalcoli costosi durante il render
   const filteredLocations = useMemo(() => {
     if (!locations) return []
     const q = searchQuery.toLowerCase()
@@ -171,17 +188,17 @@ export default function LocationsPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Sedi Operative</h1>
-          <p className="text-muted-foreground">Gestisci i luoghi di lavoro della tua azienda.</p>
+          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Gestione Sedi Operative</h1>
+          <p className="text-muted-foreground">Configura i punti vendita o gli uffici gestiti da TU.L.S.</p>
         </div>
         
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 bg-[#227FD8] hover:bg-[#227FD8]/90 h-11 px-6 shadow-md font-bold">
-              <Plus className="h-5 w-5" /> Aggiungi Sede
+              <Plus className="h-5 w-5" /> Aggiungi Nuova Sede
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl">
             <LocationForm 
               initialData={{ name: "", address: "", city: "" }}
               onSubmit={handleAddLocation}
@@ -192,48 +209,59 @@ export default function LocationsPage() {
         </Dialog>
       </div>
 
-      <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
-        <CardHeader className="pb-3">
+      <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm overflow-hidden">
+        <CardHeader className="pb-3 border-b">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <CardTitle className="text-xl font-black">Elenco Sedi</CardTitle>
+            <div>
+              <CardTitle className="text-xl font-black text-[#1e293b]">Elenco Sedi Attive</CardTitle>
+              <CardDescription>Visualizza e gestisci l'anagrafica dei luoghi di lavoro.</CardDescription>
+            </div>
             <div className="relative w-full max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Cerca sede o città..."
-                className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
+                placeholder="Cerca per nome o città..."
+                className="pl-9 bg-muted/40 border-none h-10 focus-visible:ring-[#227FD8]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead className="font-black">Nome</TableHead>
-                <TableHead className="font-black">Città</TableHead>
-                <TableHead className="font-black">Indirizzo</TableHead>
+                <TableHead className="font-black pl-6">Nome Sede</TableHead>
+                <TableHead className="font-black">Località</TableHead>
+                <TableHead className="font-black">Indirizzo Completo</TableHead>
                 <TableHead className="text-right font-black pr-6">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-10">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                  <TableCell colSpan={4} className="text-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" />
+                    <p className="mt-2 text-sm text-muted-foreground font-medium">Caricamento sedi...</p>
                   </TableCell>
                 </TableRow>
               ) : filteredLocations.map((loc) => (
-                <TableRow key={loc.id} className="hover:bg-muted/20 transition-colors">
-                  <TableCell className="font-bold text-[#1e293b]">
+                <TableRow key={loc.id} className="hover:bg-muted/10 transition-colors border-b last:border-0">
+                  <TableCell className="font-bold text-[#1e293b] pl-6 py-4">
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-[#227FD8]" />
+                      <div className="h-8 w-8 rounded-lg bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8]">
+                        <Building2 className="h-4 w-4" />
+                      </div>
                       {loc.name}
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium text-sm">{loc.city}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{loc.address}</TableCell>
+                  <TableCell className="font-bold text-sm text-slate-600">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-amber-500" />
+                      {loc.city}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm italic">{loc.address || "Indirizzo non specificato"}</TableCell>
                   <TableCell className="text-right pr-6">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -241,7 +269,7 @@ export default function LocationsPage() {
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuContent align="end" className="w-44">
                         <DropdownMenuItem className="cursor-pointer font-bold" onClick={() => handleOpenEdit(loc)}>
                           <Edit className="h-4 w-4 mr-2" /> Modifica
                         </DropdownMenuItem>
@@ -259,7 +287,7 @@ export default function LocationsPage() {
               {!isLoading && filteredLocations.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="h-40 text-center text-muted-foreground italic">
-                    Nessuna sede trovata.
+                    Nessuna sede operativa trovata.
                   </TableCell>
                 </TableRow>
               )}
@@ -268,9 +296,9 @@ export default function LocationsPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog separato per la modifica per gestire meglio lo stato */}
+      {/* Dialog per la modifica */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl">
           {editingLocation && (
             <LocationForm 
               initialData={editingLocation}
