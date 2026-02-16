@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import React, { useState, useMemo, useCallback } from "react"
 import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,10 +36,9 @@ import { collection, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 /**
- * Componente isolato per il form delle sedi.
- * Previene il re-render dell'intera pagina durante la digitazione.
+ * Componente per il Form della Sede - Isolato per evitare freeze del genitore
  */
-function LocationForm({ 
+const LocationForm = React.memo(({ 
   initialData, 
   onSubmit, 
   onCancel, 
@@ -49,11 +48,11 @@ function LocationForm({
   onSubmit: (data: any) => void, 
   onCancel: () => void, 
   title: string 
-}) {
+}) => {
   const [formData, setFormData] = useState(initialData)
 
   return (
-    <>
+    <div className="flex flex-col h-full">
       <div className="bg-[#227FD8] p-6 text-white rounded-t-lg">
         <DialogTitle className="flex items-center gap-2 text-2xl font-black">
           {title.includes('Modifica') ? <Edit className="h-6 w-6" /> : <Building2 className="h-6 w-6" />} {title}
@@ -62,7 +61,7 @@ function LocationForm({
           Inserisci i dettagli per la gestione della sede operativa dell'azienda.
         </DialogDescription>
       </div>
-      <div className="grid gap-6 p-6">
+      <div className="grid gap-6 p-6 flex-1">
         <div className="space-y-2">
           <Label className="font-bold text-sm uppercase tracking-wider text-slate-500">Nome Sede *</Label>
           <Input 
@@ -102,15 +101,102 @@ function LocationForm({
           Salva Sede
         </Button>
       </DialogFooter>
-    </>
+    </div>
   )
-}
+})
+LocationForm.displayName = "LocationForm"
+
+/**
+ * Componente Tabella Sedi - Memoizzato per evitare ri-render inutili
+ */
+const LocationsTable = React.memo(({ 
+  locations, 
+  isLoading, 
+  onEdit, 
+  onDelete 
+}: { 
+  locations: any[], 
+  isLoading: boolean, 
+  onEdit: (loc: any) => void, 
+  onDelete: (id: string) => void 
+}) => {
+  if (isLoading) {
+    return (
+      <div className="text-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" />
+        <p className="mt-2 text-sm text-muted-foreground font-medium">Caricamento sedi...</p>
+      </div>
+    )
+  }
+
+  if (locations.length === 0) {
+    return (
+      <div className="h-40 flex items-center justify-center text-muted-foreground italic">
+        Nessuna sede operativa trovata.
+      </div>
+    )
+  }
+
+  return (
+    <Table>
+      <TableHeader className="bg-muted/30">
+        <TableRow>
+          <TableHead className="font-black pl-6">Nome Sede</TableHead>
+          <TableHead className="font-black">Località</TableHead>
+          <TableHead className="font-black">Indirizzo Completo</TableHead>
+          <TableHead className="text-right font-black pr-6">Azioni</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {locations.map((loc) => (
+          <TableRow key={loc.id} className="hover:bg-muted/10 transition-colors border-b last:border-0">
+            <TableCell className="font-bold text-[#1e293b] pl-6 py-4">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8]">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                {loc.name}
+              </div>
+            </TableCell>
+            <TableCell className="font-bold text-sm text-slate-600">
+              <div className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 text-amber-500" />
+                {loc.city}
+              </div>
+            </TableCell>
+            <TableCell className="text-muted-foreground text-sm italic">{loc.address || "Indirizzo non specificato"}</TableCell>
+            <TableCell className="text-right pr-6">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem className="cursor-pointer font-bold" onClick={() => onEdit(loc)}>
+                    <Edit className="h-4 w-4 mr-2" /> Modifica
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    className="text-destructive cursor-pointer font-bold"
+                    onClick={() => onDelete(loc.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  )
+})
+LocationsTable.displayName = "LocationsTable"
 
 export default function LocationsPage() {
   const db = useFirestore()
   const { toast } = useToast()
 
-  // Query memoizzata per Firestore
   const locationsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "companies", "default", "locations");
@@ -123,19 +209,10 @@ export default function LocationsPage() {
   const [editingLocation, setEditingLocation] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
-  const handleAddLocation = (data: any) => {
-    if (!data.name || !data.city) {
-      toast({ 
-        variant: "destructive", 
-        title: "Campi Obbligatori", 
-        description: "Il nome della sede e la città sono necessari." 
-      })
-      return
-    }
-
+  const handleAddLocation = useCallback((data: any) => {
+    if (!data.name || !data.city || !db) return
     const locId = `loc-${Date.now()}`
     const locRef = doc(db, "companies", "default", "locations", locId)
-    
     setDocumentNonBlocking(locRef, {
       id: locId,
       name: (data.name || "").trim(),
@@ -143,35 +220,33 @@ export default function LocationsPage() {
       city: (data.city || "").trim(),
       companyId: "default"
     }, { merge: true })
-
     setIsAddDialogOpen(false)
-    toast({ title: "Sede Aggiunta", description: `${data.name} è stata registrata correttamente.` })
-  }
+    toast({ title: "Sede Aggiunta", description: `${data.name} registrata.` })
+  }, [db, toast])
 
-  const handleUpdateLocation = (data: any) => {
-    if (!data.name || !data.city) return
-
+  const handleUpdateLocation = useCallback((data: any) => {
+    if (!data.name || !data.city || !db) return
     const locRef = doc(db, "companies", "default", "locations", data.id)
     updateDocumentNonBlocking(locRef, {
       name: (data.name || "").trim(),
       address: (data.address || "").trim(),
       city: (data.city || "").trim(),
     })
-
     setIsEditDialogOpen(false)
     setEditingLocation(null)
-    toast({ title: "Sede Aggiornata", description: "Le modifiche sono state salvate nel sistema." })
-  }
+    toast({ title: "Sede Aggiornata", description: "Modifiche salvate." })
+  }, [db, toast])
 
   const handleDeleteLocation = useCallback((id: string) => {
+    if (!db) return
     const locRef = doc(db, "companies", "default", "locations", id)
     deleteDocumentNonBlocking(locRef)
     toast({ title: "Sede Rimossa", description: "La sede è stata eliminata." })
   }, [db, toast])
 
-  // Memoizzazione della ricerca per evitare ricalcoli costosi durante il render
   const filteredLocations = useMemo(() => {
     if (!locations) return []
+    if (!searchQuery) return locations
     const q = searchQuery.toLowerCase()
     return locations.filter(loc => 
       (loc.name || "").toLowerCase().includes(q) ||
@@ -228,75 +303,15 @@ export default function LocationsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead className="font-black pl-6">Nome Sede</TableHead>
-                <TableHead className="font-black">Località</TableHead>
-                <TableHead className="font-black">Indirizzo Completo</TableHead>
-                <TableHead className="text-right font-black pr-6">Azioni</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-20">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" />
-                    <p className="mt-2 text-sm text-muted-foreground font-medium">Caricamento sedi...</p>
-                  </TableCell>
-                </TableRow>
-              ) : filteredLocations.map((loc) => (
-                <TableRow key={loc.id} className="hover:bg-muted/10 transition-colors border-b last:border-0">
-                  <TableCell className="font-bold text-[#1e293b] pl-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8]">
-                        <Building2 className="h-4 w-4" />
-                      </div>
-                      {loc.name}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-bold text-sm text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5 text-amber-500" />
-                      {loc.city}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm italic">{loc.address || "Indirizzo non specificato"}</TableCell>
-                  <TableCell className="text-right pr-6">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
-                        <DropdownMenuItem className="cursor-pointer font-bold" onClick={() => handleOpenEdit(loc)}>
-                          <Edit className="h-4 w-4 mr-2" /> Modifica
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-destructive cursor-pointer font-bold"
-                          onClick={() => handleDeleteLocation(loc.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" /> Elimina
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!isLoading && filteredLocations.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-40 text-center text-muted-foreground italic">
-                    Nessuna sede operativa trovata.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+          <LocationsTable 
+            locations={filteredLocations}
+            isLoading={isLoading}
+            onEdit={handleOpenEdit}
+            onDelete={handleDeleteLocation}
+          />
         </CardContent>
       </Card>
 
-      {/* Dialog per la modifica */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl">
           {editingLocation && (
