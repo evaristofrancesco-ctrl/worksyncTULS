@@ -1,10 +1,27 @@
+
 "use client"
 
 import Link from "next/link"
-import { ShieldCheck, ArrowRight, Zap, Calendar, Smartphone } from "lucide-react"
+import { ShieldCheck, ArrowRight, Zap, Calendar, Smartphone, Copy, Check, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useState } from "react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function Home() {
+  const { toast } = useToast()
+  const [copied, setCopied] = useState(false)
+
+  const copyLoginLink = () => {
+    const loginUrl = `${window.location.origin}/login`
+    navigator.clipboard.writeText(loginUrl)
+    setCopied(true)
+    toast({
+      title: "Link Copiato!",
+      description: "Puoi inviare questo link ai tuoi collaboratori.",
+    })
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="min-h-screen bg-[#F4F8FA] flex flex-col items-center justify-center p-6 text-center space-y-12">
       <div className="space-y-4 max-w-2xl animate-in fade-in zoom-in duration-500">
@@ -16,30 +33,44 @@ export default function Home() {
           La piattaforma di gestione del personale tutto-in-uno progettata per i team moderni.
           Pianificazione intelligente, monitoraggio in tempo reale e ottimizzazione basata su AI.
         </p>
-        <div className="pt-6">
+        <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href="/login">
-            <Button size="lg" className="bg-[#227FD8] hover:bg-[#227FD8]/90 h-14 px-8 text-lg font-bold rounded-2xl shadow-lg group">
+            <Button size="lg" className="bg-[#227FD8] hover:bg-[#227FD8]/90 h-14 px-8 text-lg font-bold rounded-2xl shadow-lg group w-full sm:w-auto">
               Accedi al Portale <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </Button>
           </Link>
         </div>
       </div>
 
-      <div className="max-w-4xl w-full animate-in slide-in-from-bottom-8 duration-700">
-        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4 text-left">
-            <div className="h-12 w-12 rounded-xl bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8]">
-              <ShieldCheck className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="font-bold text-slate-800">Accesso Unificato</p>
-              <p className="text-sm text-slate-500">Il sistema riconosce automaticamente il tuo ruolo.</p>
-            </div>
+      <div className="max-w-4xl w-full grid md:grid-cols-2 gap-6 animate-in slide-in-from-bottom-8 duration-700">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4 text-left">
+          <div className="h-12 w-12 rounded-xl bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8] shrink-0">
+            <ShieldCheck className="h-6 w-6" />
           </div>
-          <div className="flex gap-4">
-             <div className="h-1 w-12 rounded-full bg-slate-100" />
-             <div className="h-1 w-12 rounded-full bg-slate-100" />
-             <div className="h-1 w-12 rounded-full bg-slate-100" />
+          <div>
+            <p className="font-bold text-slate-800">Accesso Unificato</p>
+            <p className="text-sm text-slate-500">Il sistema riconosce automaticamente se sei Admin o Collaboratore.</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-center gap-4 text-left">
+          <div className="flex items-center justify-between">
+            <p className="font-bold text-slate-800">Link Accesso Collaboratori</p>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 gap-2 text-[#227FD8] font-bold"
+              onClick={copyLoginLink}
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copiato" : "Copia Link"}
+            </Button>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-dashed flex items-center justify-between group">
+            <code className="text-xs text-slate-500 truncate mr-2">/login</code>
+            <Link href="/login">
+              <ExternalLink className="h-4 w-4 text-slate-400 group-hover:text-[#227FD8] transition-colors" />
+            </Link>
           </div>
         </div>
       </div>
