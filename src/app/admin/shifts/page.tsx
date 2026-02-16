@@ -12,7 +12,9 @@ import {
   Trash2, 
   Clock,
   User,
-  Info
+  Info,
+  Sun,
+  Moon
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -174,8 +176,8 @@ export default function ShiftsPage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Pianificazione Turni TU.L.S.</h1>
-          <p className="text-muted-foreground">Calendario settimanale: FT (9-13, 17-20), PT (17-20).</p>
+          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Pianificazione Turni Team</h1>
+          <p className="text-muted-foreground">Gestione settimanale con separazione Mattina (9-13) e Pomeriggio (17-20).</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 border-[#227FD8] text-[#227FD8] font-black">
@@ -200,15 +202,25 @@ export default function ShiftsPage() {
         <Button variant="secondary" size="sm" onClick={() => navigateWeek('today')} className="font-bold">Torna ad Oggi</Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-start">
         {daysOfVisualizedWeek.map((day) => {
           const dayStr = format(day, 'yyyy-MM-dd')
           const isToday = isSameDay(day, new Date())
-          const shiftsForDay = weekShifts.filter(s => s.date === dayStr).sort((a, b) => a.startTime.localeCompare(b.startTime))
+          const shiftsForDay = weekShifts.filter(s => s.date === dayStr)
+          
+          const morningShifts = shiftsForDay.filter(s => {
+            const start = parseISO(s.startTime).getHours()
+            return start < 14
+          }).sort((a, b) => a.startTime.localeCompare(b.startTime))
+
+          const afternoonShifts = shiftsForDay.filter(s => {
+            const start = parseISO(s.startTime).getHours()
+            return start >= 14
+          }).sort((a, b) => a.startTime.localeCompare(b.startTime))
           
           return (
             <Card key={dayStr} className={cn(
-              "border-none shadow-sm overflow-hidden flex flex-col min-h-[400px]",
+              "border-none shadow-sm overflow-hidden flex flex-col min-h-[500px]",
               isToday ? "bg-[#227FD8]/5 ring-2 ring-[#227FD8]/20" : "bg-white/80"
             )}>
               <div className={cn(
@@ -218,44 +230,40 @@ export default function ShiftsPage() {
                 <div className="text-xs">{format(day, 'EEEE', { locale: it })}</div>
                 <div className="text-xl">{format(day, 'dd')}</div>
               </div>
-              <CardContent className="p-2 flex-1 space-y-2">
+              <CardContent className="p-2 flex-1 space-y-4">
                 {isShiftsLoading ? (
                   <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-                ) : shiftsForDay.length > 0 ? shiftsForDay.map(shift => {
-                  const emp = employeeMap[shift.employeeId]
-                  const start = parseISO(shift.startTime)
-                  const end = parseISO(shift.endTime)
-                  
-                  return (
-                    <div key={shift.id} className="group relative bg-white border rounded-xl p-2 shadow-sm hover:shadow-md transition-all">
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <Avatar className="h-6 w-6 border shadow-xs">
-                          <AvatarImage src={emp?.photoUrl} />
-                          <AvatarFallback className="text-[8px] font-bold">{emp?.firstName?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-[10px] font-black truncate text-[#1e293b]">{emp?.firstName} {emp?.lastName?.charAt(0)}.</span>
+                ) : (
+                  <>
+                    {/* Sezione Mattina */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded-md text-amber-700">
+                        <Sun className="h-3 w-3" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Mattina</span>
                       </div>
-                      <div className="flex items-center gap-1 text-[9px] font-bold text-[#227FD8]">
-                        <Clock className="h-3 w-3" />
-                        {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
-                      </div>
-                      <div className="mt-1 text-[8px] font-black text-muted-foreground uppercase truncate">
-                        {shift.title}
-                      </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="absolute -top-1 -right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-destructive text-white hover:bg-destructive/90"
-                        onClick={() => deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id))}
-                      >
-                        <Trash2 className="h-2.5 w-2.5" />
-                      </Button>
+                      {morningShifts.length > 0 ? morningShifts.map(shift => (
+                        <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} />
+                      )) : (
+                        <div className="text-[8px] text-center text-muted-foreground/40 italic py-2">Nessun turno</div>
+                      )}
                     </div>
-                  )
-                }) : (
-                  <div className="h-full flex items-center justify-center opacity-20 py-10">
-                    <CalendarIcon className="h-8 w-8" />
-                  </div>
+
+                    {/* Separatore visivo */}
+                    <div className="border-t border-dashed" />
+
+                    {/* Sezione Pomeriggio */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 rounded-md text-blue-700">
+                        <Moon className="h-3 w-3" />
+                        <span className="text-[9px] font-black uppercase tracking-widest">Pomeriggio</span>
+                      </div>
+                      {afternoonShifts.length > 0 ? afternoonShifts.map(shift => (
+                        <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} />
+                      )) : (
+                        <div className="text-[8px] text-center text-muted-foreground/40 italic py-2">Nessun turno</div>
+                      )}
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -267,10 +275,39 @@ export default function ShiftsPage() {
         <CardContent className="p-4 flex items-center gap-3">
           <Info className="h-5 w-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-800">
-            La griglia mostra i turni pianificati. Il sistema automatizzato genera turni Lun-Sab rispettando il riposo settimanale di ogni collaboratore.
+            Pianificazione automatica basata sui riposi settimanali. Mattina: 09:00-13:00 | Pomeriggio: 17:00-20:00.
           </p>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function ShiftCard({ shift, emp, db }: { shift: any, emp: any, db: any }) {
+  const start = parseISO(shift.startTime)
+  const end = parseISO(shift.endTime)
+
+  return (
+    <div className="group relative bg-white border rounded-xl p-2 shadow-sm hover:shadow-md transition-all">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Avatar className="h-6 w-6 border shadow-xs">
+          <AvatarImage src={emp?.photoUrl} />
+          <AvatarFallback className="text-[8px] font-bold">{emp?.firstName?.charAt(0)}</AvatarFallback>
+        </Avatar>
+        <span className="text-[10px] font-black truncate text-[#1e293b]">{emp?.firstName} {emp?.lastName?.charAt(0)}.</span>
+      </div>
+      <div className="flex items-center gap-1 text-[9px] font-bold text-[#227FD8]">
+        <Clock className="h-3 w-3" />
+        {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
+      </div>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="absolute -top-1 -right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-destructive text-white hover:bg-destructive/90"
+        onClick={() => deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id))}
+      >
+        <Trash2 className="h-2.5 w-2.5" />
+      </Button>
     </div>
   )
 }
