@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Clock, Download, Filter, Search, Loader2, Zap } from "lucide-react"
+import { Clock, Download, Filter, Search, Loader2, Zap, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc } from "firebase/firestore"
 import { useState, useMemo } from "react"
@@ -75,7 +76,6 @@ export default function AttendancePage() {
     const now = new Date();
     const dayOfWeek = now.getDay().toString();
 
-    // Lunedì (1) - Sabato (6)
     const isWorkingDay = now.getDay() >= 1 && now.getDay() <= 6;
 
     if (!isWorkingDay) {
@@ -91,7 +91,6 @@ export default function AttendancePage() {
 
         const dateStr = now.toISOString().split('T')[0];
 
-        // LOGICA FULL TIME: 09-13 e 17-20
         if (emp.contractType === 'full-time') {
           const idAM = `auto-${emp.id}-${dateStr}-AM`;
           const refAM = doc(db, "employees", emp.id, "timeentries", idAM);
@@ -127,7 +126,6 @@ export default function AttendancePage() {
           
           count += 2;
         } 
-        // LOGICA PART TIME: Solo 17-20
         else {
           const idPT = `auto-${emp.id}-${dateStr}-PT`;
           const refPT = doc(db, "employees", emp.id, "timeentries", idPT);
@@ -162,8 +160,8 @@ export default function AttendancePage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Registro Presenze TU.L.S.</h1>
-          <p className="text-muted-foreground">Orari: FT (9-13, 17-20), PT (17-20).</p>
+          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">⏱️ Registro Presenze Team</h1>
+          <p className="text-muted-foreground">Monitoraggio timbrature manuali e automatiche del punto vendita.</p>
         </div>
         <div className="flex gap-2">
           <Button 
@@ -180,90 +178,125 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-[#227FD8]" />
-              <CardTitle className="text-xl font-black">Storico Attività</CardTitle>
-            </div>
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Cerca dipendente..." 
-                className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead className="font-bold">Collaboratore</TableHead>
-                <TableHead className="font-bold">Data</TableHead>
-                <TableHead className="font-bold">Entrata</TableHead>
-                <TableHead className="font-bold">Uscita</TableHead>
-                <TableHead className="font-bold">Stato</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-20">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                  </TableCell>
-                </TableRow>
-              ) : filteredEntries.length > 0 ? filteredEntries.map((log) => {
-                const emp = employeeMap[log.employeeId];
-                const checkInDate = log.checkInTime ? new Date(log.checkInTime) : null;
-                const checkOutDate = log.checkOutTime ? new Date(log.checkOutTime) : null;
-
-                return (
-                  <TableRow key={log.id} className="hover:bg-muted/10 transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9 border shadow-sm">
-                          <AvatarImage src={emp?.photoUrl || `https://picsum.photos/seed/${log.employeeId}/100/100`} />
-                          <AvatarFallback className="bg-primary/10 text-primary font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="font-bold text-sm text-[#1e293b]">
-                            {emp ? `${emp.firstName || ""} ${emp.lastName || ""}` : "Sconosciuto"}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">{emp?.jobTitle || "Personale"}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm font-medium">
-                      {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleDateString('it-IT') : "--"}
-                    </TableCell>
-                    <TableCell className="text-sm font-mono font-bold text-[#227FD8]">
-                      {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
-                    </TableCell>
-                    <TableCell className="text-sm font-mono font-bold text-slate-500">
-                      {checkOutDate && !isNaN(checkOutDate.getTime()) ? checkOutDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500" : "font-bold"}>
-                        {!log.checkOutTime ? "In Servizio" : log.type === "AUTO" ? "Automatica" : "Manuale"}
-                      </Badge>
-                    </TableCell>
+      <div className="grid gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm h-full">
+            <CardHeader>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-[#227FD8]" />
+                  <CardTitle className="text-xl font-black">Storico Attività Team</CardTitle>
+                </div>
+                <div className="relative w-full max-w-sm">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Cerca dipendente..." 
+                    className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead className="font-bold">Collaboratore</TableHead>
+                    <TableHead className="font-bold">Data</TableHead>
+                    <TableHead className="font-bold">Entrata</TableHead>
+                    <TableHead className="font-bold">Uscita</TableHead>
+                    <TableHead className="font-bold">Stato</TableHead>
                   </TableRow>
-                )
-              }) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-40 text-center text-muted-foreground italic">
-                    Nessun log trovato.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-20">
+                        <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredEntries.length > 0 ? filteredEntries.map((log) => {
+                    const emp = employeeMap[log.employeeId];
+                    const checkInDate = log.checkInTime ? new Date(log.checkInTime) : null;
+                    const checkOutDate = log.checkOutTime ? new Date(log.checkOutTime) : null;
+
+                    return (
+                      <TableRow key={log.id} className="hover:bg-muted/10 transition-colors">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-9 w-9 border shadow-sm">
+                              <AvatarImage src={emp?.photoUrl || `https://picsum.photos/seed/${log.employeeId}/100/100`} />
+                              <AvatarFallback className="bg-primary/10 text-primary font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-sm text-[#1e293b]">
+                                {emp ? `${emp.firstName || ""} ${emp.lastName || ""}` : "Sconosciuto"}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">{emp?.jobTitle || "Personale"}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm font-medium">
+                          {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleDateString('it-IT') : "--"}
+                        </TableCell>
+                        <TableCell className="text-sm font-mono font-bold text-[#227FD8]">
+                          {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
+                        </TableCell>
+                        <TableCell className="text-sm font-mono font-bold text-slate-500">
+                          {checkOutDate && !isNaN(checkOutDate.getTime()) ? checkOutDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500" : "font-bold"}>
+                            {!log.checkOutTime ? "In Servizio" : log.type === "AUTO" ? "Automatica" : "Manuale"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  }) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-40 text-center text-muted-foreground italic">
+                        Nessun log trovato.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-4 space-y-6">
+          <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-amber-500" />
+                <CardTitle className="text-lg font-black">Mia Timbratura</CardTitle>
+              </div>
+              <CardDescription>Usa questo modulo per la tua presenza personale.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ClockInOut />
+            </CardContent>
+          </Card>
+          
+          <Card className="border-none shadow-sm bg-blue-600 text-white overflow-hidden">
+            <CardContent className="p-6">
+              <h4 className="font-black uppercase tracking-tighter text-blue-100 text-xs mb-2">Statistiche Veloci</h4>
+              <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                  <span className="text-sm font-bold">Presenti Oggi</span>
+                  <span className="text-3xl font-black">{new Set(filteredEntries.filter(e => new Date(e.checkInTime).toDateString() === new Date().toDateString()).map(e => e.employeeId)).size}</span>
+                </div>
+                <div className="h-1 bg-white/20 rounded-full overflow-hidden">
+                  <div className="h-full bg-white w-2/3" />
+                </div>
+                <p className="text-[10px] text-blue-100 font-medium">Copertura stimata basata sui turni pianificati.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

@@ -22,7 +22,7 @@ const adminLinks = [
   { name: "Dipendenti", href: "/admin/employees", icon: Users },
   { name: "Sedi Operative", href: "/admin/locations", icon: MapPin },
   { name: "Turni Team", href: "/admin/shifts", icon: Calendar },
-  { name: "Registro Presenze", href: "/admin/attendance", icon: Clock },
+  { name: "⏱️ Registro Presenze", href: "/admin/attendance", icon: Clock },
   { name: "Richieste Team", href: "/admin/requests", icon: FileText },
 ]
 
