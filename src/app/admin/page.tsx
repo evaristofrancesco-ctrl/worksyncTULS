@@ -56,6 +56,13 @@ export default function AdminDashboard() {
   }, [db])
   const { data: shifts } = useCollection(shiftsQuery)
 
+  // Richieste dipendenti
+  const requestsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collectionGroup(db, "requests");
+  }, [db])
+  const { data: requests } = useCollection(requestsQuery)
+
   // Mappa dei dipendenti memoizzata
   const employeeMap = useMemo(() => {
     if (!employees) return {};
@@ -78,7 +85,7 @@ export default function AdminDashboard() {
       .slice(0, 5);
   }, [entries]);
 
-  // Conteggio dipendenti attivi ora (chi ha timbrato oggi ed è entro l'orario o non ha ancora finito)
+  // Conteggio dipendenti attivi ora
   const activeEmployeesCount = useMemo(() => {
     if (!entries) return 0;
     const now = new Date();
@@ -90,7 +97,6 @@ export default function AdminDashboard() {
       if (!checkIn || isNaN(checkIn.getTime())) return false;
       
       const isToday = checkIn.toISOString().split('T')[0] === todayStr;
-      // Se ha timbrato oggi e non ha ancora l'uscita, o l'uscita è futura (simulata)
       const hasNoCheckOut = !e.checkOutTime;
       const isCurrentlyWorking = isToday && (hasNoCheckOut || new Date(e.checkOutTime) > now);
       
@@ -104,6 +110,12 @@ export default function AdminDashboard() {
     const todayStr = new Date().toISOString().split('T')[0];
     return shifts.filter(s => s.date === todayStr).length;
   }, [shifts]);
+
+  // Richieste in attesa
+  const pendingRequestsCount = useMemo(() => {
+    if (!requests) return 0;
+    return requests.filter(r => r.status === "In Attesa" || r.status === "PENDING").length;
+  }, [requests]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -134,9 +146,10 @@ export default function AdminDashboard() {
         />
         <StatCard 
           title="Richieste" 
-          value="--" 
+          value={pendingRequestsCount} 
           description="In attesa di approvazione" 
           icon={FileText}
+          trend={{ value: pendingRequestsCount, positive: false }}
         />
       </div>
 
@@ -169,7 +182,7 @@ export default function AdminDashboard() {
                 />
                 <Bar dataKey="ore" radius={[4, 4, 0, 0]}>
                   {weeklyStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === new Date().getDay() - 1 ? 'hsl(var(--accent))' : 'hsl(var(--primary))'} />
+                    <Cell key={`cell-${index}`} fill={index === (new Date().getDay() || 7) - 1 ? 'hsl(var(--primary))' : '#CBD5E1'} />
                   ))}
                 </Bar>
               </BarChart>
