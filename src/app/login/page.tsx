@@ -108,7 +108,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#227FD8] text-white text-2xl font-black shadow-lg">T</div>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight text-[#1e293b]">Accedi a TU.L.A.S</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight text-[#1e293b]">Accedi a TU.L.S.</CardTitle>
           <CardDescription>Inserisci le tue credenziali aziendali</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>

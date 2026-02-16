@@ -4,7 +4,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'TU.L.A.S | Gestione Moderna del Personale',
+  title: 'TU.L.S. | Gestione Moderna del Personale',
   description: 'Piattaforma di progettazione e gestione per aziende moderne.',
 };
 

@@ -39,7 +39,7 @@ export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {
       <div className="flex h-16 items-center border-b px-6">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">T</div>
-          <span className="text-xl font-bold tracking-tight text-primary">TU.L.A.S</span>
+          <span className="text-xl font-bold tracking-tight text-primary">TU.L.S.</span>
         </Link>
       </div>
       <div className="flex flex-col justify-between h-[calc(100vh-64px)] p-4">

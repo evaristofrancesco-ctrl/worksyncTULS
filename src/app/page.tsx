@@ -11,7 +11,7 @@ export default function Home() {
         <div className="flex justify-center mb-6">
            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#227FD8] text-white text-3xl font-black shadow-xl">T</div>
         </div>
-        <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-[#1e293b]">TU.L.A.S</h1>
+        <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-[#1e293b]">TU.L.S.</h1>
         <p className="text-xl text-slate-500 font-medium leading-relaxed">
           La piattaforma di gestione del personale tutto-in-uno progettata per i team moderni.
           Pianificazione intelligente, monitoraggio in tempo reale e ottimizzazione basata su AI.

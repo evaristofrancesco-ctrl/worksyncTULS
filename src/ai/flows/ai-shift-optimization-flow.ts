@@ -67,7 +67,7 @@ const aiShiftOptimizationPrompt = ai.definePrompt({
   name: 'aiShiftOptimizationPrompt',
   input: {schema: AiShiftOptimizationInputSchema},
   output: {schema: AiShiftOptimizationOutputSchema},
-  prompt: `Sei un esperto AI di gestione della forza lavoro. Il tuo compito è ottimizzare l'assegnazione dei turni per un'azienda chiamata TU.L.A.S. basandoti sui dettagli dei dipendenti e sui requisiti dei turni.
+  prompt: `Sei un esperto AI di gestione della forza lavoro. Il tuo compito è ottimizzare l'assegnazione dei turni per un'azienda chiamata TU.L.S. basandoti sui dettagli dei dipendenti e sui requisiti dei turni.
 Assicurati che tutti gli assegnamenti rispettino la disponibilità, i ruoli e le competenze. Dai priorità alla copertura di tutti i turni.
 
 Dati:

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Users, Calendar, Clock, FileText, ArrowUpRight, Loader2 } from "lucide-react"
@@ -61,7 +60,7 @@ export default function AdminDashboard() {
   // Voci recenti (Filtrate e ordinate in memoria)
   const recentEntries = useMemo(() => {
     if (!entries) return [];
-    return entries
+    return [...entries]
       .filter(e => e.companyId === "default" && e.checkInTime)
       .sort((a, b) => {
         const dateA = new Date(a.checkInTime).getTime();
@@ -86,7 +85,7 @@ export default function AdminDashboard() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Dashboard Amministratore</h1>
-        <p className="text-muted-foreground">Bentornato, ecco cosa sta succedendo oggi in TU.L.A.S.</p>
+        <p className="text-muted-foreground">Bentornato, ecco cosa sta succedendo oggi in TU.L.S.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
