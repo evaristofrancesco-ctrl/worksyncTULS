@@ -35,14 +35,16 @@ import {
 } from "date-fns"
 import { it } from "date-fns/locale"
 
-// Mappa dei colori per le sedi per una distinzione immediata
-const LOCATION_COLORS: Record<string, string> = {
-  "default": "border-l-[#227FD8] bg-blue-50/30",
-  "loc-1": "border-l-emerald-500 bg-emerald-50/30",
-  "loc-2": "border-l-amber-500 bg-amber-50/30",
-  "loc-3": "border-l-purple-500 bg-purple-50/30",
-  "loc-4": "border-l-rose-500 bg-rose-50/30",
-}
+// Colori Tailwind per le sedi
+const TAILWIND_COLORS = [
+  { border: "border-l-[#227FD8]", bg: "bg-blue-50/30", dot: "bg-[#227FD8]" },
+  { border: "border-l-emerald-500", bg: "bg-emerald-50/30", dot: "bg-emerald-500" },
+  { border: "border-l-amber-500", bg: "bg-amber-50/30", dot: "bg-amber-500" },
+  { border: "border-l-purple-500", bg: "bg-purple-50/30", dot: "bg-purple-500" },
+  { border: "border-l-rose-500", bg: "bg-rose-50/30", dot: "bg-rose-500" },
+  { border: "border-l-indigo-500", bg: "bg-indigo-50/30", dot: "bg-indigo-500" },
+  { border: "border-l-cyan-500", bg: "bg-cyan-50/30", dot: "bg-cyan-500" },
+]
 
 export default function ShiftsPage() {
   const db = useFirestore()
@@ -68,6 +70,12 @@ export default function ShiftsPage() {
   }, [db])
   const { data: shifts, isLoading: isShiftsLoading } = useCollection(shiftsQuery)
 
+  const locationsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, "companies", "default", "locations");
+  }, [db])
+  const { data: locations } = useCollection(locationsQuery)
+
   const employeeMap = useMemo(() => {
     if (!employees) return {};
     return employees.reduce((acc, emp) => {
@@ -75,6 +83,17 @@ export default function ShiftsPage() {
       return acc;
     }, {} as any);
   }, [employees]);
+
+  // Mappa dinamica colori per sede
+  const locationStyles = useMemo(() => {
+    const map: Record<string, typeof TAILWIND_COLORS[0]> = {}
+    if (!locations) return map
+    
+    locations.forEach((loc, index) => {
+      map[loc.id] = TAILWIND_COLORS[index % TAILWIND_COLORS.length]
+    })
+    return map
+  }, [locations])
 
   // Filtra i turni per la settimana visualizzata e per l'azienda corretta
   const weekShifts = useMemo(() => {
@@ -100,7 +119,6 @@ export default function ShiftsPage() {
     setIsGenerating(true)
     
     try {
-      // 1. CANCELLAZIONE PREVENTIVA
       if (weekShifts.length > 0) {
         for (const shift of weekShifts) {
           const shiftRef = doc(db, "employees", shift.employeeId, "shifts", shift.id);
@@ -108,8 +126,6 @@ export default function ShiftsPage() {
         }
       }
 
-      let totalGenerated = 0
-      // 2. GENERAZIONE NUOVI TURNI (Lun-Sab)
       for (const emp of employees) {
         if (!emp.isActive) continue;
 
@@ -122,7 +138,6 @@ export default function ShiftsPage() {
           const dateStr = format(targetDay, 'yyyy-MM-dd')
 
           if (emp.contractType === "full-time") {
-            // MATTINA
             const idMORNING = `shift-${emp.id}-${dateStr}-MORNING`;
             const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
             const endAM = new Date(targetDay); endAM.setHours(13, 0, 0);
@@ -139,7 +154,6 @@ export default function ShiftsPage() {
               slot: "MORNING"
             }, { merge: true });
 
-            // POMERIGGIO
             const idAFTERNOON = `shift-${emp.id}-${dateStr}-AFTERNOON`;
             const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
             const endPM = new Date(targetDay); endPM.setHours(20, 0, 0);
@@ -155,11 +169,8 @@ export default function ShiftsPage() {
               companyId: "default",
               slot: "AFTERNOON"
             }, { merge: true });
-            
-            totalGenerated += 2;
           } 
           else {
-            // PART TIME: Solo Pomeriggio
             const idAFTERNOON = `shift-${emp.id}-${dateStr}-AFTERNOON`;
             const startPT = new Date(targetDay); startPT.setHours(17, 0, 0);
             const endPT = new Date(targetDay); endPT.setHours(20, 0, 0);
@@ -175,8 +186,6 @@ export default function ShiftsPage() {
               companyId: "default",
               slot: "AFTERNOON"
             }, { merge: true });
-            
-            totalGenerated += 1;
           }
         }
       }
@@ -204,7 +213,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Pianificazione Turni Team</h1>
-          <p className="text-muted-foreground">Gestione settimanale con distinzione visiva per sede operativa.</p>
+          <p className="text-muted-foreground">Gestione settimanale con distinzione visiva dinamica per sede operativa.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 border-[#227FD8] text-[#227FD8] font-black shadow-sm">
@@ -268,7 +277,7 @@ export default function ShiftsPage() {
                         <span className="text-[9px] font-black uppercase tracking-widest">Mattina</span>
                       </div>
                       {morningShifts.length > 0 ? morningShifts.map(shift => (
-                        <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} />
+                        <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} styles={locationStyles} />
                       )) : (
                         <div className="text-[8px] text-center text-muted-foreground/40 italic py-2">Nessun turno</div>
                       )}
@@ -282,7 +291,7 @@ export default function ShiftsPage() {
                         <span className="text-[9px] font-black uppercase tracking-widest">Pomeriggio</span>
                       </div>
                       {afternoonShifts.length > 0 ? afternoonShifts.map(shift => (
-                        <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} />
+                        <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} styles={locationStyles} />
                       )) : (
                         <div className="text-[8px] text-center text-muted-foreground/40 italic py-2">Nessun turno</div>
                       )}
@@ -295,7 +304,7 @@ export default function ShiftsPage() {
         })}
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid md:grid-cols-2 gap-4">
         <Card className="bg-amber-50 border-amber-200">
           <CardContent className="p-4 flex items-center gap-3">
             <Info className="h-5 w-5 text-amber-600 shrink-0" />
@@ -306,24 +315,19 @@ export default function ShiftsPage() {
         </Card>
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardContent className="p-4">
-            <h4 className="text-[10px] font-black uppercase text-muted-foreground mb-3 tracking-widest">Legenda Sedi</h4>
-            <div className="flex flex-wrap gap-3">
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-1 bg-[#227FD8] rounded-full" />
-                <span className="text-[9px] font-bold uppercase">Sede Centrale</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-1 bg-emerald-500 rounded-full" />
-                <span className="text-[9px] font-bold uppercase">Sede Nord</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-1 bg-amber-500 rounded-full" />
-                <span className="text-[9px] font-bold uppercase">Sede Sud</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="h-3 w-1 bg-purple-500 rounded-full" />
-                <span className="text-[9px] font-bold uppercase">Sede Est</span>
-              </div>
+            <h4 className="text-[10px] font-black uppercase text-muted-foreground mb-3 tracking-widest">Legenda Sedi Attive</h4>
+            <div className="flex flex-wrap gap-4">
+              {locations && locations.length > 0 ? locations.map((loc) => {
+                const style = locationStyles[loc.id] || TAILWIND_COLORS[0]
+                return (
+                  <div key={loc.id} className="flex items-center gap-1.5">
+                    <div className={cn("h-3 w-1 rounded-full", style.dot)} />
+                    <span className="text-[9px] font-bold uppercase">{loc.name}</span>
+                  </div>
+                )
+              }) : (
+                <span className="text-[9px] text-muted-foreground italic">Nessuna sede configurata</span>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -332,17 +336,17 @@ export default function ShiftsPage() {
   )
 }
 
-function ShiftCard({ shift, emp, db }: { shift: any, emp: any, db: any }) {
+function ShiftCard({ shift, emp, db, styles }: { shift: any, emp: any, db: any, styles: any }) {
   const start = parseISO(shift.startTime)
   const end = parseISO(shift.endTime)
   
-  // Determina la classe del bordo basata sulla sede
-  const locationClass = LOCATION_COLORS[emp?.locationId || "default"] || LOCATION_COLORS["default"]
+  const style = styles[emp?.locationId] || TAILWIND_COLORS[0]
 
   return (
     <div className={cn(
       "group relative border rounded-xl p-2 shadow-sm hover:shadow-md transition-all border-l-4",
-      locationClass
+      style.border,
+      style.bg
     )}>
       <div className="flex items-center gap-2 mb-1.5">
         <Avatar className="h-6 w-6 border shadow-xs">
