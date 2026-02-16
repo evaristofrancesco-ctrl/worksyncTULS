@@ -91,63 +91,67 @@ export default function AttendancePage() {
 
         const dateStr = now.toISOString().split('T')[0];
 
+        // Sincronizziamo gli ID con quelli dei turni (MORNING/AFTERNOON)
         if (emp.contractType === 'full-time') {
-          const idAM = `auto-${emp.id}-${dateStr}-AM`;
-          const refAM = doc(db, "employees", emp.id, "timeentries", idAM);
+          const idMORNING = `auto-${emp.id}-${dateStr}-MORNING`;
+          const refAM = doc(db, "employees", emp.id, "timeentries", idMORNING);
           const startAM = new Date(now); startAM.setHours(9, 0, 0, 0);
           const endAM = new Date(now); endAM.setHours(13, 0, 0, 0);
           
           setDocumentNonBlocking(refAM, {
-            id: idAM,
+            id: idMORNING,
             employeeId: emp.id,
             companyId: "default",
             checkInTime: startAM.toISOString(),
             checkOutTime: endAM.toISOString(),
             status: "PRESENT",
             isApproved: true,
-            type: "AUTO"
+            type: "AUTO",
+            slot: "MORNING"
           }, { merge: true });
 
-          const idPM = `auto-${emp.id}-${dateStr}-PM`;
-          const refPM = doc(db, "employees", emp.id, "timeentries", idPM);
+          const idAFTERNOON = `auto-${emp.id}-${dateStr}-AFTERNOON`;
+          const refPM = doc(db, "employees", emp.id, "timeentries", idAFTERNOON);
           const startPM = new Date(now); startPM.setHours(17, 0, 0, 0);
           const endPM = new Date(now); endPM.setHours(20, 0, 0, 0);
 
           setDocumentNonBlocking(refPM, {
-            id: idPM,
+            id: idAFTERNOON,
             employeeId: emp.id,
             companyId: "default",
             checkInTime: startPM.toISOString(),
             checkOutTime: endPM.toISOString(),
             status: "PRESENT",
             isApproved: true,
-            type: "AUTO"
+            type: "AUTO",
+            slot: "AFTERNOON"
           }, { merge: true });
           
           count += 2;
         } 
         else {
-          const idPT = `auto-${emp.id}-${dateStr}-PT`;
-          const refPT = doc(db, "employees", emp.id, "timeentries", idPT);
+          const idAFTERNOON = `auto-${emp.id}-${dateStr}-AFTERNOON`;
+          const refPT = doc(db, "employees", emp.id, "timeentries", idAFTERNOON);
           const startPT = new Date(now); startPT.setHours(17, 0, 0, 0);
           const endPT = new Date(now); endPT.setHours(20, 0, 0, 0);
 
           setDocumentNonBlocking(refPT, {
-            id: idPT,
+            id: idAFTERNOON,
             employeeId: emp.id,
             companyId: "default",
             checkInTime: startPT.toISOString(),
             checkOutTime: endPT.toISOString(),
             status: "PRESENT",
             isApproved: true,
-            type: "AUTO"
+            type: "AUTO",
+            slot: "AFTERNOON"
           }, { merge: true });
           
           count += 1;
         }
       }
 
-      toast({ title: "Operazione Completata", description: `Generate ${count} timbrature per oggi (FT 9-13/17-20, PT 17-20).` });
+      toast({ title: "Operazione Completata", description: `Generate ${count} timbrature per oggi (sovrascrivendo i duplicati).` });
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Errore", description: "Si è verificato un problema." });

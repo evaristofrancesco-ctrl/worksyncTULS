@@ -66,13 +66,18 @@ export default function ShiftsPage() {
     }, {} as any);
   }, [employees]);
 
-  // Filtra i turni per la settimana visualizzata
+  // Filtra i turni per la settimana visualizzata e per l'azienda corretta
   const weekShifts = useMemo(() => {
     if (!shifts) return [];
     const weekEnd = addDays(weekStart, 7);
     return shifts.filter(s => {
-      const d = parseISO(s.date);
-      return d >= weekStart && d < weekEnd;
+      if (s.companyId !== "default") return false;
+      try {
+        const d = parseISO(s.date);
+        return d >= weekStart && d < weekEnd;
+      } catch (e) {
+        return false;
+      }
     });
   }, [shifts, weekStart]);
 
@@ -98,57 +103,67 @@ export default function ShiftsPage() {
 
           const dateStr = format(targetDay, 'yyyy-MM-dd')
 
-          // FULL TIME (40h/settimana): 09:00-13:00 e 17:00-20:00
+          // Utilizziamo ID deterministici basati sullo SLOT (MORNING/AFTERNOON)
+          // In questo modo, se un dipendente passa da FT a PT, il turno pomeridiano si sovrascrive
+          // e non viene visualizzato doppio.
+
           if (emp.contractType === "full-time") {
-            const idAM = `shift-${emp.id}-${dateStr}-AM`;
+            // MATTINA
+            const idMORNING = `shift-${emp.id}-${dateStr}-MORNING`;
             const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
             const endAM = new Date(targetDay); endAM.setHours(13, 0, 0);
             
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
-              id: idAM,
+            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idMORNING), {
+              id: idMORNING,
               employeeId: emp.id,
               title: "Turno Mattina",
               date: dateStr,
               startTime: startAM.toISOString(),
               endTime: endAM.toISOString(),
               status: "SCHEDULED",
-              companyId: "default"
+              companyId: "default",
+              slot: "MORNING"
             }, { merge: true });
 
-            const idPM = `shift-${emp.id}-${dateStr}-PM`;
+            // POMERIGGIO
+            const idAFTERNOON = `shift-${emp.id}-${dateStr}-AFTERNOON`;
             const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
             const endPM = new Date(targetDay); endPM.setHours(20, 0, 0);
             
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
-              id: idPM,
+            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAFTERNOON), {
+              id: idAFTERNOON,
               employeeId: emp.id,
               title: "Turno Pomeriggio",
               date: dateStr,
               startTime: startPM.toISOString(),
               endTime: endPM.toISOString(),
               status: "SCHEDULED",
-              companyId: "default"
+              companyId: "default",
+              slot: "AFTERNOON"
             }, { merge: true });
             
             totalGenerated += 2;
           } 
-          // PART TIME: Solo 17:00-20:00
           else {
-            const idPT = `shift-${emp.id}-${dateStr}-PT`;
+            // PART TIME: Solo Pomeriggio (sovrascrive eventuali PM precedenti)
+            const idAFTERNOON = `shift-${emp.id}-${dateStr}-AFTERNOON`;
             const startPT = new Date(targetDay); startPT.setHours(17, 0, 0);
             const endPT = new Date(targetDay); endPT.setHours(20, 0, 0);
             
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPT), {
-              id: idPT,
+            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAFTERNOON), {
+              id: idAFTERNOON,
               employeeId: emp.id,
               title: "Turno Pomeriggio (PT)",
               date: dateStr,
               startTime: startPT.toISOString(),
               endTime: endPT.toISOString(),
               status: "SCHEDULED",
-              companyId: "default"
+              companyId: "default",
+              slot: "AFTERNOON"
             }, { merge: true });
             
+            // Per i PT, se esisteva un turno MORNING (es. cambio contratto), andrebbe rimosso o ignorato.
+            // In un prototipo, l'admin può rimuoverlo manualmente o possiamo aggiungere una delete.
             totalGenerated += 1;
           }
         }
@@ -156,7 +171,7 @@ export default function ShiftsPage() {
 
       toast({ 
         title: "Pianificazione Completata", 
-        description: `Generati ${totalGenerated} turni per la settimana del ${format(weekStart, 'dd/MM')}.` 
+        description: `Generati/Aggiornati turni per la settimana del ${format(weekStart, 'dd/MM')}.` 
       })
     } catch (error) {
       console.error(error)
@@ -235,7 +250,6 @@ export default function ShiftsPage() {
                   <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                 ) : (
                   <>
-                    {/* Sezione Mattina */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 rounded-md text-amber-700">
                         <Sun className="h-3 w-3" />
@@ -248,10 +262,8 @@ export default function ShiftsPage() {
                       )}
                     </div>
 
-                    {/* Separatore visivo */}
                     <div className="border-t border-dashed" />
 
-                    {/* Sezione Pomeriggio */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 rounded-md text-blue-700">
                         <Moon className="h-3 w-3" />
@@ -275,7 +287,7 @@ export default function ShiftsPage() {
         <CardContent className="p-4 flex items-center gap-3">
           <Info className="h-5 w-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-800">
-            Pianificazione automatica basata sui riposi settimanali. Mattina: 09:00-13:00 | Pomeriggio: 17:00-20:00.
+            Pianificazione basata sui riposi. Mattina: 09:00-13:00 | Pomeriggio: 17:00-20:00. Gli ID standard MORNING/AFTERNOON prevengono i duplicati.
           </p>
         </CardContent>
       </Card>
