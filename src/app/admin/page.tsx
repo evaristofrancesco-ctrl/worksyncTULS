@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Users, Calendar, Clock, FileText, ArrowUpRight, Loader2 } from "lucide-react"
@@ -48,6 +49,13 @@ export default function AdminDashboard() {
   }, [db])
   const { data: entries, isLoading: isEntriesLoading } = useCollection(timeEntriesQuery)
 
+  // Turni totali per oggi
+  const shiftsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collectionGroup(db, "shifts");
+  }, [db])
+  const { data: shifts } = useCollection(shiftsQuery)
+
   // Mappa dei dipendenti memoizzata
   const employeeMap = useMemo(() => {
     if (!employees) return {};
@@ -57,7 +65,7 @@ export default function AdminDashboard() {
     }, {} as any);
   }, [employees]);
 
-  // Voci recenti (Filtrate e ordinate in memoria)
+  // Voci recenti
   const recentEntries = useMemo(() => {
     if (!entries) return [];
     return [...entries]
@@ -70,61 +78,77 @@ export default function AdminDashboard() {
       .slice(0, 5);
   }, [entries]);
 
-  // Conteggio dipendenti attivi
+  // Conteggio dipendenti attivi ora (chi ha timbrato oggi ed è entro l'orario o non ha ancora finito)
   const activeEmployeesCount = useMemo(() => {
     if (!entries) return 0;
-    const todayStr = new Date().toDateString();
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    
     return entries.filter(e => {
       if (e.companyId !== "default") return false;
-      const d = e.checkInTime ? new Date(e.checkInTime) : null;
-      return d && !isNaN(d.getTime()) && d.toDateString() === todayStr && !e.checkOutTime;
+      const checkIn = e.checkInTime ? new Date(e.checkInTime) : null;
+      if (!checkIn || isNaN(checkIn.getTime())) return false;
+      
+      const isToday = checkIn.toISOString().split('T')[0] === todayStr;
+      // Se ha timbrato oggi e non ha ancora l'uscita, o l'uscita è futura (simulata)
+      const hasNoCheckOut = !e.checkOutTime;
+      const isCurrentlyWorking = isToday && (hasNoCheckOut || new Date(e.checkOutTime) > now);
+      
+      return isCurrentlyWorking;
     }).length;
   }, [entries]);
+
+  // Turni previsti oggi
+  const todayShiftsCount = useMemo(() => {
+    if (!shifts) return 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    return shifts.filter(s => s.date === todayStr).length;
+  }, [shifts]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Dashboard Amministratore</h1>
-        <p className="text-muted-foreground">Bentornato, ecco cosa sta succedendo oggi in TU.L.S.</p>
+        <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Dashboard TU.L.S.</h1>
+        <p className="text-muted-foreground">Panoramica operativa in tempo reale del punto vendita.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard 
-          title="Dipendenti Totali" 
+          title="Collaboratori" 
           value={employees?.length || 0} 
-          description="Gestione anagrafica attiva" 
+          description="Personale registrato" 
           icon={Users}
         />
         <StatCard 
           title="Turni Oggi" 
-          value="--" 
-          description="Pianificazione giornaliera" 
+          value={todayShiftsCount} 
+          description="Copertura pianificata" 
           icon={Calendar}
         />
         <StatCard 
           title="In Servizio Ora" 
           value={activeEmployeesCount} 
-          description="Dipendenti attualmente al lavoro" 
+          description="Presenze rilevate" 
           icon={Clock}
           trend={{ value: activeEmployeesCount > 0 ? 10 : 0, positive: true }}
         />
         <StatCard 
-          title="Richieste Pendenti" 
+          title="Richieste" 
           value="--" 
-          description="Ferie e permessi in attesa" 
+          description="In attesa di approvazione" 
           icon={FileText}
         />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-full lg:col-span-4 border-none shadow-sm">
+        <Card className="col-span-full lg:col-span-4 border-none shadow-sm bg-white/80 backdrop-blur-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Analisi Ore di Lavoro</CardTitle>
+                <CardTitle className="font-black">Analisi Carico Lavoro</CardTitle>
                 <CardDescription>Ore settimanali stimate per il team.</CardDescription>
               </div>
-              <Button variant="outline" size="sm" className="gap-1">
+              <Button variant="outline" size="sm" className="gap-1 font-bold">
                 Dettagli <ArrowUpRight className="h-4 w-4" />
               </Button>
             </div>
@@ -145,7 +169,7 @@ export default function AdminDashboard() {
                 />
                 <Bar dataKey="ore" radius={[4, 4, 0, 0]}>
                   {weeklyStats.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 3 ? 'hsl(var(--accent))' : 'hsl(var(--primary))'} />
+                    <Cell key={`cell-${index}`} fill={index === new Date().getDay() - 1 ? 'hsl(var(--accent))' : 'hsl(var(--primary))'} />
                   ))}
                 </Bar>
               </BarChart>
@@ -153,42 +177,42 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-full lg:col-span-3 border-none shadow-sm">
+        <Card className="col-span-full lg:col-span-3 border-none shadow-sm bg-white/80 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle>Presenze Recenti</CardTitle>
-            <CardDescription>Ultimi ingressi registrati.</CardDescription>
+            <CardTitle className="font-black">Presenze Recenti</CardTitle>
+            <CardDescription>Ultimi movimenti rilevati.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               {isEntriesLoading ? (
-                <div className="flex justify-center py-10"><Loader2 className="animate-spin h-6 w-6" /></div>
+                <div className="flex justify-center py-10"><Loader2 className="animate-spin h-6 w-6 text-primary" /></div>
               ) : recentEntries.length > 0 ? recentEntries.map((log) => {
                 const emp = employeeMap[log.employeeId];
                 const checkInDate = log.checkInTime ? new Date(log.checkInTime) : null;
                 return (
                   <div key={log.id} className="flex items-center gap-4">
-                    <Avatar>
+                    <Avatar className="border">
                       <AvatarImage src={emp?.photoUrl || `https://picsum.photos/seed/${log.employeeId}/100/100`} />
-                      <AvatarFallback>{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-bold leading-none">{emp ? `${emp.firstName || ""} ${emp.lastName || ""}` : "Sconosciuto"}</p>
-                      <p className="text-xs text-muted-foreground">{emp?.jobTitle || "Dipendente"}</p>
+                    <div className="flex-1 space-y-0.5">
+                      <p className="text-sm font-bold leading-none text-[#1e293b]">{emp ? `${emp.firstName || ""} ${emp.lastName || ""}` : "Sconosciuto"}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase">{emp?.jobTitle || "Collaboratore"}</p>
                     </div>
                     <div className="text-right">
-                      <Badge variant={!log.checkOutTime ? "default" : "secondary"}>
+                      <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500" : "font-mono font-bold"}>
                         {checkInDate && !isNaN(checkInDate.getTime()) ? checkInDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                       </Badge>
                     </div>
                   </div>
                 )
               }) : (
-                <p className="text-sm text-center text-muted-foreground py-10">Nessun log recente.</p>
+                <p className="text-sm text-center text-muted-foreground py-10 italic">Nessun movimento registrato oggi.</p>
               )}
             </div>
             <Link href="/admin/attendance" className="block w-full mt-6">
-              <Button variant="ghost" className="w-full text-primary hover:text-primary hover:bg-primary/5 font-bold">
-                Vedi tutti i record
+              <Button variant="ghost" className="w-full text-[#227FD8] hover:text-[#227FD8] hover:bg-[#227FD8]/5 font-black uppercase text-xs">
+                Registro Completo
               </Button>
             </Link>
           </CardContent>
