@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Plus, Clock, CheckCircle2, XCircle, Info, Loader2 } from "lucide-react"
+import { Plus, Clock, CheckCircle2, XCircle, Info, Loader2, MessageSquareText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, doc } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 
 export default function MyRequestsPage() {
@@ -82,7 +82,7 @@ export default function MyRequestsPage() {
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2 bg-[#227FD8] font-bold shadow-md">
+            <Button className="gap-2 bg-[#227FD8] font-bold shadow-md h-11 px-6">
               <Plus className="h-4 w-4" /> Nuova Richiesta
             </Button>
           </DialogTrigger>
@@ -118,13 +118,13 @@ export default function MyRequestsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="font-bold">Motivazione (opzionale)</Label>
-                <Textarea placeholder="Breve descrizione..." value={newRequest.reason} onChange={(e) => setNewRequest({...newRequest, reason: e.target.value})} />
+                <Label className="font-bold">Motivazione (tua nota)</Label>
+                <Textarea placeholder="Breve descrizione per l'amministrazione..." value={newRequest.reason} onChange={(e) => setNewRequest({...newRequest, reason: e.target.value})} />
               </div>
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="font-bold">Annulla</Button>
-              <Button onClick={handleSubmitRequest} className="bg-[#227FD8] font-black">Invia Richiesta</Button>
+              <Button onClick={handleSubmitRequest} className="bg-[#227FD8] font-black h-11 px-8">INVIA RICHIESTA</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -132,52 +132,64 @@ export default function MyRequestsPage() {
 
       <div className="grid gap-6">
         {isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : requests && requests.length > 0 ? (
-          requests.map((req) => (
-            <Card key={req.id} className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${req.status === 'Approvato' ? 'bg-green-100 text-green-600' : req.status === 'Rifiutato' ? 'bg-destructive/10 text-destructive' : 'bg-amber-100 text-amber-600'}`}>
-                      {req.status === 'Approvato' ? <CheckCircle2 className="h-5 w-5" /> : req.status === 'Rifiutato' ? <XCircle className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
+          requests.map((req) => {
+            const isApproved = req.status === 'Approvato';
+            const isRejected = req.status === 'Rifiutato';
+            
+            return (
+              <Card key={req.id} className={`border-none shadow-sm transition-all ${isRejected ? 'bg-destructive/5' : 'bg-white/80'} backdrop-blur-sm`}>
+                <CardContent className="p-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${isApproved ? 'bg-green-100 text-green-600' : isRejected ? 'bg-destructive/10 text-destructive' : 'bg-amber-100 text-amber-600'}`}>
+                        {isApproved ? <CheckCircle2 className="h-6 w-6" /> : isRejected ? <XCircle className="h-6 w-6" /> : <Clock className="h-6 w-6" />}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-[#1e293b] text-lg uppercase tracking-tight">
+                          {req.type === 'VACATION' ? 'Ferie' : req.type === 'SICK' ? 'Malattia' : 'Permesso'}
+                        </h3>
+                        <p className="text-xs font-bold text-muted-foreground">{req.startDate} {req.endDate ? `al ${req.endDate}` : ""}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-[#1e293b]">{req.type === 'VACATION' ? 'Ferie' : req.type === 'SICK' ? 'Malattia' : 'Permesso'}</h3>
-                      <p className="text-sm text-muted-foreground">{req.startDate} {req.endDate ? `al ${req.endDate}` : ""}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
                     <Badge 
-                      variant={req.status === 'Approvato' ? 'default' : 'secondary'}
-                      className={req.status === 'Approvato' ? 'bg-green-500' : req.status === 'Rifiutato' ? 'bg-destructive text-white' : ''}
+                      variant={isApproved ? 'default' : 'secondary'}
+                      className={`${isApproved ? 'bg-green-500 hover:bg-green-600' : isRejected ? 'bg-destructive text-white' : 'bg-amber-100 text-amber-700'} font-black px-4 py-1`}
                     >
                       {req.status}
                     </Badge>
                   </div>
-                </div>
-                {req.reason && (
-                  <div className="mt-4 pt-4 border-t">
-                    <p className="text-[10px] text-muted-foreground mb-1 font-black uppercase">Motivazione:</p>
-                    <p className="text-sm italic text-slate-600">"{req.reason}"</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
+                  
+                  {req.reason && (
+                    <div className="mt-4 pt-4 border-t border-muted/50">
+                      <p className="text-[10px] text-muted-foreground mb-1 font-black uppercase tracking-widest">La tua motivazione:</p>
+                      <p className="text-sm italic text-slate-600">"{req.reason}"</p>
+                    </div>
+                  )}
+
+                  {req.adminNote && (
+                    <div className="mt-4 p-4 rounded-xl bg-destructive/5 border border-destructive/10">
+                      <div className="flex items-center gap-2 mb-2 text-destructive">
+                        <MessageSquareText className="h-4 w-4" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Feedback Amministrazione:</span>
+                      </div>
+                      <p className="text-sm font-bold text-destructive italic">"{req.adminNote}"</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })
         ) : (
-          <p className="text-center py-20 text-muted-foreground italic">Nessuna richiesta inviata.</p>
+          <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm py-20">
+            <CardContent className="flex flex-col items-center justify-center gap-4 opacity-40">
+              <Info className="h-10 w-10" />
+              <p className="text-center font-bold italic">Nessuna richiesta inviata finora.</p>
+            </CardContent>
+          </Card>
         )}
       </div>
-
-      <Card className="bg-muted/30 border-dashed">
-        <CardContent className="p-6 flex items-center gap-4">
-          <Info className="h-5 w-5 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            Ricorda che le richieste devono essere approvate dall'amministrazione per essere effettive.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   )
 }
