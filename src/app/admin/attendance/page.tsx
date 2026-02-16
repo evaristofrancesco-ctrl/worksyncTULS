@@ -27,21 +27,18 @@ export default function AttendancePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
 
-  // Recupera tutti i dipendenti
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
   }, [db])
   const { data: employees } = useCollection(employeesQuery)
 
-  // Recupera i log di presenza tramite collectionGroup
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collectionGroup(db, "timeentries");
   }, [db])
   const { data: entries, isLoading } = useCollection(timeEntriesQuery)
 
-  // Mappa per accesso rapido ai dati dipendente
   const employeeMap = useMemo(() => {
     if (!employees) return {};
     return employees.reduce((acc, emp) => {
@@ -50,13 +47,11 @@ export default function AttendancePage() {
     }, {} as any);
   }, [employees]);
 
-  // Filtriamo in memoria per stabilità ed evitare crash su query complesse
   const filteredEntries = useMemo(() => {
     if (!entries) return [];
     
     return entries
       .filter(entry => {
-        // Mostriamo solo log della compagnia default
         if (entry.companyId !== "default") return false;
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
@@ -72,19 +67,19 @@ export default function AttendancePage() {
 
   const handleAutoClockIn = async () => {
     if (!employees || employees.length === 0) {
-      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente trovato nell'anagrafica." });
+      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente trovato." });
       return;
     }
 
     setIsGenerating(true);
     const now = new Date();
-    const dayOfWeek = now.getDay().toString(); // 0-6
+    const dayOfWeek = now.getDay().toString();
 
-    // Il punto vendita è aperto da Lunedì (1) a Sabato (6)
+    // Lunedì (1) - Sabato (6)
     const isWorkingDay = now.getDay() >= 1 && now.getDay() <= 6;
 
     if (!isWorkingDay) {
-      toast({ title: "Punto Vendita Chiuso", description: "Oggi è domenica, non è possibile generare timbrature automatiche." });
+      toast({ title: "Punto Vendita Chiuso", description: "Oggi è domenica, non è possibile generare timbrature." });
       setIsGenerating(false);
       return;
     }
@@ -92,14 +87,12 @@ export default function AttendancePage() {
     try {
       let count = 0;
       for (const emp of employees) {
-        // Salta se è il suo giorno di riposo impostato in anagrafica
-        if (emp.restDay === dayOfWeek) continue;
+        if (emp.restDay === dayOfWeek || !emp.isActive) continue;
 
         const dateStr = now.toISOString().split('T')[0];
 
         // LOGICA FULL TIME: 09-13 e 17-20
         if (emp.contractType === 'full-time') {
-          // Mattina
           const idAM = `auto-${emp.id}-${dateStr}-AM`;
           const refAM = doc(db, "employees", emp.id, "timeentries", idAM);
           const startAM = new Date(now); startAM.setHours(9, 0, 0, 0);
@@ -116,7 +109,6 @@ export default function AttendancePage() {
             type: "AUTO"
           }, { merge: true });
 
-          // Pomeriggio
           const idPM = `auto-${emp.id}-${dateStr}-PM`;
           const refPM = doc(db, "employees", emp.id, "timeentries", idPM);
           const startPM = new Date(now); startPM.setHours(17, 0, 0, 0);
@@ -136,7 +128,7 @@ export default function AttendancePage() {
           count += 2;
         } 
         // LOGICA PART TIME: Solo 17-20
-        else if (emp.contractType === 'part-time') {
+        else {
           const idPT = `auto-${emp.id}-${dateStr}-PT`;
           const refPT = doc(db, "employees", emp.id, "timeentries", idPT);
           const startPT = new Date(now); startPT.setHours(17, 0, 0, 0);
@@ -157,10 +149,10 @@ export default function AttendancePage() {
         }
       }
 
-      toast({ title: "Operazione Completata", description: `Generate ${count} timbrature automatiche per il personale in servizio oggi.` });
+      toast({ title: "Operazione Completata", description: `Generate ${count} timbrature per oggi (FT 9-13/17-20, PT 17-20).` });
     } catch (e) {
       console.error(e);
-      toast({ variant: "destructive", title: "Errore", description: "Si è verificato un problema durante la generazione." });
+      toast({ variant: "destructive", title: "Errore", description: "Si è verificato un problema." });
     } finally {
       setIsGenerating(false);
     }
@@ -171,7 +163,7 @@ export default function AttendancePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Registro Presenze TU.L.S.</h1>
-          <p className="text-muted-foreground">Gestione centralizzata di ingressi e uscite automatiche.</p>
+          <p className="text-muted-foreground">Orari: FT (9-13, 17-20), PT (17-20).</p>
         </div>
         <div className="flex gap-2">
           <Button 
@@ -198,7 +190,7 @@ export default function AttendancePage() {
             <div className="relative w-full max-w-sm">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Cerca per nome dipendente..." 
+                placeholder="Cerca dipendente..." 
                 className="pl-8 bg-muted/30 border-none focus-visible:ring-[#227FD8]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -264,7 +256,7 @@ export default function AttendancePage() {
               }) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-40 text-center text-muted-foreground italic">
-                    Nessun log trovato. Usa il tasto in alto per generare le timbrature di oggi.
+                    Nessun log trovato.
                   </TableCell>
                 </TableRow>
               )}
