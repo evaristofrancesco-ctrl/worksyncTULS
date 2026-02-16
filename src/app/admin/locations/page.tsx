@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useState, useMemo, useCallback } from "react"
-import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit, Loader2, X } from "lucide-react"
+import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -34,38 +34,34 @@ import { useToast } from "@/hooks/use-toast"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
-import { cn } from "@/lib/utils"
 
 /**
- * Form isolato per la gestione della sede.
- * L'uso di una key esterna garantisce il reset dello stato senza freeze.
+ * Form interno per la gestione della sede.
  */
-const LocationForm = React.memo(({ 
+function LocationForm({ 
   initialData, 
   onSubmit, 
   onCancel, 
-  title 
+  title,
+  submitLabel
 }: { 
   initialData: any, 
   onSubmit: (data: any) => void, 
   onCancel: () => void, 
-  title: string 
-}) => {
+  title: string,
+  submitLabel: string
+}) {
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
     city: initialData?.city || "",
     address: initialData?.address || ""
   })
 
-  const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
-
   return (
     <div className="flex flex-col">
-      <div className="bg-[#227FD8] p-6 text-white rounded-t-lg">
+      <div className="bg-[#227FD8] p-6 text-white">
         <DialogTitle className="flex items-center gap-2 text-2xl font-black">
-          {initialData?.id ? <Edit className="h-6 w-6" /> : <Building2 className="h-6 w-6" />} {title}
+          {submitLabel === 'SALVA MODIFICHE' ? <Edit className="h-6 w-6" /> : <Building2 className="h-6 w-6" />} {title}
         </DialogTitle>
         <DialogDescription className="text-blue-100">
           Configura i dettagli operativi per questa sede di TU.L.S.
@@ -78,7 +74,7 @@ const LocationForm = React.memo(({
             placeholder="es. Punto Vendita Centrale" 
             className="h-11"
             value={formData.name} 
-            onChange={(e) => handleChange('name', e.target.value)} 
+            onChange={(e) => setFormData({...formData, name: e.target.value})} 
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -88,7 +84,7 @@ const LocationForm = React.memo(({
               placeholder="es. Roma" 
               className="h-11"
               value={formData.city} 
-              onChange={(e) => handleChange('city', e.target.value)} 
+              onChange={(e) => setFormData({...formData, city: e.target.value})} 
             />
           </div>
           <div className="space-y-2">
@@ -97,68 +93,23 @@ const LocationForm = React.memo(({
               placeholder="es. Via del Corso 1" 
               className="h-11"
               value={formData.address} 
-              onChange={(e) => handleChange('address', e.target.value)} 
+              onChange={(e) => setFormData({...formData, address: e.target.value})} 
             />
           </div>
         </div>
       </div>
-      <DialogFooter className="p-6 bg-slate-50 border-t rounded-b-lg">
+      <DialogFooter className="p-6 bg-slate-50 border-t">
         <Button variant="ghost" onClick={onCancel} className="font-bold">Annulla</Button>
         <Button 
           onClick={() => onSubmit({ ...initialData, ...formData })} 
-          className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black uppercase px-8"
+          className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black uppercase px-8 h-11"
         >
-          Salva Sede
+          {submitLabel}
         </Button>
       </DialogFooter>
     </div>
   )
-})
-LocationForm.displayName = "LocationForm"
-
-/**
- * Singola riga della tabella memoizzata per evitare ricaricamenti globali.
- */
-const LocationRow = React.memo(({ loc, onEdit, onDelete }: { loc: any, onEdit: (l: any) => void, onDelete: (id: string) => void }) => (
-  <TableRow className="hover:bg-muted/10 border-b last:border-0">
-    <TableCell className="font-bold text-[#1e293b] pl-6 py-4">
-      <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-xl bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8]">
-          <Building2 className="h-5 w-5" />
-        </div>
-        <span className="text-sm">{loc.name}</span>
-      </div>
-    </TableCell>
-    <TableCell className="font-bold text-sm text-slate-600">
-      <div className="flex items-center gap-1.5">
-        <MapPin className="h-3.5 w-3.5 text-amber-500" />
-        {loc.city}
-      </div>
-    </TableCell>
-    <TableCell className="text-muted-foreground text-sm italic">{loc.address || "---"}</TableCell>
-    <TableCell className="text-right pr-6">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem className="font-bold cursor-pointer" onClick={() => onEdit(loc)}>
-            <Edit className="h-4 w-4 mr-2" /> Modifica
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            className="text-destructive font-bold cursor-pointer"
-            onClick={() => onDelete(loc.id)}
-          >
-            <Trash2 className="h-4 w-4 mr-2" /> Elimina
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </TableCell>
-  </TableRow>
-))
-LocationRow.displayName = "LocationRow"
+}
 
 export default function LocationsPage() {
   const db = useFirestore()
@@ -175,16 +126,19 @@ export default function LocationsPage() {
   }, [db])
   const { data: locations, isLoading } = useCollection(locationsQuery)
 
-  const handleAdd = useCallback((data: any) => {
-    if (!db || !data.name || !data.city) return
+  const handleAdd = (data: any) => {
+    if (!db || !data.name || !data.city) {
+      toast({ variant: "destructive", title: "Errore", description: "Nome e città sono obbligatori." })
+      return
+    }
     const id = `loc-${Date.now()}`
     const ref = doc(db, "companies", "default", "locations", id)
     setDocumentNonBlocking(ref, { ...data, id, companyId: "default" }, { merge: true })
     setIsAddOpen(false)
     toast({ title: "Sede Aggiunta", description: `${data.name} è stata registrata.` })
-  }, [db, toast])
+  }
 
-  const handleUpdate = useCallback((data: any) => {
+  const handleUpdate = (data: any) => {
     if (!db || !data.id) return
     const ref = doc(db, "companies", "default", "locations", data.id)
     updateDocumentNonBlocking(ref, {
@@ -195,29 +149,23 @@ export default function LocationsPage() {
     setIsEditOpen(false)
     setEditingLoc(null)
     toast({ title: "Modifiche Salvate", description: "Sede aggiornata con successo." })
-  }, [db, toast])
+  }
 
-  const handleDelete = useCallback((id: string) => {
+  const handleDelete = (id: string) => {
     if (!db) return
     const ref = doc(db, "companies", "default", "locations", id)
     deleteDocumentNonBlocking(ref)
-    toast({ title: "Sede Eliminata", description: "Il record è stato rimosso dal sistema." })
-  }, [db, toast])
+    toast({ title: "Sede Eliminata", description: "Il record è stato rimosso." })
+  }
 
   const filteredLocations = useMemo(() => {
     if (!locations) return []
-    if (!searchQuery) return locations
     const q = searchQuery.toLowerCase()
     return locations.filter(l => 
-      l.name?.toLowerCase().includes(q) || 
-      l.city?.toLowerCase().includes(q)
+      (l.name || "").toLowerCase().includes(q) || 
+      (l.city || "").toLowerCase().includes(q)
     )
   }, [locations, searchQuery])
-
-  const openEdit = useCallback((loc: any) => {
-    setEditingLoc(loc)
-    setIsEditOpen(true)
-  }, [])
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -239,13 +187,14 @@ export default function LocationsPage() {
               onSubmit={handleAdd}
               onCancel={() => setIsAddOpen(false)}
               title="Aggiungi Punto Vendita"
+              submitLabel="SALVA SEDE"
             />
           </DialogContent>
         </Dialog>
       </div>
 
       <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm overflow-hidden">
-        <CardHeader className="pb-3 border-b bg-white/50">
+        <CardHeader className="pb-3 border-b">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <CardTitle className="text-xl font-black text-[#1e293b]">Elenco Sedi</CardTitle>
@@ -277,12 +226,46 @@ export default function LocationsPage() {
               </TableHeader>
               <TableBody>
                 {filteredLocations.length > 0 ? filteredLocations.map((loc) => (
-                  <LocationRow 
-                    key={loc.id} 
-                    loc={loc} 
-                    onEdit={openEdit} 
-                    onDelete={handleDelete} 
-                  />
+                  <TableRow key={loc.id} className="hover:bg-muted/10 border-b last:border-0">
+                    <TableCell className="font-bold text-[#1e293b] pl-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8]">
+                          <Building2 className="h-5 w-5" />
+                        </div>
+                        <span className="text-sm">{loc.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-bold text-sm text-slate-600">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-amber-500" />
+                        {loc.city}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm italic">{loc.address || "---"}</TableCell>
+                    <TableCell className="text-right pr-6">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem className="font-bold cursor-pointer" onClick={() => {
+                            setEditingLoc(loc);
+                            setIsEditOpen(true);
+                          }}>
+                            <Edit className="h-4 w-4 mr-2" /> Modifica
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-destructive font-bold cursor-pointer"
+                            onClick={() => handleDelete(loc.id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
                 )) : (
                   <TableRow>
                     <TableCell colSpan={4} className="h-40 text-center text-muted-foreground italic">Nessuna sede trovata.</TableCell>
@@ -298,7 +281,6 @@ export default function LocationsPage() {
         <DialogContent className="sm:max-w-[550px] p-0 border-none shadow-2xl overflow-hidden">
           {editingLoc && (
             <LocationForm 
-              key={editingLoc.id}
               initialData={editingLoc}
               onSubmit={handleUpdate}
               onCancel={() => {
@@ -306,6 +288,7 @@ export default function LocationsPage() {
                 setEditingLoc(null)
               }}
               title="Modifica Sede Operativa"
+              submitLabel="SALVA MODIFICHE"
             />
           )}
         </DialogContent>
