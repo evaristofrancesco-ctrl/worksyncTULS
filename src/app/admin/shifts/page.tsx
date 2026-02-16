@@ -90,7 +90,17 @@ export default function ShiftsPage() {
     setIsGenerating(true)
     
     try {
+      // 1. CANCELLAZIONE PREVENTIVA
+      // Rimuoviamo tutti i turni attualmente presenti nella settimana visualizzata
+      if (weekShifts.length > 0) {
+        for (const shift of weekShifts) {
+          const shiftRef = doc(db, "employees", shift.employeeId, "shifts", shift.id);
+          deleteDocumentNonBlocking(shiftRef);
+        }
+      }
+
       let totalGenerated = 0
+      // 2. GENERAZIONE NUOVI TURNI
       // Genera per la settimana attualmente visualizzata (Lun-Sab)
       for (const emp of employees) {
         if (!emp.isActive) continue;
@@ -102,10 +112,6 @@ export default function ShiftsPage() {
           if (dayOfWeekStr === emp.restDay) continue;
 
           const dateStr = format(targetDay, 'yyyy-MM-dd')
-
-          // Utilizziamo ID deterministici basati sullo SLOT (MORNING/AFTERNOON)
-          // In questo modo, se un dipendente passa da FT a PT, il turno pomeridiano si sovrascrive
-          // e non viene visualizzato doppio.
 
           if (emp.contractType === "full-time") {
             // MATTINA
@@ -145,7 +151,7 @@ export default function ShiftsPage() {
             totalGenerated += 2;
           } 
           else {
-            // PART TIME: Solo Pomeriggio (sovrascrive eventuali PM precedenti)
+            // PART TIME: Solo Pomeriggio
             const idAFTERNOON = `shift-${emp.id}-${dateStr}-AFTERNOON`;
             const startPT = new Date(targetDay); startPT.setHours(17, 0, 0);
             const endPT = new Date(targetDay); endPT.setHours(20, 0, 0);
@@ -162,16 +168,14 @@ export default function ShiftsPage() {
               slot: "AFTERNOON"
             }, { merge: true });
             
-            // Per i PT, se esisteva un turno MORNING (es. cambio contratto), andrebbe rimosso o ignorato.
-            // In un prototipo, l'admin può rimuoverlo manualmente o possiamo aggiungere una delete.
             totalGenerated += 1;
           }
         }
       }
 
       toast({ 
-        title: "Pianificazione Completata", 
-        description: `Generati/Aggiornati turni per la settimana del ${format(weekStart, 'dd/MM')}.` 
+        title: "Pianificazione Resettata", 
+        description: `La settimana del ${format(weekStart, 'dd/MM')} è stata pulita e rigenerata con successo.` 
       })
     } catch (error) {
       console.error(error)
@@ -195,11 +199,11 @@ export default function ShiftsPage() {
           <p className="text-muted-foreground">Gestione settimanale con separazione Mattina (9-13) e Pomeriggio (17-20).</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 border-[#227FD8] text-[#227FD8] font-black">
+          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 border-[#227FD8] text-[#227FD8] font-black shadow-sm">
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Genera in questa settimana
+            Resetta e Rigenera Settimana
           </Button>
-          <Button className="gap-2 bg-[#227FD8] font-black shadow-md"><Plus className="h-4 w-4" /> Nuovo Turno</Button>
+          <Button className="gap-2 bg-[#227FD8] font-black shadow-md hover:bg-[#227FD8]/90"><Plus className="h-4 w-4" /> Nuovo Turno</Button>
         </div>
       </div>
 
@@ -287,7 +291,7 @@ export default function ShiftsPage() {
         <CardContent className="p-4 flex items-center gap-3">
           <Info className="h-5 w-5 text-amber-600" />
           <p className="text-xs font-bold text-amber-800">
-            Pianificazione basata sui riposi. Mattina: 09:00-13:00 | Pomeriggio: 17:00-20:00. Gli ID standard MORNING/AFTERNOON prevengono i duplicati.
+            La funzione "Resetta e Rigenera" rimuove tutti i turni presenti nella settimana visualizzata prima di creare i nuovi orari 09:00-13:00 e 17:00-20:00.
           </p>
         </CardContent>
       </Card>
