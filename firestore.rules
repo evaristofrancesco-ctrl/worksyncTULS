@@ -2,10 +2,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     /**
-     * WORK-SYNC SECURITY RULES - PROTOTYPE VERSION
-     * Aggiornato il: 2024-05-24T12:00:00Z (Trigger redeploy)
+     * TU.L.S. SECURITY RULES
+     * Sblocco totale per prototipazione rapida e supporto Collection Group.
      */
 
     match /{document=**} {
@@ -14,6 +14,14 @@ service cloud.firestore {
 
     // Supporto esplicito per query collectionGroup su tutto il database
     match /{path=**}/timeentries/{entry} {
+      allow read, write: if true;
+    }
+    
+    match /{path=**}/shifts/{shift} {
+      allow read, write: if true;
+    }
+
+    match /{path=**}/requests/{request} {
       allow read, write: if true;
     }
   }

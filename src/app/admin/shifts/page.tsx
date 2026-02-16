@@ -45,9 +45,8 @@ export default function ShiftsPage() {
     }, {} as any);
   }, [employees]);
 
-  // Funzione di utilità per verificare se un orario è compreso in una fascia di riposo
   const isTimeInRestRange = (time: Date, restStartStr: string, restEndStr: string) => {
-    if (!restStartStr || !restEndStr) return false;
+    if (!restStartStr || !restEndStr || restStartStr === restEndStr) return false;
     
     const [h, m] = [time.getHours(), time.getMinutes()];
     const [rsH, rsM] = restStartStr.split(':').map(Number);
@@ -57,7 +56,6 @@ export default function ShiftsPage() {
     const restStartMinutes = rsH * 60 + rsM;
     const restEndMinutes = reH * 60 + reM;
     
-    // Se la fascia di riposo attraversa la mezzanotte (es. 23:00 - 02:00)
     if (restStartMinutes > restEndMinutes) {
       return currentTimeMinutes >= restStartMinutes || currentTimeMinutes < restEndMinutes;
     }
@@ -75,7 +73,6 @@ export default function ShiftsPage() {
     
     try {
       const today = new Date()
-      // Trova l'inizio della settimana corrente (Lunedì)
       const startOfWeek = new Date(today.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1)))
       startOfWeek.setHours(0, 0, 0, 0)
 
@@ -85,51 +82,42 @@ export default function ShiftsPage() {
           currentDate.setDate(startOfWeek.getDate() + i)
           const dayOfWeek = currentDate.getDay().toString()
           
-          // Salta se è il giorno di riposo settimanale
           if (dayOfWeek === emp.restDay) continue;
 
-          // TURNO MATTINA: 09:00-13:00
-          const startTimeAM = new Date(currentDate)
-          startTimeAM.setHours(9, 0, 0)
-          const endTimeAM = new Date(currentDate)
-          endTimeAM.setHours(13, 0, 0)
+          // MATTINA: 09:00-13:00
+          const startAM = new Date(currentDate); startAM.setHours(9, 0, 0);
+          const endAM = new Date(currentDate); endAM.setHours(13, 0, 0);
 
-          // Verifica se l'inizio del turno ricade nell'orario di riposo configurato
-          if (!isTimeInRestRange(startTimeAM, emp.restStartTime, emp.restEndTime)) {
-            const morningShiftId = `shift-${emp.id}-${currentDate.getTime()}-AM`
-            const morningRef = doc(db, "employees", emp.id, "shifts", morningShiftId)
-            
-            setDocumentNonBlocking(morningRef, {
-              id: morningShiftId,
+          if (!isTimeInRestRange(startAM, emp.restStartTime, emp.restEndTime)) {
+            const shiftId = `shift-${emp.id}-${currentDate.getTime()}-AM`
+            const ref = doc(db, "employees", emp.id, "shifts", shiftId)
+            setDocumentNonBlocking(ref, {
+              id: shiftId,
               employeeId: emp.id,
               title: "Turno Mattina",
               date: currentDate.toISOString().split('T')[0],
-              startTime: startTimeAM.toISOString(),
-              endTime: endTimeAM.toISOString(),
+              startTime: startAM.toISOString(),
+              endTime: endAM.toISOString(),
               status: "SCHEDULED",
               companyId: "default"
             }, { merge: true })
           }
 
-          // TURNO POMERIGGIO: 17:00-20:00 (Solo Full-time)
+          // POMERIGGIO: 17:00-20:00 (Full-time)
           if (emp.contractType === "full-time") {
-            const startTimePM = new Date(currentDate)
-            startTimePM.setHours(17, 0, 0)
-            const endTimePM = new Date(currentDate)
-            endTimePM.setHours(20, 0, 0)
+            const startPM = new Date(currentDate); startPM.setHours(17, 0, 0);
+            const endPM = new Date(currentDate); endPM.setHours(20, 0, 0);
 
-            // Verifica riposo orario anche per il pomeriggio
-            if (!isTimeInRestRange(startTimePM, emp.restStartTime, emp.restEndTime)) {
-              const afternoonShiftId = `shift-${emp.id}-${currentDate.getTime()}-PM`
-              const afternoonRef = doc(db, "employees", emp.id, "shifts", afternoonShiftId)
-              
-              setDocumentNonBlocking(afternoonRef, {
-                id: afternoonShiftId,
+            if (!isTimeInRestRange(startPM, emp.restStartTime, emp.restEndTime)) {
+              const shiftId = `shift-${emp.id}-${currentDate.getTime()}-PM`
+              const ref = doc(db, "employees", emp.id, "shifts", shiftId)
+              setDocumentNonBlocking(ref, {
+                id: shiftId,
                 employeeId: emp.id,
                 title: "Turno Pomeriggio",
                 date: currentDate.toISOString().split('T')[0],
-                startTime: startTimePM.toISOString(),
-                endTime: endTimePM.toISOString(),
+                startTime: startPM.toISOString(),
+                endTime: endPM.toISOString(),
                 status: "SCHEDULED",
                 companyId: "default"
               }, { merge: true })
@@ -141,45 +129,30 @@ export default function ShiftsPage() {
       toast({ title: "Turni generati", description: "Pianificazione completata rispettando i riposi." })
     } catch (error) {
       console.error(error)
-      toast({ variant: "destructive", title: "Errore", description: "Impossibile generare i turni." })
+      toast({ variant: "destructive", title: "Errore" })
     } finally {
       setIsGenerating(false)
     }
   }
 
-  const handleDeleteShift = (employeeId: string, shiftId: string) => {
-    const shiftRef = doc(db, "employees", employeeId, "shifts", shiftId)
-    deleteDocumentNonBlocking(shiftRef)
-    toast({ title: "Turno eliminato" })
-  }
-
   const sortedShifts = useMemo(() => {
     if (!shifts) return [];
-    return [...shifts]
-      .filter(s => s.companyId === "default")
-      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    return [...shifts].sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
   }, [shifts]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-[#1e293b]">Gestione Turni</h1>
-          <p className="text-muted-foreground">Pianificazione automatica basata su contratti e fasce di riposo orarie.</p>
+          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Pianificazione Turni TU.L.S.</h1>
+          <p className="text-muted-foreground">Gestione automatizzata basata sui contratti aziendali.</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleAutoGenerate} 
-            disabled={isGenerating} 
-            className="gap-2 border-[#227FD8] text-[#227FD8] hover:bg-[#227FD8] hover:text-white font-bold"
-          >
+          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 border-[#227FD8] text-[#227FD8] font-bold">
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Genera Automatica
           </Button>
-          <Button className="gap-2 bg-[#227FD8]">
-            <Plus className="h-4 w-4" /> Nuovo Turno
-          </Button>
+          <Button className="gap-2 bg-[#227FD8] font-bold shadow-md"><Plus className="h-4 w-4" /> Nuovo Turno</Button>
         </div>
       </div>
 
@@ -187,9 +160,8 @@ export default function ShiftsPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-[#227FD8]" />
-            <CardTitle>Programma Settimanale</CardTitle>
+            <CardTitle className="text-xl font-black">Programma Settimanale</CardTitle>
           </div>
-          <CardDescription>Visualizzazione consolidata di tutti i turni attivi.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -197,9 +169,9 @@ export default function ShiftsPage() {
               <TableRow>
                 <TableHead className="font-bold">Dipendente</TableHead>
                 <TableHead className="font-bold">Data</TableHead>
-                <TableHead className="font-bold">Orario Lavoro</TableHead>
-                <TableHead className="font-bold">Tipo Turno</TableHead>
-                <TableHead className="text-right font-bold">Azioni</TableHead>
+                <TableHead className="font-bold">Orario</TableHead>
+                <TableHead className="font-bold">Tipo</TableHead>
+                <TableHead className="text-right font-bold pr-6">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -209,43 +181,28 @@ export default function ShiftsPage() {
                 const emp = employeeMap[shift.employeeId];
                 const start = new Date(shift.startTime);
                 const end = new Date(shift.endTime);
-
                 return (
                   <TableRow key={shift.id} className="hover:bg-muted/20 transition-colors">
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7 border shadow-xs">
-                          <AvatarImage src={emp?.photoUrl} />
-                          <AvatarFallback className="text-[10px]">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="font-bold text-sm">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</span>
+                      <div className="flex items-center gap-2 font-bold">
+                        <Avatar className="h-7 w-7"><AvatarImage src={emp?.photoUrl} /><AvatarFallback>{emp?.firstName?.charAt(0)}</AvatarFallback></Avatar>
+                        <span>{emp ? `${emp.firstName} ${emp.lastName}` : "---"}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs">
-                      {start.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: 'short' })}
-                    </TableCell>
+                    <TableCell className="text-xs">{start.toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: 'short' })}</TableCell>
                     <TableCell className="font-mono text-xs font-bold">
-                      {start.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - 
-                      {end.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      {start.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - {end.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="text-[9px] uppercase tracking-wider px-2 py-0">
-                        {shift.title}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteShift(shift.employeeId, shift.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive/70 hover:text-destructive" />
+                    <TableCell><Badge variant="secondary" className="text-[9px] uppercase">{shift.title}</Badge></TableCell>
+                    <TableCell className="text-right pr-6">
+                      <Button variant="ghost" size="icon" onClick={() => deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id))}>
+                        <Trash2 className="h-4 w-4 text-destructive/70" />
                       </Button>
                     </TableCell>
                   </TableRow>
                 )
               }) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic">
-                    Nessun turno in programma. Usa "Genera Automatica" per iniziare.
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={5} className="py-24 text-center text-muted-foreground italic">Nessun turno pianificato.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
