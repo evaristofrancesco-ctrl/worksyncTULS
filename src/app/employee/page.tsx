@@ -1,36 +1,41 @@
 
 "use client"
 
-import { Calendar, Clock, FileText, Gift, Info, MapPin, Loader2 } from "lucide-react"
+import { Calendar, Clock, FileText, Gift, Info, Loader2 } from "lucide-react"
 import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, orderBy, limit } from "firebase/firestore"
-import { useMemo } from "react"
+import { collection, query, orderBy, limit } from "firebase/firestore"
+import { useMemo, useState, useEffect } from "react"
 
 export default function EmployeeDashboard() {
   const { user } = useUser()
   const db = useFirestore()
+  const [employeeId, setEmployeeId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setEmployeeId(localStorage.getItem("employeeId"))
+  }, [])
 
   // Recupera i turni del dipendente
   const shiftsQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return collection(db, "employees", user.uid, "shifts");
-  }, [db, user])
+    if (!db || !employeeId) return null;
+    return collection(db, "employees", employeeId, "shifts");
+  }, [db, employeeId])
   const { data: shifts, isLoading: isShiftsLoading } = useCollection(shiftsQuery)
 
   // Recupera le ultime timbrature
   const entriesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !employeeId) return null;
     return query(
-      collection(db, "employees", user.uid, "timeentries"),
+      collection(db, "employees", employeeId, "timeentries"),
       orderBy("checkInTime", "desc"),
       limit(3)
     );
-  }, [db, user])
+  }, [db, employeeId])
   const { data: recentEntries, isLoading: isEntriesLoading } = useCollection(entriesQuery)
 
   // Trova il turno di oggi
@@ -41,8 +46,13 @@ export default function EmployeeDashboard() {
   }, [shifts]);
 
   // Calcolo ore settimanali (mock per ora, basato su entries)
-  const weeklyHours = 32.5;
-  const goalHours = user?.uid ? 46 : 40; // FT 46, PT 23, Default 40
+  const weeklyHours = useMemo(() => {
+    if (!recentEntries) return 0;
+    // Somma molto semplificata per il prototipo
+    return recentEntries.length * 4; 
+  }, [recentEntries]);
+
+  const goalHours = 46; // Standard TU.L.S.
   const progress = Math.min(100, (weeklyHours / goalHours) * 100);
 
   return (
@@ -99,7 +109,7 @@ export default function EmployeeDashboard() {
               <div className="pt-2">
                 <p className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
                   <Info className="h-3 w-3 text-amber-500" />
-                  Statistiche basate sulle timbrature approvate.
+                  Statistiche basate sulle ultime attività registrate.
                 </p>
               </div>
             </CardContent>
@@ -114,7 +124,7 @@ export default function EmployeeDashboard() {
             <div className="space-y-6">
               {isEntriesLoading ? (
                 <div className="flex justify-center py-6"><Loader2 className="animate-spin h-6 w-6 text-primary" /></div>
-              ) : recentEntries && recentEntries.length > 0 ? recentEntries.map((act, i) => (
+              ) : recentEntries && recentEntries.length > 0 ? recentEntries.map((act) => (
                 <div key={act.id} className="flex items-center gap-4">
                   <div className={`h-10 w-10 rounded-full flex items-center justify-center ${!act.checkOutTime ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600'}`}>
                     <Clock className="h-5 w-5" />

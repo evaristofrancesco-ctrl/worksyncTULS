@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -5,39 +6,40 @@ import { Clock, Play, Square, MapPin, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where, orderBy, limit, doc, serverTimestamp } from "firebase/firestore"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 
 export function ClockInOut() {
   const db = useFirestore()
-  const { user } = useUser()
   const { toast } = useToast()
   
   const [time, setTime] = useState<Date | null>(null)
   const [elapsed, setElapsed] = useState("00:00:00")
   const [isProcessing, setIsProcessing] = useState(false)
-
-  // Recupera l'ultimo log di oggi per questo utente
-  const entriesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
-    return query(
-      collection(db, "employees", user.uid, "timeentries"),
-      orderBy("checkInTime", "desc"),
-      limit(1)
-    );
-  }, [db, user])
-  
-  const { data: entries, isLoading: isEntriesLoading } = useCollection(entriesQuery)
-  const currentEntry = entries && entries.length > 0 ? entries[0] : null
-  const isClockedIn = !!(currentEntry && !currentEntry.checkOutTime)
+  const [employeeId, setEmployeeId] = useState<string | null>(null)
 
   useEffect(() => {
+    setEmployeeId(localStorage.getItem("employeeId"))
     setTime(new Date())
     const timer = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // Recupera l'ultimo log di oggi per questo utente
+  const entriesQuery = useMemoFirebase(() => {
+    if (!db || !employeeId) return null;
+    return query(
+      collection(db, "employees", employeeId, "timeentries"),
+      orderBy("checkInTime", "desc"),
+      limit(1)
+    );
+  }, [db, employeeId])
+  
+  const { data: entries, isLoading: isEntriesLoading } = useCollection(entriesQuery)
+  const currentEntry = entries && entries.length > 0 ? entries[0] : null
+  const isClockedIn = !!(currentEntry && !currentEntry.checkOutTime)
 
   useEffect(() => {
     let interval: any
@@ -57,13 +59,13 @@ export function ClockInOut() {
   }, [isClockedIn, currentEntry])
 
   const handleClockToggle = async () => {
-    if (!user || !db) return;
+    if (!employeeId || !db) return;
     
     setIsProcessing(true)
     try {
       if (isClockedIn && currentEntry) {
         // USCITA
-        const entryRef = doc(db, "employees", user.uid, "timeentries", currentEntry.id)
+        const entryRef = doc(db, "employees", employeeId, "timeentries", currentEntry.id)
         updateDocumentNonBlocking(entryRef, {
           checkOutTime: new Date().toISOString(),
           isApproved: true
@@ -72,14 +74,15 @@ export function ClockInOut() {
       } else {
         // ENTRATA
         const entryId = `entry-${Date.now()}`
-        const entryRef = doc(db, "employees", user.uid, "timeentries", entryId)
+        const entryRef = doc(db, "employees", employeeId, "timeentries", entryId)
         const newEntry = {
           id: entryId,
-          employeeId: user.uid,
+          employeeId: employeeId,
           companyId: "default",
           checkInTime: new Date().toISOString(),
           isApproved: true,
-          status: "PRESENT"
+          status: "PRESENT",
+          type: "MANUAL"
         }
         setDocumentNonBlocking(entryRef, newEntry, { merge: true })
         toast({ title: "Entrata registrata", description: "Buon lavoro!" })

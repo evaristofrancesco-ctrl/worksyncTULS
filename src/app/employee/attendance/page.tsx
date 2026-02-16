@@ -1,8 +1,8 @@
 
 "use client"
 
-import { Clock, Search, Loader2 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Clock, Loader2 } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
   Table, 
   TableBody, 
@@ -12,21 +12,25 @@ import {
   TableRow 
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 
 export default function MyAttendancePage() {
   const db = useFirestore()
-  const { user } = useUser()
+  const [employeeId, setEmployeeId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setEmployeeId(localStorage.getItem("employeeId"))
+  }, [])
 
   const entriesQuery = useMemoFirebase(() => {
-    if (!db || !user) return null;
+    if (!db || !employeeId) return null;
     return query(
-      collection(db, "employees", user.uid, "timeentries"),
+      collection(db, "employees", employeeId, "timeentries"),
       orderBy("checkInTime", "desc")
     );
-  }, [db, user])
+  }, [db, employeeId])
   
   const { data: entries, isLoading } = useCollection(entriesQuery)
 
@@ -88,7 +92,7 @@ export default function MyAttendancePage() {
                     <TableCell className="text-sm">{duration}</TableCell>
                     <TableCell>
                       <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500" : ""}>
-                        {!log.checkOutTime ? "In Corso" : "Completato"}
+                        {!log.checkOutTime ? "In Corso" : log.type === "AUTO" ? "Automatica" : "Manuale"}
                       </Badge>
                     </TableCell>
                   </TableRow>

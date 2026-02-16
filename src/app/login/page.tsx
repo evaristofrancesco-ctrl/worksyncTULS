@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -40,16 +41,13 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
-      // Autenticazione anonima preventiva per i permessi Firestore
-      await signInAnonymously(auth)
-
-      let userData: any = null
-
-      // Ricerca dell'utente esclusivamente nel database Firestore
+      // Ricerca dell'utente nel database Firestore PRIMA del login anonimo
       const employeesRef = collection(db, "employees")
       const q = query(employeesRef, where("email", "==", cleanEmail), limit(1))
       const querySnapshot = await getDocs(q)
       
+      let userData: any = null
+
       if (!querySnapshot.empty) {
         const docData = querySnapshot.docs[0].data()
         // Verifica esplicita della password salvata nel documento
@@ -59,18 +57,21 @@ export default function LoginPage() {
       }
 
       if (userData) {
+        // Autenticazione anonima per i permessi Firestore
+        await signInAnonymously(auth)
+        
         const fullName = `${userData.firstName} ${userData.lastName}`
         
-        // Aggiorniamo il profilo Firebase Auth per persistenza rapida
         if (auth.currentUser) {
           await updateProfile(auth.currentUser, {
             displayName: fullName
           });
         }
 
-        // Memorizziamo il ruolo e il nome per i layout
+        // Memorizziamo il ruolo, il nome e l'ID REALE del dipendente
         localStorage.setItem("userRole", userData.role)
         localStorage.setItem("userName", fullName)
+        localStorage.setItem("employeeId", userData.id)
 
         toast({
           title: "Accesso effettuato",
