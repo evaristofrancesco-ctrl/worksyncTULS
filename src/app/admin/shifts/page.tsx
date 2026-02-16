@@ -14,7 +14,8 @@ import {
   User,
   Info,
   Sun,
-  Moon
+  Moon,
+  MapPin
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -33,6 +34,15 @@ import {
   subDays 
 } from "date-fns"
 import { it } from "date-fns/locale"
+
+// Mappa dei colori per le sedi per una distinzione immediata
+const LOCATION_COLORS: Record<string, string> = {
+  "default": "border-l-[#227FD8] bg-blue-50/30",
+  "loc-1": "border-l-emerald-500 bg-emerald-50/30",
+  "loc-2": "border-l-amber-500 bg-amber-50/30",
+  "loc-3": "border-l-purple-500 bg-purple-50/30",
+  "loc-4": "border-l-rose-500 bg-rose-50/30",
+}
 
 export default function ShiftsPage() {
   const db = useFirestore()
@@ -91,7 +101,6 @@ export default function ShiftsPage() {
     
     try {
       // 1. CANCELLAZIONE PREVENTIVA
-      // Rimuoviamo tutti i turni attualmente presenti nella settimana visualizzata
       if (weekShifts.length > 0) {
         for (const shift of weekShifts) {
           const shiftRef = doc(db, "employees", shift.employeeId, "shifts", shift.id);
@@ -100,12 +109,11 @@ export default function ShiftsPage() {
       }
 
       let totalGenerated = 0
-      // 2. GENERAZIONE NUOVI TURNI
-      // Genera per la settimana attualmente visualizzata (Lun-Sab)
+      // 2. GENERAZIONE NUOVI TURNI (Lun-Sab)
       for (const emp of employees) {
         if (!emp.isActive) continue;
 
-        for (let i = 0; i < 6; i++) { // Da Lunedì (0) a Sabato (5)
+        for (let i = 0; i < 6; i++) { 
           const targetDay = addDays(weekStart, i)
           const dayOfWeekStr = targetDay.getDay().toString()
           
@@ -196,7 +204,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Pianificazione Turni Team</h1>
-          <p className="text-muted-foreground">Gestione settimanale con separazione Mattina (9-13) e Pomeriggio (17-20).</p>
+          <p className="text-muted-foreground">Gestione settimanale con distinzione visiva per sede operativa.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 border-[#227FD8] text-[#227FD8] font-black shadow-sm">
@@ -239,7 +247,7 @@ export default function ShiftsPage() {
           
           return (
             <Card key={dayStr} className={cn(
-              "border-none shadow-sm overflow-hidden flex flex-col min-h-[500px]",
+              "border-none shadow-sm overflow-hidden flex flex-col min-h-[550px]",
               isToday ? "bg-[#227FD8]/5 ring-2 ring-[#227FD8]/20" : "bg-white/80"
             )}>
               <div className={cn(
@@ -287,14 +295,39 @@ export default function ShiftsPage() {
         })}
       </div>
 
-      <Card className="bg-amber-50 border-amber-200">
-        <CardContent className="p-4 flex items-center gap-3">
-          <Info className="h-5 w-5 text-amber-600" />
-          <p className="text-xs font-bold text-amber-800">
-            La funzione "Resetta e Rigenera" rimuove tutti i turni presenti nella settimana visualizzata prima di creare i nuovi orari 09:00-13:00 e 17:00-20:00.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-amber-50 border-amber-200">
+          <CardContent className="p-4 flex items-center gap-3">
+            <Info className="h-5 w-5 text-amber-600 shrink-0" />
+            <p className="text-[11px] font-bold text-amber-800">
+              La funzione "Resetta e Rigenera" rimuove tutti i turni presenti nella settimana visualizzata prima di creare i nuovi orari.
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardContent className="p-4">
+            <h4 className="text-[10px] font-black uppercase text-muted-foreground mb-3 tracking-widest">Legenda Sedi</h4>
+            <div className="flex flex-wrap gap-3">
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-1 bg-[#227FD8] rounded-full" />
+                <span className="text-[9px] font-bold uppercase">Sede Centrale</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-1 bg-emerald-500 rounded-full" />
+                <span className="text-[9px] font-bold uppercase">Sede Nord</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-1 bg-amber-500 rounded-full" />
+                <span className="text-[9px] font-bold uppercase">Sede Sud</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-3 w-1 bg-purple-500 rounded-full" />
+                <span className="text-[9px] font-bold uppercase">Sede Est</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
@@ -302,15 +335,28 @@ export default function ShiftsPage() {
 function ShiftCard({ shift, emp, db }: { shift: any, emp: any, db: any }) {
   const start = parseISO(shift.startTime)
   const end = parseISO(shift.endTime)
+  
+  // Determina la classe del bordo basata sulla sede
+  const locationClass = LOCATION_COLORS[emp?.locationId || "default"] || LOCATION_COLORS["default"]
 
   return (
-    <div className="group relative bg-white border rounded-xl p-2 shadow-sm hover:shadow-md transition-all">
+    <div className={cn(
+      "group relative border rounded-xl p-2 shadow-sm hover:shadow-md transition-all border-l-4",
+      locationClass
+    )}>
       <div className="flex items-center gap-2 mb-1.5">
         <Avatar className="h-6 w-6 border shadow-xs">
           <AvatarImage src={emp?.photoUrl} />
           <AvatarFallback className="text-[8px] font-bold">{emp?.firstName?.charAt(0)}</AvatarFallback>
         </Avatar>
-        <span className="text-[10px] font-black truncate text-[#1e293b]">{emp?.firstName} {emp?.lastName?.charAt(0)}.</span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-[10px] font-black truncate text-[#1e293b]">{emp?.firstName} {emp?.lastName?.charAt(0)}.</span>
+          {emp?.locationName && (
+            <span className="text-[7px] font-black uppercase tracking-tighter text-muted-foreground flex items-center gap-0.5">
+              <MapPin className="h-2 w-2" /> {emp.locationName}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-1 text-[9px] font-bold text-[#227FD8]">
         <Clock className="h-3 w-3" />
