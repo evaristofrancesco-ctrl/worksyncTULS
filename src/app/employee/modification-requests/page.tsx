@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { 
   ClipboardList, 
   Send, 
@@ -12,7 +12,8 @@ import {
   Package, 
   Hash, 
   Loader2,
-  Inbox
+  Inbox,
+  AlertCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,13 +49,18 @@ export default function ModificationRequestsPage() {
     );
   }, [db, employeeId])
 
-  const { data: requests, isLoading } = useCollection(modificationsQuery)
+  const { data: allRequests, isLoading } = useCollection(modificationsQuery)
+
+  // Filtriamo per mostrare solo le richieste PENDING (quelle approvate/rifiutate spariscono)
+  const pendingRequests = useMemo(() => {
+    if (!allRequests) return [];
+    return allRequests.filter(req => req.status === "PENDING");
+  }, [allRequests]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!employeeId || !db) return
 
-    // Validazione base
     if (!form.entra.barcode || !form.entra.name || !form.entra.pieces ||
         !form.esce.barcode || !form.esce.name || !form.esce.pieces) {
       toast({
@@ -88,7 +94,6 @@ export default function ModificationRequestsPage() {
 
     setDocumentNonBlocking(requestRef, requestData, { merge: true })
 
-    // Reset form
     setForm({
       entra: { barcode: "", name: "", pieces: "" },
       esce: { barcode: "", name: "", pieces: "" }
@@ -98,7 +103,7 @@ export default function ModificationRequestsPage() {
       setIsSubmitting(false)
       toast({
         title: "Richiesta Inviata",
-        description: "La tua richiesta di modifica è stata inoltrata correttamente."
+        description: "La tua richiesta è in attesa di approvazione."
       })
     }, 500)
   }
@@ -110,19 +115,17 @@ export default function ModificationRequestsPage() {
           <ClipboardList className="h-8 w-8 text-[#227FD8]" />
           Richiesta Modifica
         </h1>
-        <p className="text-muted-foreground">Invia una richiesta di movimentazione pezzi tra ENTRA ed ESCE.</p>
+        <p className="text-muted-foreground">Invia una richiesta di movimentazione. Una volta approvata dall'admin, sparirà da questo elenco.</p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        {/* Form Sezione */}
         <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm h-fit">
           <CardHeader>
             <CardTitle className="text-xl font-black">Nuova Richiesta</CardTitle>
-            <CardDescription>Compila i dettagli degli articoli da movimentare.</CardDescription>
+            <CardDescription>Inserisci i dettagli per la movimentazione pezzi.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-8">
-              {/* SEZIONE ENTRA */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-green-600">
                   <ArrowDownLeft className="h-5 w-5" />
@@ -134,7 +137,7 @@ export default function ModificationRequestsPage() {
                     <div className="relative">
                       <Barcode className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input 
-                        placeholder="Scannerizza o inserisci codice..." 
+                        placeholder="Codice..." 
                         className="pl-10"
                         value={form.entra.barcode}
                         onChange={(e) => setForm({...form, entra: {...form.entra, barcode: e.target.value}})}
@@ -146,7 +149,7 @@ export default function ModificationRequestsPage() {
                     <div className="relative">
                       <Package className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input 
-                        placeholder="es. T-Shirt Bianca L" 
+                        placeholder="Nome..." 
                         className="pl-10"
                         value={form.entra.name}
                         onChange={(e) => setForm({...form, entra: {...form.entra, name: e.target.value}})}
@@ -159,7 +162,7 @@ export default function ModificationRequestsPage() {
                       <Hash className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input 
                         type="number" 
-                        placeholder="Quantità" 
+                        placeholder="Qta" 
                         className="pl-10"
                         value={form.entra.pieces}
                         onChange={(e) => setForm({...form, entra: {...form.entra, pieces: e.target.value}})}
@@ -171,7 +174,6 @@ export default function ModificationRequestsPage() {
 
               <Separator />
 
-              {/* SEZIONE ESCE */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-rose-600">
                   <ArrowUpRight className="h-5 w-5" />
@@ -183,7 +185,7 @@ export default function ModificationRequestsPage() {
                     <div className="relative">
                       <Barcode className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input 
-                        placeholder="Scannerizza o inserisci codice..." 
+                        placeholder="Codice..." 
                         className="pl-10"
                         value={form.esce.barcode}
                         onChange={(e) => setForm({...form, esce: {...form.esce, barcode: e.target.value}})}
@@ -195,7 +197,7 @@ export default function ModificationRequestsPage() {
                     <div className="relative">
                       <Package className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input 
-                        placeholder="es. Felpa Blu M" 
+                        placeholder="Nome..." 
                         className="pl-10"
                         value={form.esce.name}
                         onChange={(e) => setForm({...form, esce: {...form.esce, name: e.target.value}})}
@@ -208,7 +210,7 @@ export default function ModificationRequestsPage() {
                       <Hash className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input 
                         type="number" 
-                        placeholder="Quantità" 
+                        placeholder="Qta" 
                         className="pl-10"
                         value={form.esce.pieces}
                         onChange={(e) => setForm({...form, esce: {...form.esce, pieces: e.target.value}})}
@@ -224,27 +226,35 @@ export default function ModificationRequestsPage() {
                 disabled={isSubmitting}
               >
                 {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 mr-2" />}
-                INVIA RICHIESTA MODIFICA
+                INVIA RICHIESTA
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        {/* Lista Storico */}
         <div className="space-y-6">
-          <h2 className="text-xl font-black text-[#1e293b]">Ultime Richieste Inviate</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-black text-[#1e293b]">Richieste in Sospeso</h2>
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+              {pendingRequests.length} Da Gestire
+            </Badge>
+          </div>
+          
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : requests && requests.length > 0 ? (
-            requests.map((req) => (
-              <Card key={req.id} className="border-none shadow-sm bg-white overflow-hidden">
+          ) : pendingRequests.length > 0 ? (
+            pendingRequests.map((req) => (
+              <Card key={req.id} className="border-none shadow-sm bg-white overflow-hidden animate-in slide-in-from-right duration-300">
                 <CardContent className="p-0">
-                  <div className="p-4 border-b flex justify-between items-center bg-muted/20">
-                    <span className="text-xs font-bold text-muted-foreground">
-                      {new Date(req.submittedAt).toLocaleString('it-IT')}
-                    </span>
-                    <Badge variant="outline" className="font-black text-[10px]">
-                      {req.status}
+                  <div className="p-4 border-b flex justify-between items-center bg-amber-50/50">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5 text-amber-600" />
+                      <span className="text-xs font-bold text-amber-700">
+                        {new Date(req.submittedAt).toLocaleString('it-IT')}
+                      </span>
+                    </div>
+                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none font-black text-[10px] uppercase">
+                      In Attesa
                     </Badge>
                   </div>
                   <div className="p-4 grid grid-cols-2 gap-4">
@@ -269,11 +279,21 @@ export default function ModificationRequestsPage() {
               </Card>
             ))
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-4">
+            <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-3xl border border-dashed text-muted-foreground gap-4">
               <Inbox className="h-12 w-12 opacity-20" />
-              <p className="italic font-medium">Nessuna richiesta inviata finora.</p>
+              <div className="text-center">
+                <p className="font-bold text-[#1e293b]">Tutto gestito!</p>
+                <p className="text-xs">Non hai richieste di modifica in attesa.</p>
+              </div>
             </div>
           )}
+
+          <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3">
+             <AlertCircle className="h-5 w-5 text-blue-600 shrink-0" />
+             <p className="text-[11px] text-blue-800 leading-tight">
+               <b>Nota:</b> Le richieste scompaiono da questa lista non appena l'amministratore le approva o le rifiuta. Le modifiche approvate vengono registrate permanentemente nel sistema log.
+             </p>
+          </div>
         </div>
       </div>
     </div>
