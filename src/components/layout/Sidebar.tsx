@@ -12,8 +12,8 @@ import {
   MapPin,
   Layers,
   HelpCircle,
-  User,
-  History
+  History,
+  ClipboardList
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -37,6 +37,7 @@ const employeeLinks = [
   { name: "I Miei Turni", href: "/employee/shifts", icon: Calendar },
   { name: "Le Mie Presenze", href: "/employee/attendance", icon: Clock },
   { name: "Le Mie Richieste", href: "/employee/requests", icon: FileText },
+  { name: "Richiesta Modifica", href: "/employee/modification-requests", icon: ClipboardList },
 ]
 
 export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {

@@ -209,6 +209,35 @@
         "role",
         "isActive"
       ]
+    },
+    "ModificationRequest": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ModificationRequest",
+      "type": "object",
+      "description": "Represents a modification request for stock or items sent by an employee.",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "entra": {
+          "type": "object",
+          "properties": {
+            "barcode": { "type": "string" },
+            "name": { "type": "string" },
+            "pieces": { "type": "number" }
+          }
+        },
+        "esce": {
+          "type": "object",
+          "properties": {
+            "barcode": { "type": "string" },
+            "name": { "type": "string" },
+            "pieces": { "type": "number" }
+          }
+        }
+      },
+      "required": ["id", "employeeId", "submittedAt", "status", "entra", "esce"]
     }
   },
   "auth": {
@@ -247,6 +276,16 @@
             "$ref": "#/backend/entities/Employee"
           },
           "description": "Top-level collection for employee profiles."
+        }
+      },
+      {
+        "path": "/employees/{employeeId}/modifications/{id}",
+        "definition": {
+          "entityName": "ModificationRequest",
+          "schema": {
+            "$ref": "#/backend/entities/ModificationRequest"
+          },
+          "description": "Requests for stock/item modifications sent by the employee."
         }
       }
     ]
