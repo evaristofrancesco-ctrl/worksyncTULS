@@ -5,7 +5,6 @@ import { useState, useEffect, useMemo } from "react"
 import { 
   ClipboardList, 
   Send, 
-  Plus, 
   ArrowDownLeft, 
   ArrowUpRight, 
   Barcode, 
@@ -13,7 +12,10 @@ import {
   Hash, 
   Loader2,
   Inbox,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  XCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,7 +24,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, doc } from "firebase/firestore"
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
 
@@ -51,11 +53,21 @@ export default function ModificationRequestsPage() {
 
   const { data: allRequests, isLoading } = useCollection(modificationsQuery)
 
-  // Filtriamo per mostrare solo le richieste PENDING (quelle approvate/rifiutate spariscono)
-  const pendingRequests = useMemo(() => {
-    if (!allRequests) return [];
-    return allRequests.filter(req => req.status === "PENDING");
-  }, [allRequests]);
+  // Auto-pulizia: cancella le richieste più vecchie di 7 giorni
+  useEffect(() => {
+    if (!allRequests || !db || !employeeId) return;
+    
+    const now = new Date();
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    allRequests.forEach(req => {
+      const submittedAt = new Date(req.submittedAt);
+      if (submittedAt < oneWeekAgo) {
+        const ref = doc(db, "employees", employeeId, "modifications", req.id);
+        deleteDocumentNonBlocking(ref);
+      }
+    });
+  }, [allRequests, db, employeeId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,7 +115,7 @@ export default function ModificationRequestsPage() {
       setIsSubmitting(false)
       toast({
         title: "Richiesta Inviata",
-        description: "La tua richiesta è in attesa di approvazione."
+        description: "La tua richiesta è ora IN ATTESA APPROVAZIONE."
       })
     }, 500)
   }
@@ -115,7 +127,7 @@ export default function ModificationRequestsPage() {
           <ClipboardList className="h-8 w-8 text-[#227FD8]" />
           Richiesta Modifica
         </h1>
-        <p className="text-muted-foreground">Invia una richiesta di movimentazione. Una volta approvata dall'admin, sparirà da questo elenco.</p>
+        <p className="text-muted-foreground">Invia e monitora le tue richieste di movimentazione (ENTRA/ESCE).</p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
@@ -234,56 +246,78 @@ export default function ModificationRequestsPage() {
 
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-black text-[#1e293b]">Richieste in Sospeso</h2>
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-              {pendingRequests.length} Da Gestire
+            <h2 className="text-xl font-black text-[#1e293b]">Le Tue Richieste</h2>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              {allRequests?.length || 0} Totali
             </Badge>
           </div>
           
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : pendingRequests.length > 0 ? (
-            pendingRequests.map((req) => (
-              <Card key={req.id} className="border-none shadow-sm bg-white overflow-hidden animate-in slide-in-from-right duration-300">
-                <CardContent className="p-0">
-                  <div className="p-4 border-b flex justify-between items-center bg-amber-50/50">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-3.5 w-3.5 text-amber-600" />
-                      <span className="text-xs font-bold text-amber-700">
-                        {new Date(req.submittedAt).toLocaleString('it-IT')}
-                      </span>
-                    </div>
-                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none font-black text-[10px] uppercase">
-                      In Attesa
-                    </Badge>
-                  </div>
-                  <div className="p-4 grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1 text-green-600 text-[10px] font-black uppercase">
-                        <ArrowDownLeft className="h-3 w-3" /> Entra
+          ) : allRequests && allRequests.length > 0 ? (
+            allRequests.map((req) => {
+              const isPending = req.status === "PENDING";
+              const isApproved = req.status === "APPROVED";
+              const isRejected = req.status === "REJECTED";
+
+              return (
+                <Card key={req.id} className={`border-none shadow-sm overflow-hidden animate-in slide-in-from-right duration-300 ${!isPending ? 'opacity-70 bg-slate-50' : 'bg-white'}`}>
+                  <CardContent className="p-0">
+                    <div className={`p-4 border-b flex justify-between items-center ${isPending ? 'bg-amber-50/50' : isApproved ? 'bg-green-50/50' : 'bg-rose-50/50'}`}>
+                      <div className="flex items-center gap-2">
+                        <Clock className={`h-3.5 w-3.5 ${isPending ? 'text-amber-600' : isApproved ? 'text-green-600' : 'text-rose-600'}`} />
+                        <span className="text-xs font-bold">
+                          {new Date(req.submittedAt).toLocaleString('it-IT')}
+                        </span>
                       </div>
-                      <p className="text-sm font-bold truncate">{req.entra.name}</p>
-                      <p className="text-[10px] font-mono text-muted-foreground">{req.entra.barcode}</p>
-                      <p className="text-xs font-black">Qta: {req.entra.pieces}</p>
+                      <Badge className={`${
+                        isPending ? 'bg-amber-100 text-amber-700' : 
+                        isApproved ? 'bg-green-600 text-white' : 
+                        'bg-rose-600 text-white'
+                      } border-none font-black text-[10px] uppercase tracking-wider`}>
+                        {isPending ? 'ATTESA APPROVAZIONE' : isApproved ? 'GESTITA' : 'RIFIUTATA'}
+                      </Badge>
                     </div>
-                    <div className="space-y-1 border-l pl-4">
-                      <div className="flex items-center gap-1 text-rose-600 text-[10px] font-black uppercase">
-                        <ArrowUpRight className="h-3 w-3" /> Esce
+                    <div className="p-4 grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-green-600 text-[10px] font-black uppercase">
+                          <ArrowDownLeft className="h-3 w-3" /> Entra
+                        </div>
+                        <p className="text-sm font-bold truncate">{req.entra.name}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{req.entra.barcode}</p>
+                        <p className="text-xs font-black">Qta: {req.entra.pieces}</p>
                       </div>
-                      <p className="text-sm font-bold truncate">{req.esce.name}</p>
-                      <p className="text-[10px] font-mono text-muted-foreground">{req.esce.barcode}</p>
-                      <p className="text-xs font-black">Qta: {req.esce.pieces}</p>
+                      <div className="space-y-1 border-l pl-4">
+                        <div className="flex items-center gap-1 text-rose-600 text-[10px] font-black uppercase">
+                          <ArrowUpRight className="h-3 w-3" /> Esce
+                        </div>
+                        <p className="text-sm font-bold truncate">{req.esce.name}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{req.esce.barcode}</p>
+                        <p className="text-xs font-black">Qta: {req.esce.pieces}</p>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                    {isApproved && (
+                      <div className="px-4 pb-3 flex items-center gap-2 text-green-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-bold">Modifica approvata e registrata dall'amministrazione.</span>
+                      </div>
+                    )}
+                    {isRejected && (
+                      <div className="px-4 pb-3 flex items-center gap-2 text-rose-600">
+                        <XCircle className="h-3.5 w-3.5" />
+                        <span className="text-[10px] font-bold">Richiesta non approvata dall'amministrazione.</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })
           ) : (
             <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-3xl border border-dashed text-muted-foreground gap-4">
               <Inbox className="h-12 w-12 opacity-20" />
               <div className="text-center">
-                <p className="font-bold text-[#1e293b]">Tutto gestito!</p>
-                <p className="text-xs">Non hai richieste di modifica in attesa.</p>
+                <p className="font-bold text-[#1e293b]">Ancora nulla</p>
+                <p className="text-xs">Non hai inviato richieste di modifica.</p>
               </div>
             </div>
           )}
@@ -291,7 +325,7 @@ export default function ModificationRequestsPage() {
           <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3">
              <AlertCircle className="h-5 w-5 text-blue-600 shrink-0" />
              <p className="text-[11px] text-blue-800 leading-tight">
-               <b>Nota:</b> Le richieste scompaiono da questa lista non appena l'amministratore le approva o le rifiuta. Le modifiche approvate vengono registrate permanentemente nel sistema log.
+               <b>Politica di conservazione:</b> Le tue richieste (approvate o meno) saranno visibili per <b>7 giorni</b> dall'invio, dopodiché verranno rimosse automaticamente dal sistema.
              </p>
           </div>
         </div>
