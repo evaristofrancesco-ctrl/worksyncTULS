@@ -65,7 +65,10 @@ const DAYS_OF_WEEK = [
   { label: "Domenica", value: "0" },
 ]
 
-// Componente interno per il form per evitare re-render della tabella durante la digitazione
+/**
+ * Componente Form isolato per evitare re-render della tabella durante la digitazione
+ * e prevenire il blocco dell'interfaccia.
+ */
 function EmployeeForm({ 
   initialData, 
   onSubmit, 
@@ -83,7 +86,7 @@ function EmployeeForm({
 }) {
   const [formData, setFormData] = useState({
     ...initialData,
-    autoClockIn: initialData.autoClockIn ?? false
+    autoClockIn: initialData.autoClockIn ?? true
   })
 
   const handleContractChange = (type: string) => {
@@ -92,12 +95,12 @@ function EmployeeForm({
   }
 
   return (
-    <>
+    <div className="flex flex-col">
       <div className="bg-[#227FD8] p-6 text-white">
         <DialogTitle className="text-2xl font-black flex items-center gap-2">
           {submitLabel === 'SALVA MODIFICHE' ? <Edit className="h-6 w-6" /> : <UserPlus className="h-6 w-6" />} {title}
         </DialogTitle>
-        <DialogDescription className="text-blue-100">Configurazione centralizzata del profilo e del contratto.</DialogDescription>
+        <DialogDescription className="text-blue-100">Configurazione profilazione e impostazioni timbratura.</DialogDescription>
       </div>
       
       <Tabs defaultValue="personali" className="w-full">
@@ -196,16 +199,6 @@ function EmployeeForm({
               <Input type="number" value={formData.weeklyHours} onChange={e => setFormData({...formData, weeklyHours: Number(e.target.value)})} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 p-4 bg-amber-50 rounded-xl border border-amber-100">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-amber-700">Inizio Riposo Orario</Label>
-              <Input type="time" value={formData.restStartTime} onChange={e => setFormData({...formData, restStartTime: e.target.value})} />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-amber-700">Fine Riposo Orario</Label>
-              <Input type="time" value={formData.restEndTime} onChange={e => setFormData({...formData, restEndTime: e.target.value})} />
-            </div>
-          </div>
 
           <div className="flex items-center justify-between p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 mt-4">
             <div className="flex items-center gap-3">
@@ -214,7 +207,7 @@ function EmployeeForm({
               </div>
               <div className="space-y-0.5">
                 <Label className="text-base font-bold text-[#1e293b]">Timbratura Automatica</Label>
-                <p className="text-xs text-muted-foreground">Includi questo dipendente nella generazione automatica.</p>
+                <p className="text-xs text-muted-foreground">Includi nella generazione automatica dei log presenze.</p>
               </div>
             </div>
             <Switch checked={formData.autoClockIn} onCheckedChange={v => setFormData({...formData, autoClockIn: v})} />
@@ -226,7 +219,7 @@ function EmployeeForm({
         <Button variant="ghost" onClick={onCancel} className="font-bold">Annulla</Button>
         <Button onClick={() => onSubmit(formData)} className="bg-[#227FD8] h-12 px-10 font-black shadow-lg uppercase">{submitLabel}</Button>
       </DialogFooter>
-    </>
+    </div>
   )
 }
 
@@ -292,7 +285,8 @@ export default function EmployeesPage() {
       isActive: true,
       hireDate: new Date().toISOString(),
       companyId: "default",
-      photoUrl: data.photoUrl || `https://picsum.photos/seed/${tempId}/200/200`
+      photoUrl: data.photoUrl || `https://picsum.photos/seed/${tempId}/200/200`,
+      autoClockIn: data.autoClockIn ?? true
     }
 
     setDocumentNonBlocking(employeeRef, employeeData, { merge: true })
@@ -326,13 +320,15 @@ export default function EmployeesPage() {
     )
   }, [employees, searchQuery])
 
+  // Correzione bug freeze: apertura asincrona del dialogo
   const openEditDialog = useCallback((emp: any) => {
     setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
-    setIsEditDialogOpen(true)
+    setTimeout(() => {
+      setIsEditDialogOpen(true)
+    }, 50)
   }, [])
 
   const handleDelete = useCallback((id: string) => {
-    // Evitiamo confirm() che blocca il thread principale
     const employeeRef = doc(db, "employees", id)
     deleteDocumentNonBlocking(employeeRef)
     toast({ title: "Eliminato", description: "Il collaboratore è stato rimosso." })
@@ -412,8 +408,8 @@ export default function EmployeesPage() {
                         </div>
                         <div className="flex items-center gap-2">
                            <span className="text-[11px] text-muted-foreground">{emp.email}</span>
-                           {emp.autoClockIn && (
-                             <Zap className="h-2.5 w-2.5 text-amber-500 fill-current" title="Timbratura Automatica" />
+                           {emp.autoClockIn !== false && (
+                             <Zap className="h-2.5 w-2.5 text-amber-500 fill-current" title="Timbratura Automatica Abilitata" />
                            )}
                         </div>
                       </div>
@@ -446,8 +442,24 @@ export default function EmployeesPage() {
                         <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><MoreVertical className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
-                        <DropdownMenuItem onClick={() => openEditDialog(emp)} className="font-bold cursor-pointer"><Edit className="h-4 w-4 mr-2" /> Modifica</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive font-bold cursor-pointer" onClick={() => handleDelete(emp.id)}><Trash2 className="h-4 w-4 mr-2" /> Elimina</DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            openEditDialog(emp);
+                          }}
+                          className="font-bold cursor-pointer"
+                        >
+                          <Edit className="h-4 w-4 mr-2" /> Modifica
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-destructive font-bold cursor-pointer" 
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            handleDelete(emp.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" /> Elimina
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -466,6 +478,7 @@ export default function EmployeesPage() {
         <DialogContent className="sm:max-w-[750px] p-0 overflow-hidden border-none shadow-2xl">
           {editingEmployeeData && (
             <EmployeeForm 
+              key={editingEmployeeData.id}
               initialData={editingEmployeeData}
               onSubmit={handleUpdateEmployee}
               onCancel={() => setIsEditDialogOpen(false)}
