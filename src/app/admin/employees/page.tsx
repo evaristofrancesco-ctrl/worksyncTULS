@@ -65,10 +65,6 @@ const DAYS_OF_WEEK = [
   { label: "Domenica", value: "0" },
 ]
 
-/**
- * Componente Form isolato per evitare re-render della tabella durante la digitazione
- * e prevenire il blocco dell'interfaccia.
- */
 function EmployeeForm({ 
   initialData, 
   onSubmit, 
@@ -320,12 +316,13 @@ export default function EmployeesPage() {
     )
   }, [employees, searchQuery])
 
-  // Correzione bug freeze: apertura asincrona del dialogo
+  // FIX FREEZE: Apertura asincrona per evitare conflitti di focus Radix UI
   const openEditDialog = useCallback((emp: any) => {
     setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
+    // Timeout per permettere al menu di chiudersi prima di aprire il dialogo
     setTimeout(() => {
       setIsEditDialogOpen(true)
-    }, 50)
+    }, 100)
   }, [])
 
   const handleDelete = useCallback((id: string) => {
@@ -444,7 +441,7 @@ export default function EmployeesPage() {
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem 
                           onSelect={(e) => {
-                            e.preventDefault();
+                            e.preventDefault(); // Impedisce la chiusura immediata che causa il freeze
                             openEditDialog(emp);
                           }}
                           className="font-bold cursor-pointer"
