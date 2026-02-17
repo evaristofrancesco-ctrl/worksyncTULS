@@ -13,7 +13,8 @@ import {
   Layers,
   HelpCircle,
   History,
-  ClipboardList
+  ClipboardList,
+  ArrowLeftRight
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -24,6 +25,7 @@ const adminLinks = [
   { name: "Turni Team", href: "/admin/shifts", icon: Calendar },
   { name: "⏱️ Registro Presenze", href: "/admin/attendance", icon: Clock },
   { name: "Richieste Team", href: "/admin/requests", icon: FileText },
+  { name: "Gestione Modifiche", href: "/admin/modifications", icon: ArrowLeftRight },
 ]
 
 const adminPersonalLinks = [
