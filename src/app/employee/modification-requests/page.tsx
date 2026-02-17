@@ -53,13 +53,10 @@ export default function ModificationRequestsPage() {
 
   const { data: allRequests, isLoading } = useCollection(modificationsQuery)
 
-  // Auto-pulizia: cancella le richieste più vecchie di 7 giorni
   useEffect(() => {
     if (!allRequests || !db || !employeeId) return;
-    
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
     allRequests.forEach(req => {
       const submittedAt = new Date(req.submittedAt);
       if (submittedAt < oneWeekAgo) {
@@ -68,6 +65,16 @@ export default function ModificationRequestsPage() {
       }
     });
   }, [allRequests, db, employeeId]);
+
+  const pendingRequests = useMemo(() => {
+    if (!allRequests) return [];
+    return allRequests.filter(r => r.status === "PENDING");
+  }, [allRequests]);
+
+  const managedRequests = useMemo(() => {
+    if (!allRequests) return [];
+    return allRequests.filter(r => r.status !== "PENDING");
+  }, [allRequests]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,7 +85,7 @@ export default function ModificationRequestsPage() {
       toast({
         variant: "destructive",
         title: "Campi Mancanti",
-        description: "Compila tutti i campi per entrambe le sezioni ENTRA ed ESCE."
+        description: "Compila tutti i campi richiesti."
       })
       return
     }
@@ -87,7 +94,7 @@ export default function ModificationRequestsPage() {
     const requestId = `mod-${Date.now()}`
     const requestRef = doc(db, "employees", employeeId, "modifications", requestId)
 
-    const requestData = {
+    setDocumentNonBlocking(requestRef, {
       id: requestId,
       employeeId,
       submittedAt: new Date().toISOString(),
@@ -102,9 +109,7 @@ export default function ModificationRequestsPage() {
         name: form.esce.name,
         pieces: Number(form.esce.pieces)
       }
-    }
-
-    setDocumentNonBlocking(requestRef, requestData, { merge: true })
+    }, { merge: true })
 
     setForm({
       entra: { barcode: "", name: "", pieces: "" },
@@ -113,220 +118,159 @@ export default function ModificationRequestsPage() {
     
     setTimeout(() => {
       setIsSubmitting(false)
-      toast({
-        title: "Richiesta Inviata",
-        description: "La tua richiesta è ora IN ATTESA APPROVAZIONE."
-      })
+      toast({ title: "Inviata", description: "La tua richiesta è ora in attesa." })
     }, 500)
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
-      <div>
-        <h1 className="text-3xl font-black tracking-tight text-[#1e293b] flex items-center gap-3">
-          <ClipboardList className="h-8 w-8 text-[#227FD8]" />
-          Richiesta Modifica
-        </h1>
-        <p className="text-muted-foreground">Invia e monitora le tue richieste di movimentazione (ENTRA/ESCE).</p>
+    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12">
+      <div className="flex items-center gap-3">
+        <ClipboardList className="h-7 w-7 text-[#227FD8]" />
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-[#1e293b]">Richiesta Modifica</h1>
+          <p className="text-xs text-muted-foreground">Invia e monitora le movimentazioni IN/OUT degli articoli.</p>
+        </div>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm h-fit">
-          <CardHeader>
-            <CardTitle className="text-xl font-black">Nuova Richiesta</CardTitle>
-            <CardDescription>Inserisci i dettagli per la movimentazione pezzi.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-green-600">
-                  <ArrowDownLeft className="h-5 w-5" />
-                  <h3 className="font-black uppercase tracking-widest text-sm">Sezione ENTRA</h3>
-                </div>
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <Label className="font-bold">Codice a Barre</Label>
-                    <div className="relative">
-                      <Barcode className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="Codice..." 
-                        className="pl-10"
-                        value={form.entra.barcode}
-                        onChange={(e) => setForm({...form, entra: {...form.entra, barcode: e.target.value}})}
-                      />
-                    </div>
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-5 space-y-4">
+          <Card className="border-none shadow-sm bg-white/80 ring-1 ring-slate-200">
+            <CardHeader className="pb-3 border-b">
+              <CardTitle className="text-base font-black uppercase">Nuovo Invio</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-green-600">
+                    <ArrowDownLeft className="h-4 w-4" />
+                    <span className="font-black uppercase tracking-widest text-[10px]">ENTRA</span>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold">Nome Articolo</Label>
-                    <div className="relative">
-                      <Package className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="Nome..." 
-                        className="pl-10"
-                        value={form.entra.name}
-                        onChange={(e) => setForm({...form, entra: {...form.entra, name: e.target.value}})}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold">Pezzi</Label>
-                    <div className="relative">
-                      <Hash className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        type="number" 
-                        placeholder="Qta" 
-                        className="pl-10"
-                        value={form.entra.pieces}
-                        onChange={(e) => setForm({...form, entra: {...form.entra, pieces: e.target.value}})}
-                      />
-                    </div>
+                  <div className="grid gap-2">
+                    <Input 
+                      placeholder="Codice a barre..." 
+                      className="h-8 text-xs bg-slate-50 border-slate-200"
+                      value={form.entra.barcode}
+                      onChange={(e) => setForm({...form, entra: {...form.entra, barcode: e.target.value}})}
+                    />
+                    <Input 
+                      placeholder="Nome articolo..." 
+                      className="h-8 text-xs bg-slate-50 border-slate-200"
+                      value={form.entra.name}
+                      onChange={(e) => setForm({...form, entra: {...form.entra, name: e.target.value}})}
+                    />
+                    <Input 
+                      type="number" 
+                      placeholder="Pezzi" 
+                      className="h-8 text-xs bg-slate-50 border-slate-200"
+                      value={form.entra.pieces}
+                      onChange={(e) => setForm({...form, entra: {...form.entra, pieces: e.target.value}})}
+                    />
                   </div>
                 </div>
-              </div>
 
-              <Separator />
+                <Separator />
 
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-rose-600">
-                  <ArrowUpRight className="h-5 w-5" />
-                  <h3 className="font-black uppercase tracking-widest text-sm">Sezione ESCE</h3>
-                </div>
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <Label className="font-bold">Codice a Barre</Label>
-                    <div className="relative">
-                      <Barcode className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="Codice..." 
-                        className="pl-10"
-                        value={form.esce.barcode}
-                        onChange={(e) => setForm({...form, esce: {...form.esce, barcode: e.target.value}})}
-                      />
-                    </div>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-rose-600">
+                    <ArrowUpRight className="h-4 w-4" />
+                    <span className="font-black uppercase tracking-widest text-[10px]">ESCE</span>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold">Nome Articolo</Label>
-                    <div className="relative">
-                      <Package className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="Nome..." 
-                        className="pl-10"
-                        value={form.esce.name}
-                        onChange={(e) => setForm({...form, esce: {...form.esce, name: e.target.value}})}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold">Pezzi</Label>
-                    <div className="relative">
-                      <Hash className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        type="number" 
-                        placeholder="Qta" 
-                        className="pl-10"
-                        value={form.esce.pieces}
-                        onChange={(e) => setForm({...form, esce: {...form.esce, pieces: e.target.value}})}
-                      />
-                    </div>
+                  <div className="grid gap-2">
+                    <Input 
+                      placeholder="Codice a barre..." 
+                      className="h-8 text-xs bg-slate-50 border-slate-200"
+                      value={form.esce.barcode}
+                      onChange={(e) => setForm({...form, esce: {...form.esce, barcode: e.target.value}})}
+                    />
+                    <Input 
+                      placeholder="Nome articolo..." 
+                      className="h-8 text-xs bg-slate-50 border-slate-200"
+                      value={form.esce.name}
+                      onChange={(e) => setForm({...form, esce: {...form.esce, name: e.target.value}})}
+                    />
+                    <Input 
+                      type="number" 
+                      placeholder="Pezzi" 
+                      className="h-8 text-xs bg-slate-50 border-slate-200"
+                      value={form.esce.pieces}
+                      onChange={(e) => setForm({...form, esce: {...form.esce, pieces: e.target.value}})}
+                    />
                   </div>
                 </div>
-              </div>
 
-              <Button 
-                type="submit" 
-                className="w-full h-12 bg-[#227FD8] hover:bg-[#227FD8]/90 font-black shadow-lg"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 mr-2" />}
-                INVIA RICHIESTA
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                <Button 
+                  type="submit" 
+                  className="w-full h-10 bg-[#227FD8] hover:bg-[#227FD8]/90 font-black text-xs uppercase"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-2" />}
+                  Invia Modifica
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+          
+          <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex gap-2.5">
+             <AlertCircle className="h-4 w-4 text-blue-600 shrink-0" />
+             <p className="text-[10px] text-blue-800 leading-normal">
+               Le tue richieste rimarranno visibili per <b>7 giorni</b> prima di essere rimosse dall'archivio.
+             </p>
+          </div>
+        </div>
 
-        <div className="space-y-6">
+        <div className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-black text-[#1e293b]">Le Tue Richieste</h2>
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-              {allRequests?.length || 0} Totali
-            </Badge>
+            <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">Le Mie Attività</h2>
           </div>
           
-          {isLoading ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : allRequests && allRequests.length > 0 ? (
-            allRequests.map((req) => {
-              const isPending = req.status === "PENDING";
-              const isApproved = req.status === "APPROVED";
-              const isRejected = req.status === "REJECTED";
-
-              return (
-                <Card key={req.id} className={`border-none shadow-sm overflow-hidden animate-in slide-in-from-right duration-300 ${!isPending ? 'opacity-70 bg-slate-50' : 'bg-white'}`}>
-                  <CardContent className="p-0">
-                    <div className={`p-4 border-b flex justify-between items-center ${isPending ? 'bg-amber-50/50' : isApproved ? 'bg-green-50/50' : 'bg-rose-50/50'}`}>
-                      <div className="flex items-center gap-2">
-                        <Clock className={`h-3.5 w-3.5 ${isPending ? 'text-amber-600' : isApproved ? 'text-green-600' : 'text-rose-600'}`} />
-                        <span className="text-xs font-bold">
-                          {new Date(req.submittedAt).toLocaleString('it-IT')}
-                        </span>
-                      </div>
-                      <Badge className={`${
-                        isPending ? 'bg-amber-100 text-amber-700' : 
+          <div className="space-y-3">
+            {isLoading ? (
+              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+            ) : allRequests && allRequests.length > 0 ? (
+              allRequests.map((req) => {
+                const isPending = req.status === "PENDING";
+                const isApproved = req.status === "APPROVED";
+                return (
+                  <Card key={req.id} className={`border-none shadow-sm transition-all overflow-hidden ${isPending ? 'ring-1 ring-amber-200' : 'opacity-80 bg-slate-50'}`}>
+                    <div className={`px-3 py-1.5 flex justify-between items-center text-[9px] font-bold ${isPending ? 'bg-amber-50' : isApproved ? 'bg-green-50' : 'bg-rose-50'}`}>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> {new Date(req.submittedAt).toLocaleString('it-IT')}
+                      </span>
+                      <Badge className={`h-4 text-[8px] border-none px-1.5 font-black uppercase tracking-tighter ${
+                        isPending ? 'bg-amber-200 text-amber-800' : 
                         isApproved ? 'bg-green-600 text-white' : 
                         'bg-rose-600 text-white'
-                      } border-none font-black text-[10px] uppercase tracking-wider`}>
+                      }`}>
                         {isPending ? 'ATTESA APPROVAZIONE' : isApproved ? 'GESTITA' : 'RIFIUTATA'}
                       </Badge>
                     </div>
-                    <div className="p-4 grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-green-600 text-[10px] font-black uppercase">
-                          <ArrowDownLeft className="h-3 w-3" /> Entra
+                    <div className="p-3 grid grid-cols-2 divide-x">
+                      <div className="pr-3">
+                        <p className="text-[8px] font-black uppercase text-green-600 mb-0.5">Entra</p>
+                        <p className="text-xs font-bold truncate leading-none mb-1">{req.entra.name}</p>
+                        <div className="flex justify-between items-end">
+                          <code className="text-[8px] text-muted-foreground">{req.entra.barcode}</code>
+                          <span className="text-[9px] font-black">Qta: {req.entra.pieces}</span>
                         </div>
-                        <p className="text-sm font-bold truncate">{req.entra.name}</p>
-                        <p className="text-[10px] font-mono text-muted-foreground">{req.entra.barcode}</p>
-                        <p className="text-xs font-black">Qta: {req.entra.pieces}</p>
                       </div>
-                      <div className="space-y-1 border-l pl-4">
-                        <div className="flex items-center gap-1 text-rose-600 text-[10px] font-black uppercase">
-                          <ArrowUpRight className="h-3 w-3" /> Esce
+                      <div className="pl-3">
+                        <p className="text-[8px] font-black uppercase text-rose-600 mb-0.5">Esce</p>
+                        <p className="text-xs font-bold truncate leading-none mb-1">{req.esce.name}</p>
+                        <div className="flex justify-between items-end">
+                          <code className="text-[8px] text-muted-foreground">{req.esce.barcode}</code>
+                          <span className="text-[9px] font-black">Qta: {req.esce.pieces}</span>
                         </div>
-                        <p className="text-sm font-bold truncate">{req.esce.name}</p>
-                        <p className="text-[10px] font-mono text-muted-foreground">{req.esce.barcode}</p>
-                        <p className="text-xs font-black">Qta: {req.esce.pieces}</p>
                       </div>
                     </div>
-                    {isApproved && (
-                      <div className="px-4 pb-3 flex items-center gap-2 text-green-600">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-bold">Modifica approvata e registrata dall'amministrazione.</span>
-                      </div>
-                    )}
-                    {isRejected && (
-                      <div className="px-4 pb-3 flex items-center gap-2 text-rose-600">
-                        <XCircle className="h-3.5 w-3.5" />
-                        <span className="text-[10px] font-bold">Richiesta non approvata dall'amministrazione.</span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })
-          ) : (
-            <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-3xl border border-dashed text-muted-foreground gap-4">
-              <Inbox className="h-12 w-12 opacity-20" />
-              <div className="text-center">
-                <p className="font-bold text-[#1e293b]">Ancora nulla</p>
-                <p className="text-xs">Non hai inviato richieste di modifica.</p>
+                  </Card>
+                )
+              })
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-2xl border border-dashed opacity-50">
+                <Inbox className="h-10 w-10 mb-2" />
+                <p className="text-[10px] font-bold">Nessuna richiesta inviata</p>
               </div>
-            </div>
-          )}
-
-          <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 flex gap-3">
-             <AlertCircle className="h-5 w-5 text-blue-600 shrink-0" />
-             <p className="text-[11px] text-blue-800 leading-tight">
-               <b>Politica di conservazione:</b> Le tue richieste (approvate o meno) saranno visibili per <b>7 giorni</b> dall'invio, dopodiché verranno rimosse automaticamente dal sistema.
-             </p>
+            )}
           </div>
         </div>
       </div>
