@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useMemo, useCallback } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { MapPin, Plus, Search, MoreVertical, Building2, Trash2, Edit, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,9 +35,6 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
-/**
- * Componente Form isolato per evitare re-render della pagina durante la digitazione.
- */
 function LocationForm({ 
   initialData, 
   onSubmit, 
@@ -70,9 +67,9 @@ function LocationForm({
       <div className="p-6 space-y-5">
         <div className="space-y-2">
           <Label className="font-bold text-xs uppercase text-slate-500">Nome della Sede *</Label>
-          <Input 
+          <input 
             placeholder="es. Punto Vendita Centrale" 
-            className="h-11"
+            className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             value={formData.name} 
             onChange={(e) => setFormData({...formData, name: e.target.value})} 
           />
@@ -80,18 +77,18 @@ function LocationForm({
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="font-bold text-xs uppercase text-slate-500">Città *</Label>
-            <Input 
+            <input 
               placeholder="es. Roma" 
-              className="h-11"
+              className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={formData.city} 
               onChange={(e) => setFormData({...formData, city: e.target.value})} 
             />
           </div>
           <div className="space-y-2">
             <Label className="font-bold text-xs uppercase text-slate-500">Indirizzo</Label>
-            <Input 
+            <input 
               placeholder="es. Via del Corso 1" 
-              className="h-11"
+              className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               value={formData.address} 
               onChange={(e) => setFormData({...formData, address: e.target.value})} 
             />
@@ -120,6 +117,12 @@ export default function LocationsPage() {
   const [editingLoc, setEditingLoc] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
+  useEffect(() => {
+    if (editingLoc) {
+      setIsEditOpen(true)
+    }
+  }, [editingLoc])
+
   const locationsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "companies", "default", "locations");
@@ -147,20 +150,20 @@ export default function LocationsPage() {
       address: data.address
     })
     setIsEditOpen(false)
+    setEditingLoc(null)
     toast({ title: "Modifiche Salvate", description: "Sede aggiornata con successo." })
   }
 
-  const handleDelete = useCallback((id: string) => {
+  const handleDelete = (id: string) => {
     if (!db) return
     const ref = doc(db, "companies", "default", "locations", id)
     deleteDocumentNonBlocking(ref)
     toast({ title: "Sede Eliminata", description: "Il record è stato rimosso." })
-  }, [db, toast])
+  }
 
-  const openEditDialog = useCallback((loc: any) => {
+  const handleEditClick = (loc: any) => {
     setEditingLoc(loc)
-    setIsEditOpen(true)
-  }, [])
+  }
 
   const filteredLocations = useMemo(() => {
     if (!locations) return []
@@ -258,7 +261,7 @@ export default function LocationsPage() {
                             className="font-bold cursor-pointer" 
                             onSelect={(e) => {
                               e.preventDefault();
-                              openEditDialog(loc);
+                              handleEditClick(loc);
                             }}
                           >
                             <Edit className="h-4 w-4 mr-2" /> Modifica
@@ -287,14 +290,20 @@ export default function LocationsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+      <Dialog open={isEditOpen} onOpenChange={(open) => {
+        setIsEditOpen(open);
+        if (!open) setEditingLoc(null);
+      }}>
         <DialogContent className="sm:max-w-[550px] p-0 border-none shadow-2xl overflow-hidden">
           {editingLoc && (
             <LocationForm 
               key={editingLoc.id}
               initialData={editingLoc}
               onSubmit={handleUpdate}
-              onCancel={() => setIsEditOpen(false)}
+              onCancel={() => {
+                setIsEditOpen(false);
+                setEditingLoc(null);
+              }}
               title="Modifica Sede Operativa"
               submitLabel="SALVA MODIFICHE"
             />

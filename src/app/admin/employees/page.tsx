@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { 
   Plus, 
   Search, 
@@ -240,6 +240,13 @@ export default function EmployeesPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [editingEmployeeData, setEditingEmployeeData] = useState<any>(null)
 
+  // Effetto per aprire il dialogo solo quando i dati sono pronti, evitando il freeze da dropdown
+  useEffect(() => {
+    if (editingEmployeeData) {
+      setIsEditDialogOpen(true)
+    }
+  }, [editingEmployeeData])
+
   const defaultNewEmployee = {
     firstName: "",
     lastName: "",
@@ -260,11 +267,7 @@ export default function EmployeesPage() {
 
   const handleAddEmployee = (data: any) => {
     if (!data.firstName || !data.lastName || !data.email || !data.password) {
-      toast({
-        variant: "destructive",
-        title: "Campi Mancanti",
-        description: "Compila tutti i campi obbligatori.",
-      })
+      toast({ variant: "destructive", title: "Campi Mancanti", description: "Compila tutti i campi obbligatori." })
       return
     }
 
@@ -304,6 +307,7 @@ export default function EmployeesPage() {
 
     updateDocumentNonBlocking(employeeRef, updateData)
     setIsEditDialogOpen(false)
+    setEditingEmployeeData(null)
     toast({ title: "Profilo Aggiornato", description: "Le modifiche sono state salvate." })
   }
 
@@ -316,20 +320,15 @@ export default function EmployeesPage() {
     )
   }, [employees, searchQuery])
 
-  // FIX FREEZE: Apertura asincrona per evitare conflitti di focus Radix UI
-  const openEditDialog = useCallback((emp: any) => {
+  const handleEditClick = (emp: any) => {
     setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
-    // Timeout per permettere al menu di chiudersi prima di aprire il dialogo
-    setTimeout(() => {
-      setIsEditDialogOpen(true)
-    }, 100)
-  }, [])
+  }
 
-  const handleDelete = useCallback((id: string) => {
+  const handleDelete = (id: string) => {
     const employeeRef = doc(db, "employees", id)
     deleteDocumentNonBlocking(employeeRef)
     toast({ title: "Eliminato", description: "Il collaboratore è stato rimosso." })
-  }, [db, toast])
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -441,8 +440,8 @@ export default function EmployeesPage() {
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem 
                           onSelect={(e) => {
-                            e.preventDefault(); // Impedisce la chiusura immediata che causa il freeze
-                            openEditDialog(emp);
+                            e.preventDefault();
+                            handleEditClick(emp);
                           }}
                           className="font-bold cursor-pointer"
                         >
@@ -470,15 +469,21 @@ export default function EmployeesPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog Modifica */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      {/* Dialog Modifica Gestito Esternamente per Evitare Freeze */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        setIsEditDialogOpen(open);
+        if (!open) setEditingEmployeeData(null);
+      }}>
         <DialogContent className="sm:max-w-[750px] p-0 overflow-hidden border-none shadow-2xl">
           {editingEmployeeData && (
             <EmployeeForm 
               key={editingEmployeeData.id}
               initialData={editingEmployeeData}
               onSubmit={handleUpdateEmployee}
-              onCancel={() => setIsEditDialogOpen(false)}
+              onCancel={() => {
+                setIsEditDialogOpen(false);
+                setEditingEmployeeData(null);
+              }}
               locations={locations || []}
               title="Modifica Scheda Dipendente"
               submitLabel="SALVA MODIFICHE"
