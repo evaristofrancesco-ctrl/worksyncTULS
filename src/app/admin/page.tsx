@@ -286,7 +286,7 @@ export default function AdminDashboard() {
             <CardContent className="space-y-3">
               <Link href="/employee/modification-requests" className="block">
                 <Button variant="outline" className="w-full justify-start gap-2 font-bold text-sm border-green-600 text-green-600 hover:bg-green-50">
-                  <ClipboardList className="h-4 w-4" /> Richiesta Modifica (ENTRA/ESCE)
+                  <ClipboardList className="h-4 w-4" /> Richiesta Modifica
                 </Button>
               </Link>
               <Link href="/employee/requests" className="block">
