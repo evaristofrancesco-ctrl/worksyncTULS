@@ -127,8 +127,8 @@ export default function ModificationRequestsPage() {
       <div className="flex items-center gap-3">
         <ClipboardList className="h-7 w-7 text-[#227FD8]" />
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-[#1e293b]">Richiesta Modifica</h1>
-          <p className="text-xs text-muted-foreground">Invia e monitora le movimentazioni IN/OUT degli articoli.</p>
+          <h1 className="text-2xl font-black tracking-tight text-[#1e293b]">Entra/Esce</h1>
+          <p className="text-xs text-muted-foreground">Invia e monitora le movimentazioni degli articoli.</p>
         </div>
       </div>
 
@@ -204,7 +204,7 @@ export default function ModificationRequestsPage() {
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-2" />}
-                  Invia Modifica
+                  Invia Entra/Esce
                 </Button>
               </form>
             </CardContent>
@@ -213,14 +213,14 @@ export default function ModificationRequestsPage() {
           <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex gap-2.5">
              <AlertCircle className="h-4 w-4 text-blue-600 shrink-0" />
              <p className="text-[10px] text-blue-800 leading-normal">
-               Le tue richieste rimarranno visibili per <b>7 giorni</b> prima di essere rimosse dall'archivio.
+               I tuoi invii rimarranno visibili per <b>7 giorni</b> prima di essere rimosse dall'archivio.
              </p>
           </div>
         </div>
 
         <div className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">Le Mie Attività</h2>
+            <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">I Miei Invii</h2>
           </div>
           
           <div className="space-y-3">
@@ -268,7 +268,7 @@ export default function ModificationRequestsPage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-2xl border border-dashed opacity-50">
                 <Inbox className="h-10 w-10 mb-2" />
-                <p className="text-[10px] font-bold">Nessuna richiesta inviata</p>
+                <p className="text-[10px] font-bold">Nessun invio effettuato</p>
               </div>
             )}
           </div>

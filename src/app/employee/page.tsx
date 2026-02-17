@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Calendar, Clock, FileText, Gift, Info, Loader2 } from "lucide-react"
+import { Calendar, Clock, FileText, Gift, Info, Loader2, ClipboardList } from "lucide-react"
 import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit } from "firebase/firestore"
 import { useMemo, useState, useEffect } from "react"
+import Link from "next/link"
 
 export default function EmployeeDashboard() {
   const { user } = useUser()
@@ -67,7 +68,9 @@ export default function EmployeeDashboard() {
                 ) : (
                   <p className="text-xs text-muted-foreground italic">Libero per oggi.</p>
                 )}
-                <Button size="sm" className="w-full mt-4 bg-[#227FD8] font-black h-8 text-[10px] uppercase">Vedi Programma</Button>
+                <Link href="/employee/shifts">
+                  <Button size="sm" className="w-full mt-4 bg-[#227FD8] font-black h-8 text-[10px] uppercase">Vedi Programma</Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -111,6 +114,24 @@ export default function EmployeeDashboard() {
         <div className="lg:col-span-4 space-y-6">
           <ClockInOut />
           
+          <Card className="border-none shadow-sm bg-white/80">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-black uppercase tracking-wider text-[#227FD8]">Azioni Rapide</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 space-y-2">
+              <Link href="/employee/modification-requests" className="block">
+                <Button variant="outline" className="w-full justify-start gap-2 font-bold text-xs h-9 border-[#227FD8]/20 text-[#227FD8] hover:bg-[#227FD8]/5">
+                  <ClipboardList className="h-3.5 w-3.5" /> Entra/Esce
+                </Button>
+              </Link>
+              <Link href="/employee/requests" className="block">
+                <Button variant="outline" className="w-full justify-start gap-2 font-bold text-xs h-9 border-[#227FD8]/20 text-[#227FD8] hover:bg-[#227FD8]/5">
+                  <Gift className="h-3.5 w-3.5" /> Ferie / Permesso
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
           <Card className="border-none shadow-sm bg-[#227FD8] text-white">
             <CardContent className="p-5 space-y-3">
               <div className="flex items-center gap-2 mb-1">
@@ -120,7 +141,9 @@ export default function EmployeeDashboard() {
               <p className="text-[11px] text-white/90 leading-relaxed font-medium">
                 Controlla la bacheca utility per aggiornamenti importanti.
               </p>
-              <Button variant="secondary" size="sm" className="w-full h-8 font-black text-[#227FD8] text-[10px] uppercase">Apri Bacheca</Button>
+              <Link href="/employee/utilities">
+                <Button variant="secondary" size="sm" className="w-full h-8 font-black text-[#227FD8] text-[10px] uppercase">Apri Bacheca</Button>
+              </Link>
             </CardContent>
           </Card>
         </div>

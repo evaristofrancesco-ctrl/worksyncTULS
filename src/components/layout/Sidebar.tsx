@@ -35,7 +35,7 @@ const adminPersonalLinks = [
   { name: "Miei Turni", href: "/employee/shifts", icon: Calendar },
   { name: "Mie Presenze", href: "/employee/attendance", icon: Clock },
   { name: "Mie Richieste", href: "/employee/requests", icon: FileText },
-  { name: "Nuova Modifica", href: "/employee/modification-requests", icon: ClipboardList },
+  { name: "Entra/Esce", href: "/employee/modification-requests", icon: ClipboardList },
   { name: "UTILITY", href: "/employee/utilities", icon: Info },
 ]
 
@@ -44,7 +44,7 @@ const employeeLinks = [
   { name: "I Miei Turni", href: "/employee/shifts", icon: Calendar },
   { name: "Le Mie Presenze", href: "/employee/attendance", icon: Clock },
   { name: "Le Mie Richieste", href: "/employee/requests", icon: FileText },
-  { name: "Richiesta Modifica", href: "/employee/modification-requests", icon: ClipboardList },
+  { name: "Entra/Esce", href: "/employee/modification-requests", icon: ClipboardList },
   { name: "UTILITY", href: "/employee/utilities", icon: Info },
 ]
 
