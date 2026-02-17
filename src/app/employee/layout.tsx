@@ -14,6 +14,7 @@ export default function EmployeeLayout({
 }) {
   const { user, isUserLoading } = useUser()
   const [displayName, setDisplayName] = useState("Dipendente")
+  const [role, setRole] = useState<'ADMIN' | 'EMPLOYEE'>('EMPLOYEE')
 
   useEffect(() => {
     if (user?.displayName) {
@@ -21,6 +22,11 @@ export default function EmployeeLayout({
     } else {
       const savedName = localStorage.getItem("userName")
       if (savedName) setDisplayName(savedName)
+    }
+
+    const savedRole = localStorage.getItem("userRole")
+    if (savedRole) {
+      setRole(savedRole.toUpperCase() as 'ADMIN' | 'EMPLOYEE')
     }
   }, [user])
 
@@ -37,9 +43,9 @@ export default function EmployeeLayout({
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar role="EMPLOYEE" />
+      <Sidebar role={role} />
       <div className="lg:pl-64 flex flex-col min-h-screen">
-        <Navbar userName={displayName} role="EMPLOYEE" />
+        <Navbar userName={displayName} role={role} />
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
           {children}
         </main>
