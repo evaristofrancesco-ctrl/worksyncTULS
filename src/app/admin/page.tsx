@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Users, Calendar, Clock, FileText, ArrowUpRight, Loader2, Info, Gift, ClipboardList } from "lucide-react"
+import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList } from "lucide-react"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { 
@@ -43,7 +43,6 @@ export default function AdminDashboard() {
     setEmployeeId(localStorage.getItem("employeeId"))
   }, [])
 
-  // Dati globali per Admin
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
@@ -68,7 +67,6 @@ export default function AdminDashboard() {
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
-  // Mappa dei dipendenti
   const employeeMap = useMemo(() => {
     if (!employees) return {};
     return employees.reduce((acc, emp) => {
@@ -77,7 +75,6 @@ export default function AdminDashboard() {
     }, {} as any);
   }, [employees]);
 
-  // Voci recenti (Globali)
   const recentEntries = useMemo(() => {
     if (!allEntries) return [];
     return [...allEntries]
@@ -90,21 +87,9 @@ export default function AdminDashboard() {
       .slice(0, 5);
   }, [allEntries]);
 
-  // Statistiche personali Admin (come dipendente)
-  const myShifts = useMemo(() => {
-    if (!allShifts || !employeeId) return [];
-    return allShifts.filter(s => s.employeeId === employeeId);
-  }, [allShifts, employeeId]);
-
-  const todayShift = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    return myShifts.find(s => s.date === todayStr);
-  }, [myShifts]);
-
   const activeEmployeesCount = useMemo(() => {
     if (!allEntries) return 0;
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
     return allEntries.filter(e => {
       const checkIn = e.checkInTime ? new Date(e.checkInTime) : null;
       if (!checkIn || isNaN(checkIn.getTime())) return false;
@@ -119,7 +104,6 @@ export default function AdminDashboard() {
 
   const myWeeklyHours = useMemo(() => {
     if (!allEntries || !employeeId) return 0;
-    // Calcolo semplificato per ore settimanali personali
     const personalEntries = allEntries.filter(e => e.employeeId === employeeId);
     return personalEntries.length * 4; 
   }, [allEntries, employeeId]);
@@ -127,176 +111,107 @@ export default function AdminDashboard() {
   const progress = Math.min(100, (myWeeklyHours / 40) * 100);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Pannello di Controllo TU.L.S.</h1>
-          <p className="text-muted-foreground">Gestione aziendale e attività personali di {(user?.displayName || "Amministratore").split(' ')[0]}.</p>
-        </div>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-black tracking-tight text-[#1e293b]">Pannello di Controllo</h1>
+        <p className="text-xs text-muted-foreground font-medium">Benvenuto, {(user?.displayName || "Amministratore").split(' ')[0]}. Gestisci il tuo team oggi.</p>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-12">
-        {/* Colonna Sinistra: Monitoraggio Aziendale */}
-        <div className="lg:col-span-8 space-y-8">
-          <div className="grid gap-4 md:grid-cols-2">
-            <StatCard 
-              title="Team Totale" 
-              value={employees?.length || 0} 
-              description="Collaboratori registrati" 
-              icon={Users}
-            />
-            <StatCard 
-              title="In Servizio Ora" 
-              value={activeEmployeesCount} 
-              description="Presenze attive rilevate" 
-              icon={Clock}
-              trend={{ value: activeEmployeesCount > 0 ? 10 : 0, positive: true }}
-            />
-            <StatCard 
-              title="Richieste Team" 
-              value={pendingRequestsCount} 
-              description="In attesa di approvazione" 
-              icon={FileText}
-              trend={{ value: pendingRequestsCount, positive: false }}
-            />
-            <StatCard 
-              title="Turni Oggi" 
-              value={allShifts?.filter(s => s.date === new Date().toISOString().split('T')[0]).length || 0} 
-              description="Copertura pianificata" 
-              icon={Calendar}
-            />
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-8 space-y-6">
+          <div className="grid gap-3 md:grid-cols-4">
+            <StatCard title="Team" value={employees?.length || 0} description="Totali" icon={Users} />
+            <StatCard title="Attivi" value={activeEmployeesCount} description="In servizio" icon={Clock} />
+            <StatCard title="Richieste" value={pendingRequestsCount} description="Da gestire" icon={FileText} />
+            <StatCard title="Turni" value={allShifts?.filter(s => s.date === new Date().toISOString().split('T')[0]).length || 0} description="Oggi" icon={Calendar} />
           </div>
 
-          <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="font-black text-xl">Analisi Carico Lavoro</CardTitle>
-                  <CardDescription>Ore settimanali stimate per l'intero team.</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyStats}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    cursor={{ fill: 'hsl(var(--muted))' }}
-                    contentStyle={{ borderRadius: '8px' }}
-                  />
-                  <Bar dataKey="ore" radius={[4, 4, 0, 0]}>
-                    {weeklyStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index === (new Date().getDay() || 7) - 1 ? 'hsl(var(--primary))' : '#CBD5E1'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="border-none shadow-sm bg-white/80">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="font-black text-sm">Carico Lavoro Team</CardTitle>
+                <CardDescription className="text-[10px]">Stima ore settimanali.</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[200px] p-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={weeklyStats}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} style={{ fontSize: '10px' }} />
+                    <YAxis axisLine={false} tickLine={false} style={{ fontSize: '10px' }} />
+                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', fontSize: '10px' }} />
+                    <Bar dataKey="ore" radius={[2, 2, 0, 0]} fill="#227FD8" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-          <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="font-black text-xl">Presenze Recenti (Tutto il Team)</CardTitle>
-              <CardDescription>Ultimi movimenti registrati nel punto vendita.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {isEntriesLoading ? (
-                  <div className="flex justify-center py-6"><Loader2 className="animate-spin h-6 w-6 text-primary" /></div>
-                ) : recentEntries.length > 0 ? recentEntries.map((log) => {
-                  const emp = employeeMap[log.employeeId];
-                  return (
-                    <div key={log.id} className="flex items-center gap-4">
-                      <Avatar className="h-9 w-9 border shadow-sm">
-                        <AvatarImage src={emp?.photoUrl} />
-                        <AvatarFallback className="font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-[#1e293b]">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</p>
-                        <p className="text-[10px] text-muted-foreground uppercase">{emp?.jobTitle || "Personale"}</p>
+            <Card className="border-none shadow-sm bg-white/80">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="font-black text-sm">Presenze Recenti</CardTitle>
+                <CardDescription className="text-[10px]">Ultimi movimenti registrati.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-2">
+                <div className="space-y-3">
+                  {isEntriesLoading ? (
+                    <div className="flex justify-center py-4"><Loader2 className="animate-spin h-5 w-5 text-primary" /></div>
+                  ) : recentEntries.length > 0 ? recentEntries.map((log) => {
+                    const emp = employeeMap[log.employeeId];
+                    return (
+                      <div key={log.id} className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7 border">
+                          <AvatarImage src={emp?.photoUrl} />
+                          <AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-bold text-[#1e293b] truncate">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</p>
+                          <p className="text-[9px] text-muted-foreground uppercase">{emp?.jobTitle || "Collaboratore"}</p>
+                        </div>
+                        <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={`h-4 text-[8px] font-bold ${!log.checkOutTime ? "bg-green-500" : ""}`}>
+                          {new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                        </Badge>
                       </div>
-                      <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={!log.checkOutTime ? "bg-green-500" : "font-mono"}>
-                        {new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                      </Badge>
-                    </div>
-                  )
-                }) : (
-                  <p className="text-sm text-center text-muted-foreground py-10 italic">Nessun movimento registrato oggi.</p>
-                )}
-              </div>
-              <Link href="/admin/attendance" className="block mt-6">
-                <Button variant="ghost" className="w-full text-xs font-black uppercase tracking-widest text-[#227FD8] hover:bg-[#227FD8]/5">Vedi Registro Completo</Button>
-              </Link>
-            </CardContent>
-          </Card>
+                    )
+                  }) : (
+                    <p className="text-[10px] text-center text-muted-foreground py-6 italic">Nessun movimento oggi.</p>
+                  )}
+                </div>
+                <Link href="/admin/attendance" className="block mt-4">
+                  <Button variant="ghost" className="w-full text-[9px] font-black uppercase tracking-widest h-8">Registro Completo</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
-        {/* Colonna Destra: Attività Personali Admin */}
-        <div className="lg:col-span-4 space-y-8">
+        <div className="lg:col-span-4 space-y-6">
           <ClockInOut />
 
-          <Card className="border-[#227FD8]/20 bg-[#227FD8]/5 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-[#227FD8] font-black uppercase text-[10px] tracking-wider">Il Mio Turno di Oggi</CardDescription>
-              <CardTitle className="text-xl font-black text-[#1e293b]">
-                {todayShift ? todayShift.title : "Nessun Turno"}
-              </CardTitle>
+          <Card className="border-none shadow-sm bg-white/80">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-black uppercase tracking-wider text-[#227FD8]">Obiettivo 40h</CardTitle>
             </CardHeader>
-            <CardContent>
-              {todayShift ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 font-bold text-[#1e293b]">
-                    <Clock className="h-4 w-4 text-[#227FD8]" />
-                    {new Date(todayShift.startTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} - {new Date(todayShift.endTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                  <Badge className="bg-[#227FD8] font-bold">In Sede</Badge>
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground italic">Oggi sei fuori turno o riposo.</p>
-              )}
+            <CardContent className="p-4 pt-0 space-y-3">
+              <div className="flex justify-between items-end">
+                <span className="text-xl font-black text-[#1e293b]">{myWeeklyHours}h</span>
+                <span className="text-[10px] font-bold text-muted-foreground">{Math.round(progress)}%</span>
+              </div>
+              <Progress value={progress} className="h-1.5" />
             </CardContent>
           </Card>
 
-          <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
-            <CardHeader className="pb-2">
-              <CardDescription className="font-black uppercase text-[10px] tracking-wider text-amber-600">I Miei Progressi 40h</CardDescription>
-              <CardTitle className="text-xl font-black text-[#1e293b]">{myWeeklyHours} Ore</CardTitle>
+          <Card className="border-none shadow-sm bg-white/80">
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-black">Azioni Rapide</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] font-bold">
-                  <span className="text-muted-foreground">Obiettivo Settimana</span>
-                  <span>{Math.round(progress)}%</span>
-                </div>
-                <Progress value={progress} className="h-2" />
-              </div>
-              <div className="flex items-center gap-2 pt-2">
-                <Info className="h-3 w-3 text-amber-500" />
-                <p className="text-[10px] font-medium text-muted-foreground italic">Statistiche calcolate sulle tue timbrature.</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-black">Azioni Rapide Personali</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="p-4 pt-0 space-y-2">
               <Link href="/employee/modification-requests" className="block">
-                <Button variant="outline" className="w-full justify-start gap-2 font-bold text-sm border-green-600 text-green-600 hover:bg-green-50">
-                  <ClipboardList className="h-4 w-4" /> Richiesta Modifica
+                <Button variant="outline" className="w-full justify-start gap-2 font-bold text-xs h-9 border-green-600/20 text-green-700 hover:bg-green-50">
+                  <ClipboardList className="h-3.5 w-3.5" /> Richiesta Modifica
                 </Button>
               </Link>
               <Link href="/employee/requests" className="block">
-                <Button variant="outline" className="w-full justify-start gap-2 font-bold text-sm border-[#227FD8] text-[#227FD8] hover:bg-[#227FD8]/5">
-                  <Gift className="h-4 w-4" /> Richiedi Ferie/Permesso
-                </Button>
-              </Link>
-              <Link href="/employee/attendance" className="block">
-                <Button variant="outline" className="w-full justify-start gap-2 font-bold text-sm">
-                  <Clock className="h-4 w-4" /> Vedi Mio Storico Presenze
+                <Button variant="outline" className="w-full justify-start gap-2 font-bold text-xs h-9 border-[#227FD8]/20 text-[#227FD8] hover:bg-[#227FD8]/5">
+                  <Gift className="h-3.5 w-3.5" /> Ferie / Permesso
                 </Button>
               </Link>
             </CardContent>
