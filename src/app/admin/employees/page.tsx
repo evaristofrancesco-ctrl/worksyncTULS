@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useCallback, useEffect } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { 
   Plus, 
   Search, 
@@ -236,16 +236,8 @@ export default function EmployeesPage() {
   const { data: locations } = useCollection(locationsQuery)
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
   const [editingEmployeeData, setEditingEmployeeData] = useState<any>(null)
-
-  // Effetto per aprire il dialogo solo quando i dati sono pronti, evitando il freeze da dropdown
-  useEffect(() => {
-    if (editingEmployeeData) {
-      setIsEditDialogOpen(true)
-    }
-  }, [editingEmployeeData])
+  const [searchQuery, setSearchQuery] = useState("")
 
   const defaultNewEmployee = {
     firstName: "",
@@ -306,7 +298,6 @@ export default function EmployeesPage() {
     }
 
     updateDocumentNonBlocking(employeeRef, updateData)
-    setIsEditDialogOpen(false)
     setEditingEmployeeData(null)
     toast({ title: "Profilo Aggiornato", description: "Le modifiche sono state salvate." })
   }
@@ -321,7 +312,10 @@ export default function EmployeesPage() {
   }, [employees, searchQuery])
 
   const handleEditClick = (emp: any) => {
-    setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
+    // Decouple from dropdown event loop to prevent freeze
+    setTimeout(() => {
+      setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
+    }, 10)
   }
 
   const handleDelete = (id: string) => {
@@ -469,21 +463,20 @@ export default function EmployeesPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog Modifica Gestito Esternamente per Evitare Freeze */}
-      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
-        setIsEditDialogOpen(open);
-        if (!open) setEditingEmployeeData(null);
-      }}>
+      {/* Dialog Modifica Gestito con stato unico per evitare freeze */}
+      <Dialog 
+        open={!!editingEmployeeData} 
+        onOpenChange={(open) => {
+          if (!open) setEditingEmployeeData(null);
+        }}
+      >
         <DialogContent className="sm:max-w-[750px] p-0 overflow-hidden border-none shadow-2xl">
           {editingEmployeeData && (
             <EmployeeForm 
               key={editingEmployeeData.id}
               initialData={editingEmployeeData}
               onSubmit={handleUpdateEmployee}
-              onCancel={() => {
-                setIsEditDialogOpen(false);
-                setEditingEmployeeData(null);
-              }}
+              onCancel={() => setEditingEmployeeData(null)}
               locations={locations || []}
               title="Modifica Scheda Dipendente"
               submitLabel="SALVA MODIFICHE"
