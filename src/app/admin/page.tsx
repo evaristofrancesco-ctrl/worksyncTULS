@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Users, Calendar, Clock, FileText, ArrowUpRight, Loader2, Info, Gift } from "lucide-react"
+import { Users, Calendar, Clock, FileText, ArrowUpRight, Loader2, Info, Gift, ClipboardList } from "lucide-react"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { 
@@ -284,6 +284,11 @@ export default function AdminDashboard() {
               <CardTitle className="text-lg font-black">Azioni Rapide Personali</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <Link href="/employee/modification-requests" className="block">
+                <Button variant="outline" className="w-full justify-start gap-2 font-bold text-sm border-green-600 text-green-600 hover:bg-green-50">
+                  <ClipboardList className="h-4 w-4" /> Richiesta Modifica (ENTRA/ESCE)
+                </Button>
+              </Link>
               <Link href="/employee/requests" className="block">
                 <Button variant="outline" className="w-full justify-start gap-2 font-bold text-sm border-[#227FD8] text-[#227FD8] hover:bg-[#227FD8]/5">
                   <Gift className="h-4 w-4" /> Richiedi Ferie/Permesso

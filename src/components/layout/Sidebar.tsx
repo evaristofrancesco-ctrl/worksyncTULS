@@ -32,6 +32,7 @@ const adminPersonalLinks = [
   { name: "Miei Turni", href: "/employee/shifts", icon: History },
   { name: "Mie Presenze", href: "/employee/attendance", icon: History },
   { name: "Mie Richieste", href: "/employee/requests", icon: History },
+  { name: "Nuova Modifica", href: "/employee/modification-requests", icon: ClipboardList },
 ]
 
 const employeeLinks = [
