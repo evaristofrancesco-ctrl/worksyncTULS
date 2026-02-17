@@ -36,7 +36,7 @@ import { collection, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 
 /**
- * Form interno per la gestione della sede.
+ * Componente Form isolato per evitare re-render della pagina durante la digitazione.
  */
 function LocationForm({ 
   initialData, 
@@ -147,16 +147,24 @@ export default function LocationsPage() {
       address: data.address
     })
     setIsEditOpen(false)
-    setEditingLoc(null)
     toast({ title: "Modifiche Salvate", description: "Sede aggiornata con successo." })
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     if (!db) return
     const ref = doc(db, "companies", "default", "locations", id)
     deleteDocumentNonBlocking(ref)
     toast({ title: "Sede Eliminata", description: "Il record è stato rimosso." })
-  }
+  }, [db, toast])
+
+  const openEditDialog = useCallback((loc: any) => {
+    setEditingLoc(loc)
+    // Piccola attesa per evitare conflitti con la chiusura del DropdownMenu
+    // Questo previene il blocco dell'interfaccia tipico di Radix UI
+    setTimeout(() => {
+      setIsEditOpen(true)
+    }, 50)
+  }, [])
 
   const filteredLocations = useMemo(() => {
     if (!locations) return []
@@ -250,10 +258,7 @@ export default function LocationsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem className="font-bold cursor-pointer" onClick={() => {
-                            setEditingLoc(loc);
-                            setIsEditOpen(true);
-                          }}>
+                          <DropdownMenuItem className="font-bold cursor-pointer" onClick={() => openEditDialog(loc)}>
                             <Edit className="h-4 w-4 mr-2" /> Modifica
                           </DropdownMenuItem>
                           <DropdownMenuItem 
@@ -283,10 +288,7 @@ export default function LocationsPage() {
             <LocationForm 
               initialData={editingLoc}
               onSubmit={handleUpdate}
-              onCancel={() => {
-                setIsEditOpen(false)
-                setEditingLoc(null)
-              }}
+              onCancel={() => setIsEditOpen(false)}
               title="Modifica Sede Operativa"
               submitLabel="SALVA MODIFICHE"
             />
