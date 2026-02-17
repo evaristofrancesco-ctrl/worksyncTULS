@@ -14,7 +14,8 @@ import {
   HelpCircle,
   History,
   ClipboardList,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Info
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -26,6 +27,7 @@ const adminLinks = [
   { name: "⏱️ Registro Presenze", href: "/admin/attendance", icon: Clock },
   { name: "Richieste Team", href: "/admin/requests", icon: FileText },
   { name: "Gestione Modifiche", href: "/admin/modifications", icon: ArrowLeftRight },
+  { name: "UTILITY Admin", href: "/admin/utilities", icon: Info },
 ]
 
 const adminPersonalLinks = [
@@ -33,6 +35,7 @@ const adminPersonalLinks = [
   { name: "Mie Presenze", href: "/employee/attendance", icon: History },
   { name: "Mie Richieste", href: "/employee/requests", icon: History },
   { name: "Nuova Modifica", href: "/employee/modification-requests", icon: ClipboardList },
+  { name: "UTILITY", href: "/employee/utilities", icon: Info },
 ]
 
 const employeeLinks = [
@@ -41,6 +44,7 @@ const employeeLinks = [
   { name: "Le Mie Presenze", href: "/employee/attendance", icon: Clock },
   { name: "Le Mie Richieste", href: "/employee/requests", icon: FileText },
   { name: "Richiesta Modifica", href: "/employee/modification-requests", icon: ClipboardList },
+  { name: "UTILITY", href: "/employee/utilities", icon: Info },
 ]
 
 export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {

@@ -238,6 +238,20 @@
         }
       },
       "required": ["id", "employeeId", "submittedAt", "status", "entra", "esce"]
+    },
+    "UtilityInfo": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UtilityInfo",
+      "type": "object",
+      "description": "Useful information provided by the administration to all employees.",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "category": { "type": "string" }
+      },
+      "required": ["id", "title", "description", "createdAt"]
     }
   },
   "auth": {
@@ -286,6 +300,16 @@
             "$ref": "#/backend/entities/ModificationRequest"
           },
           "description": "Requests for stock/item modifications sent by the employee."
+        }
+      },
+      {
+        "path": "/utilities/{id}",
+        "definition": {
+          "entityName": "UtilityInfo",
+          "schema": {
+            "$ref": "#/backend/entities/UtilityInfo"
+          },
+          "description": "Collection of useful information for all users."
         }
       }
     ]
