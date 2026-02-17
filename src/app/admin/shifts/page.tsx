@@ -34,6 +34,7 @@ import {
   subDays 
 } from "date-fns"
 import { it } from "date-fns/locale"
+import { cn } from "@/lib/utils"
 
 // Colori Tailwind per le sedi
 const TAILWIND_COLORS = [
@@ -376,8 +377,4 @@ function ShiftCard({ shift, emp, db, styles }: { shift: any, emp: any, db: any, 
       </Button>
     </div>
   )
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ")
 }

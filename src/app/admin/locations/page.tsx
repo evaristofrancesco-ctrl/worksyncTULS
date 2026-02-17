@@ -159,11 +159,7 @@ export default function LocationsPage() {
 
   const openEditDialog = useCallback((loc: any) => {
     setEditingLoc(loc)
-    // Piccola attesa per evitare conflitti con la chiusura del DropdownMenu
-    // Questo previene il blocco dell'interfaccia tipico di Radix UI
-    setTimeout(() => {
-      setIsEditOpen(true)
-    }, 50)
+    setIsEditOpen(true)
   }, [])
 
   const filteredLocations = useMemo(() => {
@@ -258,12 +254,21 @@ export default function LocationsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem className="font-bold cursor-pointer" onClick={() => openEditDialog(loc)}>
+                          <DropdownMenuItem 
+                            className="font-bold cursor-pointer" 
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              openEditDialog(loc);
+                            }}
+                          >
                             <Edit className="h-4 w-4 mr-2" /> Modifica
                           </DropdownMenuItem>
                           <DropdownMenuItem 
                             className="text-destructive font-bold cursor-pointer"
-                            onClick={() => handleDelete(loc.id)}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              handleDelete(loc.id);
+                            }}
                           >
                             <Trash2 className="h-4 w-4 mr-2" /> Elimina
                           </DropdownMenuItem>
@@ -286,6 +291,7 @@ export default function LocationsPage() {
         <DialogContent className="sm:max-w-[550px] p-0 border-none shadow-2xl overflow-hidden">
           {editingLoc && (
             <LocationForm 
+              key={editingLoc.id}
               initialData={editingLoc}
               onSubmit={handleUpdate}
               onCancel={() => setIsEditOpen(false)}
