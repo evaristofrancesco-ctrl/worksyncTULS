@@ -15,7 +15,8 @@ import {
   User, 
   Briefcase,
   Lock,
-  Mail
+  Mail,
+  Zap
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -80,7 +81,10 @@ function EmployeeForm({
   title: string, 
   submitLabel: string 
 }) {
-  const [formData, setFormData] = useState(initialData)
+  const [formData, setFormData] = useState({
+    ...initialData,
+    autoClockIn: initialData.autoClockIn ?? false
+  })
 
   const handleContractChange = (type: string) => {
     const hours = type === 'full-time' ? 40 : 20
@@ -202,6 +206,19 @@ function EmployeeForm({
               <Input type="time" value={formData.restEndTime} onChange={e => setFormData({...formData, restEndTime: e.target.value})} />
             </div>
           </div>
+
+          <div className="flex items-center justify-between p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 mt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-500 rounded-lg text-white">
+                <Zap className="h-5 w-5 fill-current" />
+              </div>
+              <div className="space-y-0.5">
+                <Label className="text-base font-bold text-[#1e293b]">Timbratura Automatica</Label>
+                <p className="text-xs text-muted-foreground">Includi questo dipendente nella generazione automatica.</p>
+              </div>
+            </div>
+            <Switch checked={formData.autoClockIn} onCheckedChange={v => setFormData({...formData, autoClockIn: v})} />
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -249,6 +266,7 @@ export default function EmployeesPage() {
     restStartTime: "00:00",
     restEndTime: "00:00",
     weeklyHours: 40,
+    autoClockIn: true
   }
 
   const handleAddEmployee = (data: any) => {
@@ -392,7 +410,12 @@ export default function EmployeesPage() {
                           {emp.firstName} {emp.lastName}
                           {emp.role === 'admin' && <ShieldCheck className="h-3.5 w-3.5 text-[#227FD8]" />}
                         </div>
-                        <span className="text-[11px] text-muted-foreground">{emp.email}</span>
+                        <div className="flex items-center gap-2">
+                           <span className="text-[11px] text-muted-foreground">{emp.email}</span>
+                           {emp.autoClockIn && (
+                             <Zap className="h-2.5 w-2.5 text-amber-500 fill-current" title="Timbratura Automatica" />
+                           )}
+                        </div>
                       </div>
                     </div>
                   </TableCell>

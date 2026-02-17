@@ -38,7 +38,7 @@ export default function AttendancePage() {
     if (!db) return null;
     return collectionGroup(db, "timeentries");
   }, [db])
-  const { data: entries, isLoading } = useCollection(timeEntriesQuery)
+  const { data: entries, isLoading: isLoading } = useCollection(timeEntriesQuery)
 
   const employeeMap = useMemo(() => {
     if (!employees) return {};
@@ -87,7 +87,8 @@ export default function AttendancePage() {
     try {
       let count = 0;
       for (const emp of employees) {
-        if (emp.restDay === dayOfWeek || !emp.isActive) continue;
+        // Controllo se il dipendente è attivo e ha la timbratura automatica abilitata
+        if (emp.restDay === dayOfWeek || !emp.isActive || emp.autoClockIn === false) continue;
 
         const dateStr = now.toISOString().split('T')[0];
 
@@ -151,7 +152,7 @@ export default function AttendancePage() {
         }
       }
 
-      toast({ title: "Operazione Completata", description: `Generate ${count} timbrature per oggi (sovrascrivendo i duplicati).` });
+      toast({ title: "Operazione Completata", description: `Generate ${count} timbrature per oggi (solo per dipendenti abilitati).` });
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Errore", description: "Si è verificato un problema." });

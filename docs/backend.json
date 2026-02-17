@@ -195,6 +195,10 @@
         "weeklyHours": {
           "type": "number",
           "description": "Weekly working hours (e.g., 20 for part-time, 40 for full-time)."
+        },
+        "autoClockIn": {
+          "type": "boolean",
+          "description": "If true, the employee is included in automatic clock-in generation."
         }
       },
       "required": [
