@@ -16,7 +16,8 @@ import {
   ArrowLeftRight,
   Info,
   UserCircle,
-  Briefcase
+  Briefcase,
+  Calculator
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -28,6 +29,7 @@ const adminLinks = [
   { name: "Presenze", href: "/admin/attendance", icon: Clock },
   { name: "Richieste", href: "/admin/requests", icon: FileText },
   { name: "Modifiche", href: "/admin/modifications", icon: ArrowLeftRight },
+  { name: "Conteggio", href: "/admin/reports", icon: Calculator },
   { name: "UTILITY", href: "/admin/utilities", icon: Info },
 ]
 
@@ -64,7 +66,7 @@ export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {
 
       <div className="flex flex-col p-3 space-y-6">
         <nav className="space-y-0.5">
-          <div className="px-3 mb-2 flex items-center gap-2 text-[9px] font-black uppercase text-muted-foreground tracking-widest opacity-60">
+          <div className="px-3 mb-2 flex items-center gap-2 text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">
             <Briefcase className="h-3 w-3" />
             {isAdmin ? "Gestione Aziendale" : "Attività Aziendali"}
           </div>
@@ -77,13 +79,13 @@ export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    "flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200",
+                    "flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm font-bold transition-all duration-200",
                     isActive 
                       ? "bg-primary text-primary-foreground shadow-sm" 
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5" />
+                  <Icon className="h-4 w-4" />
                   {link.name}
                 </Link>
               )
@@ -93,7 +95,7 @@ export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {
 
         {isAdmin && (
           <nav className="space-y-0.5 bg-amber-50/50 p-2.5 rounded-xl border border-amber-100/50">
-            <div className="px-1 mb-2 flex items-center gap-2 text-[9px] font-black uppercase text-amber-700/70 tracking-widest">
+            <div className="px-1 mb-2 flex items-center gap-2 text-[10px] font-black uppercase text-amber-700/70 tracking-widest">
               <UserCircle className="h-3 w-3" />
               La Mia Area
             </div>
@@ -106,13 +108,13 @@ export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {
                     key={link.href}
                     href={link.href}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[11px] font-bold transition-all duration-200",
+                      "flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm font-bold transition-all duration-200",
                       isActive 
                         ? "bg-amber-500 text-white shadow-sm" 
                         : "text-muted-foreground hover:bg-amber-100/50 hover:text-amber-800"
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    <Icon className="h-4 w-4" />
                     {link.name}
                   </Link>
                 )
@@ -125,18 +127,18 @@ export function Sidebar({ role }: { role: 'ADMIN' | 'EMPLOYEE' }) {
           <Link
             href="/admin/settings"
             className={cn(
-              "flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
+              "flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm font-bold transition-all",
               pathname === "/admin/settings" ? "bg-slate-100 text-slate-900" : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
-            <Layers className="h-3.5 w-3.5" />
+            <Layers className="h-4 w-4" />
             Impostazioni
           </Link>
           <Link
             href="/help"
-            className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            <HelpCircle className="h-3.5 w-3.5" />
+            <HelpCircle className="h-4 w-4" />
             Supporto
           </Link>
         </div>
