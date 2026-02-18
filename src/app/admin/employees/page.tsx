@@ -16,7 +16,8 @@ import {
   Briefcase,
   Lock,
   Mail,
-  Zap
+  Zap,
+  Clock
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -179,7 +180,8 @@ function EmployeeForm({
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t">
             <div className="space-y-1.5">
               <Label className="font-bold text-sm uppercase text-muted-foreground">Giorno Riposo</Label>
               <Select value={formData.restDay} onValueChange={v => setFormData({...formData, restDay: v})}>
@@ -192,6 +194,17 @@ function EmployeeForm({
             <div className="space-y-1.5">
               <Label className="font-bold text-sm uppercase text-muted-foreground">Ore Settimanali</Label>
               <Input className="h-10" type="number" value={formData.weeklyHours} onChange={e => setFormData({...formData, weeklyHours: Number(e.target.value)})} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="font-bold text-sm uppercase text-muted-foreground">Inizio Riposo</Label>
+              <Input type="time" className="h-10" value={formData.restStartTime} onChange={e => setFormData({...formData, restStartTime: e.target.value})} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="font-bold text-sm uppercase text-muted-foreground">Fine Riposo</Label>
+              <Input type="time" className="h-10" value={formData.restEndTime} onChange={e => setFormData({...formData, restEndTime: e.target.value})} />
             </div>
           </div>
 
@@ -411,6 +424,7 @@ export default function EmployeesPage() {
                       <span className="text-sm font-bold">{DAYS_OF_WEEK.find(d => d.value === emp.restDay)?.label}</span>
                       {emp.restStartTime && emp.restStartTime !== "00:00" && (
                         <span className="text-xs text-amber-600 font-bold">
+                          <Clock className="h-3 w-3 inline mr-1" />
                           {emp.restStartTime}-{emp.restEndTime}
                         </span>
                       )}
