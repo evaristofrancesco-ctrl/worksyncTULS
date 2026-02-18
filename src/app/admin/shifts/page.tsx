@@ -55,6 +55,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 
 export default function ShiftsPage() {
   const db = useFirestore()
@@ -357,46 +358,66 @@ export default function ShiftsPage() {
                         const rStart = emp.restStartTime || "00:00";
                         const rEnd = emp.restEndTime || "00:00";
 
-                        // Combinazione attività per ordinarle cronologicamente
-                        const combinedActivities = [
+                        const allDayAbsences = dayAbsences.filter(a => a.type !== 'HOURLY_PERMIT');
+                        const hourlyItems = [
                           ...dayShifts.map(s => ({ type: 'SHIFT', data: s, startHour: parseISO(s.startTime).getHours(), startMinute: parseISO(s.startTime).getMinutes() })),
-                          ...dayAbsences.map(a => {
-                            let startHour = 0;
-                            let startMinute = 0;
-                            if (a.type === 'HOURLY_PERMIT' && a.startTime) {
-                              const [h, m] = a.startTime.split(':').map(Number);
-                              startHour = h;
-                              startMinute = m;
-                            } else {
-                              // Le assenze totali le mettiamo in cima (ora 0)
-                              startHour = -1; 
-                            }
-                            return { type: 'ABSENCE', data: a, startHour, startMinute };
+                          ...dayAbsences.filter(a => a.type === 'HOURLY_PERMIT').map(a => {
+                            const [h, m] = (a.startTime || "00:00").split(':').map(Number);
+                            return { type: 'ABSENCE', data: a, startHour: h, startMinute: m };
                           })
-                        ].sort((a, b) => (a.startHour * 60 + a.startMinute) - (b.startHour * 60 + b.startMinute));
+                        ];
+
+                        if (isRestDay) {
+                          const [h, m] = rStart.split(':').map(Number);
+                          hourlyItems.push({ type: 'REST', data: { startTime: rStart, endTime: rEnd }, startHour: h, startMinute: m });
+                        }
+
+                        const morningItems = hourlyItems.filter(i => i.startHour < 14).sort((a,b) => (a.startHour * 60 + a.startMinute) - (b.startHour * 60 + b.startMinute));
+                        const afternoonItems = hourlyItems.filter(i => i.startHour >= 14).sort((a,b) => (a.startHour * 60 + a.startMinute) - (b.startHour * 60 + b.startMinute));
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className={cn(
-                            "min-w-[220px] p-2 border-r last:border-r-0 flex flex-col gap-2 min-h-[140px]",
-                            isRestDay ? "bg-slate-50/50" : ""
+                            "min-w-[220px] p-3 border-r last:border-r-0 flex flex-col gap-3 min-h-[180px]",
+                            isRestDay ? "bg-slate-50/30" : ""
                           )}>
-                            {isRestDay && dayAbsences.length === 0 && (
-                              <div className="rounded-lg border border-dashed border-slate-300 p-2 bg-white/40 flex flex-col items-center justify-center gap-1 order-first">
-                                <div className="flex items-center gap-1.5 text-slate-400">
-                                  <Sun className="h-3 w-3" />
-                                  <span className="text-[9px] font-black uppercase tracking-widest">Riposo</span>
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-500">{rStart} - {rEnd}</span>
+                            {/* Assenze Giornata Intera */}
+                            {allDayAbsences.length > 0 && (
+                              <div className="space-y-1">
+                                {allDayAbsences.map(abs => <AbsenceItem key={abs.id} abs={abs} db={db} />)}
                               </div>
                             )}
 
-                            {combinedActivities.map((act, idx) => (
-                              act.type === 'SHIFT' ? (
-                                <ShiftItem key={act.data.id} shift={act.data} db={db} />
-                              ) : (
-                                <AbsenceItem key={act.data.id} abs={act.data} db={db} />
-                              )
-                            ))}
+                            {/* Sezione Mattina */}
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 opacity-30">
+                                <span className="text-[8px] font-black tracking-widest uppercase">AM</span>
+                                <div className="h-px flex-1 bg-slate-300" />
+                              </div>
+                              <div className="space-y-2">
+                                {morningItems.map((act, idx) => (
+                                  act.type === 'SHIFT' ? <ShiftItem key={act.data.id} shift={act.data} db={db} /> :
+                                  act.type === 'REST' ? <RestItem key="rest-am" data={act.data} /> :
+                                  <AbsenceItem key={act.data.id} abs={act.data} db={db} />
+                                ))}
+                                {morningItems.length === 0 && <div className="h-8 border border-dashed rounded-lg opacity-10" />}
+                              </div>
+                            </div>
+
+                            {/* Sezione Pomeriggio */}
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 opacity-30">
+                                <span className="text-[8px] font-black tracking-widest uppercase">PM</span>
+                                <div className="h-px flex-1 bg-slate-300" />
+                              </div>
+                              <div className="space-y-2">
+                                {afternoonItems.map((act, idx) => (
+                                  act.type === 'SHIFT' ? <ShiftItem key={act.data.id} shift={act.data} db={db} /> :
+                                  act.type === 'REST' ? <RestItem key="rest-pm" data={act.data} /> :
+                                  <AbsenceItem key={act.data.id} abs={act.data} db={db} />
+                                ))}
+                                {afternoonItems.length === 0 && <div className="h-8 border border-dashed rounded-lg opacity-10" />}
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
@@ -421,22 +442,22 @@ function ShiftItem({ shift, db }: { shift: any, db: any }) {
 
   return (
     <div className={cn(
-      "group relative rounded-xl p-3 border-l-4 shadow-sm transition-all animate-in zoom-in-95 duration-200",
+      "group relative rounded-lg p-2.5 border-l-4 shadow-sm transition-all animate-in zoom-in-95 duration-200",
       isMorning ? "bg-amber-50/50 border-amber-400 text-amber-900" : "bg-blue-50/50 border-blue-400 text-blue-900"
     )}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
-          {isMorning ? "Mattina" : "Pomeriggio"}
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
+          Turno
         </span>
         <button 
           onClick={() => deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id))}
-          className="h-5 w-5 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
+          className="h-4 w-4 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-2.5 w-2.5" />
         </button>
       </div>
-      <div className="flex items-center gap-1.5 font-black text-sm">
-        <Clock className="h-3.5 w-3.5" />
+      <div className="flex items-center gap-1.5 font-black text-xs">
+        <Clock className="h-3 w-3" />
         {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
       </div>
     </div>
@@ -448,22 +469,34 @@ function AbsenceItem({ abs, db }: { abs: any, db: any }) {
   const labels: any = { VACATION: 'Ferie', SICK: 'Malattia', PERSONAL: 'Permesso', HOURLY_PERMIT: 'Orario', REST_SWAP: 'Cambio Riposo' };
   
   return (
-    <div className="group relative rounded-xl p-3 bg-rose-50 border-l-4 border-rose-500 text-rose-900 shadow-sm animate-in slide-in-from-top-2 duration-300">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] font-black uppercase tracking-widest opacity-70">{labels[abs.type]}</span>
+    <div className="group relative rounded-lg p-2.5 bg-rose-50 border-l-4 border-rose-500 text-rose-900 shadow-sm animate-in slide-in-from-top-2 duration-300">
+      <div className="flex items-center justify-between mb-0.5">
+        <span className="text-[9px] font-black uppercase tracking-widest opacity-60">{labels[abs.type]}</span>
         <button 
           onClick={() => deleteDocumentNonBlocking(doc(db, "employees", abs.employeeId, "requests", abs.id))}
-          className="h-5 w-5 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
+          className="h-4 w-4 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
         >
-          <Trash2 className="h-3 w-3" />
+          <Trash2 className="h-2.5 w-2.5" />
         </button>
       </div>
-      <div className="flex items-center gap-2 font-black text-sm">
-        <Icon className="h-4 w-4" />
+      <div className="flex items-center gap-2 font-black text-xs">
+        <Icon className="h-3.5 w-3.5" />
         <span className="truncate">
           {abs.type === 'HOURLY_PERMIT' ? `${abs.startTime} - ${abs.endTime}` : 'Assenza Totale'}
         </span>
       </div>
+    </div>
+  )
+}
+
+function RestItem({ data }: { data: any }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 p-2 bg-white/40 flex flex-col items-center justify-center gap-0.5 animate-in fade-in duration-200">
+      <div className="flex items-center gap-1 text-slate-400">
+        <Sun className="h-3 w-3" />
+        <span className="text-[8px] font-black uppercase tracking-widest">Riposo</span>
+      </div>
+      <span className="text-[10px] font-bold text-slate-500">{data.startTime} - {data.endTime}</span>
     </div>
   )
 }
