@@ -21,7 +21,8 @@ import {
   Umbrella,
   AlertTriangle,
   Timer,
-  Users
+  Users,
+  Building2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -84,6 +85,12 @@ export default function ShiftsPage() {
     return collection(db, "employees");
   }, [db])
   const { data: employees, isLoading: isEmployeesLoading } = useCollection(employeesQuery)
+
+  const locationsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, "companies", "default", "locations");
+  }, [db])
+  const { data: locations } = useCollection(locationsQuery)
 
   const shiftsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -325,6 +332,10 @@ export default function ShiftsPage() {
                     </div>
                   </div>
                 ))}
+                {/* Header Riepilogo Sedi */}
+                <div className="min-w-[250px] p-4 font-black text-[10px] uppercase tracking-widest text-[#227FD8] bg-blue-50/50 flex items-center justify-center border-l-2 border-[#227FD8]/20 sticky right-0 z-40 shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
+                  COPERTURA SEDI
+                </div>
               </div>
 
               <div className="divide-y">
@@ -421,6 +432,63 @@ export default function ShiftsPage() {
                           </div>
                         );
                       })}
+
+                      {/* Specchietto Riepilogo Sedi (Fine Riga) */}
+                      <div className="min-w-[250px] p-3 border-l-2 border-[#227FD8]/10 bg-blue-50/20 sticky right-0 z-20 shadow-[-4px_0_10px_rgba(0,0,0,0.05)] flex flex-col gap-4">
+                        <div className="space-y-3">
+                          {/* AM Summary */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 opacity-50">
+                              <span className="text-[8px] font-black tracking-widest uppercase text-[#227FD8]">AM Copertura</span>
+                              <div className="h-px flex-1 bg-blue-200" />
+                            </div>
+                            <div className="space-y-1">
+                              {locations?.map(loc => {
+                                const count = employees?.filter(e => {
+                                  if (e.locationId !== loc.id) return false;
+                                  return weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
+                                }).length || 0;
+                                if (count === 0) return null;
+                                return (
+                                  <div key={loc.id} className="flex justify-between items-center bg-white/80 px-2 py-1.5 rounded-lg border border-blue-100 shadow-sm">
+                                    <span className="text-[9px] font-black truncate pr-2 text-slate-700 uppercase tracking-tighter">{loc.name}</span>
+                                    <Badge className="h-4 px-1.5 text-[10px] font-black bg-[#227FD8]">{count}</Badge>
+                                  </div>
+                                )
+                              })}
+                              {(!locations || locations.every(loc => employees?.filter(e => e.locationId === loc.id && weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14)).length === 0)) && (
+                                <p className="text-[8px] text-slate-400 italic text-center py-1">Nessuna copertura</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* PM Summary */}
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 opacity-50">
+                              <span className="text-[8px] font-black tracking-widest uppercase text-slate-500">PM Copertura</span>
+                              <div className="h-px flex-1 bg-slate-200" />
+                            </div>
+                            <div className="space-y-1">
+                              {locations?.map(loc => {
+                                const count = employees?.filter(e => {
+                                  if (e.locationId !== loc.id) return false;
+                                  return weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
+                                }).length || 0;
+                                if (count === 0) return null;
+                                return (
+                                  <div key={loc.id} className="flex justify-between items-center bg-white/80 px-2 py-1.5 rounded-lg border border-slate-100 shadow-sm">
+                                    <span className="text-[9px] font-black truncate pr-2 text-slate-700 uppercase tracking-tighter">{loc.name}</span>
+                                    <Badge className="h-4 px-1.5 text-[10px] font-black bg-slate-700">{count}</Badge>
+                                  </div>
+                                )
+                              })}
+                              {(!locations || locations.every(loc => employees?.filter(e => e.locationId === loc.id && weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14)).length === 0)) && (
+                                <p className="text-[8px] text-slate-400 italic text-center py-1">Nessuna copertura</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
