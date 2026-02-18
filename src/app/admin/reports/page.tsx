@@ -99,8 +99,12 @@ export default function ReportsPage() {
         if (shift.employeeId !== emp.id) return false;
         if (shift.companyId !== "default" && shift.companyId) return false;
         
-        const shiftDate = parseISO(shift.date);
-        return shiftDate >= monthStart && shiftDate <= monthEnd;
+        try {
+          const shiftDate = parseISO(shift.date);
+          return shiftDate >= monthStart && shiftDate <= monthEnd;
+        } catch (e) {
+          return false;
+        }
       });
 
       let totalWorkHours = 0;
@@ -119,15 +123,15 @@ export default function ReportsPage() {
       const empRequests = allRequests.filter(req => {
         if (req.employeeId !== emp.id) return false;
         const status = (req.status || "").toUpperCase();
-        if (status !== "APPROVATO" && status !== "APPROVED" && status !== "IN ATTESA" && status !== "PENDING") {
-           // Includiamo solo approvate per il conteggio finale, ma gestiamo bene lo status
-        }
-        if (status !== "APPROVATO" && status !== "APPROVED") return false;
+        if (status !== "APPROVATO" && status !== "APPROVED" && status !== "APP") return false;
         
-        const reqStart = parseISO(req.startDate);
-        const reqEnd = req.endDate ? parseISO(req.endDate) : reqStart;
-
-        return (reqStart <= monthEnd && reqEnd >= monthStart);
+        try {
+          const reqStart = parseISO(req.startDate);
+          const reqEnd = req.endDate ? parseISO(req.endDate) : reqStart;
+          return (reqStart <= monthEnd && reqEnd >= monthStart);
+        } catch (e) {
+          return false;
+        }
       });
 
       let vacationHours = 0;
@@ -135,13 +139,13 @@ export default function ReportsPage() {
       let permitHours = 0;
 
       empRequests.forEach(req => {
-        const rStart = parseISO(req.startDate);
-        const rEnd = req.endDate ? parseISO(req.endDate) : rStart;
-
-        const overlapStart = rStart < monthStart ? monthStart : rStart;
-        const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
-
         try {
+          const rStart = parseISO(req.startDate);
+          const rEnd = req.endDate ? parseISO(req.endDate) : rStart;
+
+          const overlapStart = rStart < monthStart ? monthStart : rStart;
+          const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
+
           const daysInMonth = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
           const count = daysInMonth.length;
 
@@ -162,6 +166,9 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
+      // Calcolo finale: Turni pianificati MENO le assenze
+      const resultTotal = totalWorkHours - vacationHours - sickHours - permitHours;
+
       return {
         id: emp.id,
         name: `${emp.firstName} ${emp.lastName}`,
@@ -171,7 +178,7 @@ export default function ReportsPage() {
         vacationHours: vacationHours.toFixed(1),
         sickHours: sickHours.toFixed(1),
         permitHours: permitHours.toFixed(1),
-        totalHours: (totalWorkHours + vacationHours + sickHours + permitHours).toFixed(1)
+        totalHours: resultTotal.toFixed(1)
       }
     });
   }, [employees, allShifts, allRequests, selectedMonth, selectedYear]);
@@ -192,7 +199,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Riepilogo ore calcolato in base alla pianificazione dei <b>Turni Team</b>.</p>
+          <p className="text-slate-500 font-medium">Ore nette calcolate: <b>Pianificato - Assenze</b>.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
@@ -237,7 +244,7 @@ export default function ReportsPage() {
         <CardHeader className="border-b bg-slate-50/50">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-              <Users className="h-4 w-4" /> Dettaglio Collaboratori (da Turni)
+              <Users className="h-4 w-4" /> Dettaglio Calcolo (Turni - Assenze)
             </CardTitle>
             <Button variant="outline" size="sm" className="h-8 text-xs font-bold gap-2">
               <Download className="h-3.5 w-3.5" /> Esporta Report
@@ -249,11 +256,11 @@ export default function ReportsPage() {
             <TableHeader className="bg-slate-50/50">
               <TableRow className="h-12">
                 <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Turni (h)</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
-                <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Totale</TableHead>
+                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Pianificato (h)</TableHead>
+                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (-h)</TableHead>
+                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (-h)</TableHead>
+                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (-h)</TableHead>
+                <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -261,7 +268,7 @@ export default function ReportsPage() {
                 <TableRow>
                   <TableCell colSpan={6} className="h-64 text-center">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" />
-                    <p className="text-sm font-bold text-slate-400 mt-4">Analisi turni in corso...</p>
+                    <p className="text-sm font-bold text-slate-400 mt-4">Analisi dati in corso...</p>
                   </TableCell>
                 </TableRow>
               ) : reportData.length > 0 ? reportData.map((row) => (
@@ -279,37 +286,34 @@ export default function ReportsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
+                    <span className="text-sm font-bold text-slate-600">{row.workHours}</span>
+                  </TableCell>
+                  <TableCell className="text-center">
                     <div className="flex flex-col items-center">
-                      <span className="text-sm font-black text-[#227FD8]">{row.workHours}</span>
-                      <Badge variant="outline" className="text-[10px] h-5 bg-blue-50 border-blue-100 text-blue-600 px-2 uppercase font-black">Programmate</Badge>
+                      <span className="text-sm font-bold text-amber-600">-{row.vacationHours}</span>
+                      <Umbrella className="h-3.5 w-3.5 text-amber-400" />
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex flex-col items-center">
-                      <span className="text-sm font-black text-amber-600">{row.vacationHours}</span>
-                      <Umbrella className="h-4 w-4 text-amber-400" />
+                      <span className="text-sm font-bold text-rose-600">-{row.sickHours}</span>
+                      <Activity className="h-3.5 w-3.5 text-rose-400" />
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex flex-col items-center">
-                      <span className="text-sm font-black text-rose-600">{row.sickHours}</span>
-                      <Activity className="h-4 w-4 text-rose-400" />
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex flex-col items-center">
-                      <span className="text-sm font-black text-cyan-600">{row.permitHours}</span>
-                      <Timer className="h-4 w-4 text-cyan-400" />
+                      <span className="text-sm font-bold text-cyan-600">-{row.permitHours}</span>
+                      <Timer className="h-3.5 w-3.5 text-cyan-400" />
                     </div>
                   </TableCell>
                   <TableCell className="text-right pr-8">
-                    <span className="text-lg font-black text-slate-900">{row.totalHours}h</span>
+                    <span className="text-lg font-black text-[#227FD8]">{row.totalHours}h</span>
                   </TableCell>
                 </TableRow>
               )) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-40 text-center text-slate-400 italic font-medium">
-                    Nessun turno o attività per il mese di {MONTHS.find(m => m.value === selectedMonth)?.label}.
+                    Nessun dato per il periodo selezionato.
                   </TableCell>
                 </TableRow>
               )}
@@ -321,7 +325,7 @@ export default function ReportsPage() {
       <div className="grid md:grid-cols-3 gap-6">
         <Card className="border-none shadow-sm bg-blue-50/50 border-l-4 border-l-[#227FD8]">
           <CardHeader className="p-5 pb-2">
-            <CardTitle className="text-xs font-black uppercase text-blue-700 tracking-widest">Totale Ore Pianificate</CardTitle>
+            <CardTitle className="text-xs font-black uppercase text-blue-700 tracking-widest">Totale Lordo Pianificato</CardTitle>
           </CardHeader>
           <CardContent className="p-5 pt-0">
             <p className="text-2xl font-black text-slate-900">
@@ -332,22 +336,22 @@ export default function ReportsPage() {
         
         <Card className="border-none shadow-sm bg-amber-50/50 border-l-4 border-l-amber-500">
           <CardHeader className="p-5 pb-2">
-            <CardTitle className="text-xs font-black uppercase text-amber-700 tracking-widest">Totale Ferie Team</CardTitle>
+            <CardTitle className="text-xs font-black uppercase text-amber-700 tracking-widest">Totale Assenze (Ferie/Mal/Per)</CardTitle>
           </CardHeader>
           <CardContent className="p-5 pt-0">
             <p className="text-2xl font-black text-slate-900">
-              {reportData.reduce((acc, curr) => acc + parseFloat(curr.vacationHours), 0).toFixed(1)}h
+              {(reportData.reduce((acc, curr) => acc + parseFloat(curr.vacationHours) + parseFloat(curr.sickHours) + parseFloat(curr.permitHours), 0)).toFixed(1)}h
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-rose-50/50 border-l-4 border-l-rose-500">
+        <Card className="border-none shadow-sm bg-green-50/50 border-l-4 border-l-green-500">
           <CardHeader className="p-5 pb-2">
-            <CardTitle className="text-xs font-black uppercase text-rose-700 tracking-widest">Totale Malattia Team</CardTitle>
+            <CardTitle className="text-xs font-black uppercase text-green-700 tracking-widest">Totale Ore Nette</CardTitle>
           </CardHeader>
           <CardContent className="p-5 pt-0">
             <p className="text-2xl font-black text-slate-900">
-              {reportData.reduce((acc, curr) => acc + parseFloat(curr.sickHours), 0).toFixed(1)}h
+              {reportData.reduce((acc, curr) => acc + parseFloat(curr.totalHours), 0).toFixed(1)}h
             </p>
           </CardContent>
         </Card>
