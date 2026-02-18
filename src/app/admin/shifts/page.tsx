@@ -145,14 +145,12 @@ export default function ShiftsPage() {
           const rStart = emp.restStartTime || "00:00";
           const rEnd = emp.restEndTime || "00:00";
 
-          // Controllo assenze approvate
           const isAbsent = weekAbsences.some(abs => 
             abs.employeeId === emp.id && dateStr >= abs.startDate && dateStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT'
           );
           if (isAbsent) continue;
 
           if (emp.contractType === "full-time") {
-            // Turno Mattina: 09:00 - 13:00
             const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
             if (!morningOverlaps) {
               const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
@@ -163,7 +161,6 @@ export default function ShiftsPage() {
               }, { merge: true });
             }
 
-            // Turno Pomeriggio: 17:00 - 20:20
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
             if (!afternoonOverlaps) {
               const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
@@ -174,7 +171,6 @@ export default function ShiftsPage() {
               }, { merge: true });
             }
           } else {
-            // Part-time: 17:00 - 20:20
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
             if (!afternoonOverlaps) {
               const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
@@ -312,7 +308,6 @@ export default function ShiftsPage() {
         <CardContent className="p-0">
           <ScrollArea className="w-full h-[700px]">
             <div className="inline-block min-w-full">
-              {/* Header Tabella: Collaboratori (Sticky in alto) */}
               <div className="flex sticky top-0 z-30 bg-white border-b shadow-sm">
                 <div className="w-[180px] p-4 font-black text-[10px] uppercase tracking-widest text-slate-400 sticky left-0 bg-white border-r z-40 flex items-center justify-center">
                   DATA / TEAM
@@ -331,7 +326,6 @@ export default function ShiftsPage() {
                 ))}
               </div>
 
-              {/* Corpo Tabella: Giorni (Righe) */}
               <div className="divide-y">
                 {isEmployeesLoading || isShiftsLoading ? (
                   <div className="py-20 text-center flex flex-col items-center gap-4">
@@ -347,7 +341,6 @@ export default function ShiftsPage() {
                       "flex group hover:bg-slate-50/30 transition-colors",
                       isToday ? "bg-blue-50/20" : ""
                     )}>
-                      {/* Colonna Giorno (Sticky a sinistra) */}
                       <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center items-center text-center shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
                         <div className="text-[10px] font-black uppercase text-slate-400">{format(day, 'EEEE', { locale: it })}</div>
                         <div className={cn("text-xl font-black mt-1 leading-none", isToday ? "text-[#227FD8]" : "text-slate-700")}>
@@ -356,22 +349,39 @@ export default function ShiftsPage() {
                         <div className="text-[10px] font-bold text-slate-400 uppercase">{format(day, 'MMMM', { locale: it })}</div>
                       </div>
 
-                      {/* Celle Collaboratori per questo Giorno */}
                       {employees?.map((emp) => {
                         const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
-                        const dayAbsence = weekAbsences.find(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
+                        const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
+                        
                         const isRestDay = emp.restDay === day.getDay().toString();
                         const rStart = emp.restStartTime || "00:00";
                         const rEnd = emp.restEndTime || "00:00";
+
+                        // Combinazione attività per ordinarle cronologicamente
+                        const combinedActivities = [
+                          ...dayShifts.map(s => ({ type: 'SHIFT', data: s, startHour: parseISO(s.startTime).getHours(), startMinute: parseISO(s.startTime).getMinutes() })),
+                          ...dayAbsences.map(a => {
+                            let startHour = 0;
+                            let startMinute = 0;
+                            if (a.type === 'HOURLY_PERMIT' && a.startTime) {
+                              const [h, m] = a.startTime.split(':').map(Number);
+                              startHour = h;
+                              startMinute = m;
+                            } else {
+                              // Le assenze totali le mettiamo in cima (ora 0)
+                              startHour = -1; 
+                            }
+                            return { type: 'ABSENCE', data: a, startHour, startMinute };
+                          })
+                        ].sort((a, b) => (a.startHour * 60 + a.startMinute) - (b.startHour * 60 + b.startMinute));
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className={cn(
                             "min-w-[220px] p-2 border-r last:border-r-0 flex flex-col gap-2 min-h-[140px]",
                             isRestDay ? "bg-slate-50/50" : ""
                           )}>
-                            {/* Visualizzazione Riposo Orario se è il suo giorno di riposo e non ha assenze totali */}
-                            {isRestDay && !dayAbsence && (
-                              <div className="rounded-lg border border-dashed border-slate-300 p-2 bg-white/40 flex flex-col items-center justify-center gap-1">
+                            {isRestDay && dayAbsences.length === 0 && (
+                              <div className="rounded-lg border border-dashed border-slate-300 p-2 bg-white/40 flex flex-col items-center justify-center gap-1 order-first">
                                 <div className="flex items-center gap-1.5 text-slate-400">
                                   <Sun className="h-3 w-3" />
                                   <span className="text-[9px] font-black uppercase tracking-widest">Riposo</span>
@@ -380,12 +390,12 @@ export default function ShiftsPage() {
                               </div>
                             )}
 
-                            {dayAbsence && (
-                              <AbsenceItem abs={dayAbsence} db={db} />
-                            )}
-
-                            {dayShifts.map(shift => (
-                              <ShiftItem key={shift.id} shift={shift} db={db} />
+                            {combinedActivities.map((act, idx) => (
+                              act.type === 'SHIFT' ? (
+                                <ShiftItem key={act.data.id} shift={act.data} db={db} />
+                              ) : (
+                                <AbsenceItem key={act.data.id} abs={act.data} db={db} />
+                              )
                             ))}
                           </div>
                         );
