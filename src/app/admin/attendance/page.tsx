@@ -84,19 +84,29 @@ export default function AttendancePage() {
         if (emp.restDay === now.getDay().toString() || !emp.isActive || emp.autoClockIn === false) continue;
         const dateStr = now.toISOString().split('T')[0];
         if (emp.contractType === 'full-time') {
+          // Mattina 09:00 - 13:00
           const idAM = `auto-${emp.id}-${dateStr}-MORNING`;
+          const checkInAM = new Date(now); checkInAM.setHours(9, 0, 0);
+          const checkOutAM = new Date(now); checkOutAM.setHours(13, 0, 0);
           setDocumentNonBlocking(doc(db, "employees", emp.id, "timeentries", idAM), {
-            id: idAM, employeeId: emp.id, companyId: "default", checkInTime: new Date(now.setHours(9,0)).toISOString(), checkOutTime: new Date(now.setHours(13,0)).toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "MORNING"
+            id: idAM, employeeId: emp.id, companyId: "default", checkInTime: checkInAM.toISOString(), checkOutTime: checkOutAM.toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "MORNING"
           }, { merge: true });
+
+          // Pomeriggio 17:00 - 20:20
           const idPM = `auto-${emp.id}-${dateStr}-AFTERNOON`;
+          const checkInPM = new Date(now); checkInPM.setHours(17, 0, 0);
+          const checkOutPM = new Date(now); checkOutPM.setHours(20, 20, 0);
           setDocumentNonBlocking(doc(db, "employees", emp.id, "timeentries", idPM), {
-            id: idPM, employeeId: emp.id, companyId: "default", checkInTime: new Date(now.setHours(17,0)).toISOString(), checkOutTime: new Date(now.setHours(20,0)).toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "AFTERNOON"
+            id: idPM, employeeId: emp.id, companyId: "default", checkInTime: checkInPM.toISOString(), checkOutTime: checkOutPM.toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "AFTERNOON"
           }, { merge: true });
           count += 2;
         } else {
+          // Part-time Pomeriggio 17:00 - 20:20
           const idPM = `auto-${emp.id}-${dateStr}-AFTERNOON`;
+          const checkInPM = new Date(now); checkInPM.setHours(17, 0, 0);
+          const checkOutPM = new Date(now); checkOutPM.setHours(20, 20, 0);
           setDocumentNonBlocking(doc(db, "employees", emp.id, "timeentries", idPM), {
-            id: idPM, employeeId: emp.id, companyId: "default", checkInTime: new Date(now.setHours(17,0)).toISOString(), checkOutTime: new Date(now.setHours(20,0)).toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "AFTERNOON"
+            id: idPM, employeeId: emp.id, companyId: "default", checkInTime: checkInPM.toISOString(), checkOutTime: checkOutPM.toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "AFTERNOON"
           }, { merge: true });
           count += 1;
         }
@@ -112,7 +122,7 @@ export default function AttendancePage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-[#1e293b]">Registro Presenze</h1>
-          <p className="text-xs text-muted-foreground">Monitoraggio timbrature del punto vendita.</p>
+          <p className="text-sm text-muted-foreground">Monitoraggio timbrature del punto vendita.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleAutoClockIn} disabled={isGenerating || isLoading} size="sm" className="bg-amber-500 hover:bg-amber-600 font-bold h-9">
@@ -129,18 +139,18 @@ export default function AttendancePage() {
             </CardTitle>
             <div className="relative w-full max-w-[240px]">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Cerca..." className="pl-8 bg-muted/30 border-none h-8 text-xs" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <Input placeholder="Cerca..." className="pl-8 bg-muted/30 border-none h-8 text-sm" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow className="h-10">
-                  <TableHead className="text-[10px] font-black uppercase py-0 pl-4">Dipendente</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-0">Data</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-0">Entrata</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-0">Uscita</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase py-0 pr-4">Stato</TableHead>
+                  <TableHead className="text-sm font-black uppercase py-0 pl-4">Dipendente</TableHead>
+                  <TableHead className="text-sm font-black uppercase py-0">Data</TableHead>
+                  <TableHead className="text-sm font-black uppercase py-0">Entrata</TableHead>
+                  <TableHead className="text-sm font-black uppercase py-0">Uscita</TableHead>
+                  <TableHead className="text-sm font-black uppercase py-0 pr-4">Stato</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -156,25 +166,25 @@ export default function AttendancePage() {
                         <div className="flex items-center gap-2">
                           <Avatar className="h-7 w-7 border">
                             <AvatarImage src={emp?.photoUrl} />
-                            <AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                            <AvatarFallback className="text-sm font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
                           </Avatar>
-                          <span className="font-bold text-[11px] text-[#1e293b] truncate">
+                          <span className="font-bold text-sm text-[#1e293b] truncate">
                             {emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-[11px]">{cIn?.toLocaleDateString('it-IT')}</TableCell>
-                      <TableCell className="text-[11px] font-bold text-[#227FD8]">{cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                      <TableCell className="text-[11px] font-bold text-slate-500">{cOut?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) || "--:--"}</TableCell>
+                      <TableCell className="text-sm">{cIn?.toLocaleDateString('it-IT')}</TableCell>
+                      <TableCell className="text-sm font-bold text-[#227FD8]">{cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                      <TableCell className="text-sm font-bold text-slate-500">{cOut?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) || "--:--"}</TableCell>
                       <TableCell className="pr-4">
-                        <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={`h-4 text-[8px] font-black ${!log.checkOutTime ? "bg-green-500" : ""}`}>
+                        <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={`h-5 text-[10px] font-black ${!log.checkOutTime ? "bg-green-500" : ""}`}>
                           {!log.checkOutTime ? "In Servizio" : log.type === "AUTO" ? "AUTO" : "MAN"}
                         </Badge>
                       </TableCell>
                     </TableRow>
                   )
                 }) : (
-                  <TableRow><TableCell colSpan={5} className="py-12 text-center text-[11px] text-muted-foreground">Nessun log trovato.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="py-12 text-center text-sm text-muted-foreground">Nessun log trovato.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

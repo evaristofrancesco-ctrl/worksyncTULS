@@ -30,8 +30,6 @@ export default function SettingsPage() {
     if (!db) return;
     setIsSaving(true);
     
-    // In un'app reale prenderemmo i dati dal form state. 
-    // Qui simuliamo il salvataggio basandoci sul riferimento.
     const companyData = {
       name: "TU.L.S. - Gestione Moderna",
       email: "info@tuls.it",
@@ -125,7 +123,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/10">
                 <div className="space-y-0.5">
                   <Label className="text-base font-bold">Full-time standard (40h)</Label>
-                  <p className="text-xs text-muted-foreground">Calcola i progressi settimanali su base 40 ore.</p>
+                  <p className="text-sm text-muted-foreground">Calcola i progressi settimanali su base 40 ore.</p>
                 </div>
                 <Switch defaultChecked />
               </div>
@@ -135,11 +133,11 @@ export default function SettingsPage() {
                   <h4 className="text-sm font-black uppercase text-primary tracking-wider">Fascia Mattina</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold">Inizio</Label>
+                      <Label className="text-xs font-bold">Inizio</Label>
                       <Input type="time" defaultValue="09:00" />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold">Fine</Label>
+                      <Label className="text-xs font-bold">Fine</Label>
                       <Input type="time" defaultValue="13:00" />
                     </div>
                   </div>
@@ -148,12 +146,12 @@ export default function SettingsPage() {
                   <h4 className="text-sm font-black uppercase text-primary tracking-wider">Fascia Pomeriggio</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold">Inizio</Label>
+                      <Label className="text-xs font-bold">Inizio</Label>
                       <Input type="time" defaultValue="17:00" />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-[10px] font-bold">Fine</Label>
-                      <Input type="time" defaultValue="20:00" />
+                      <Label className="text-xs font-bold">Fine</Label>
+                      <Input type="time" defaultValue="20:20" />
                     </div>
                   </div>
                 </div>
@@ -172,14 +170,14 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="font-bold">Notifica Nuove Richieste</Label>
-                  <p className="text-xs text-muted-foreground">Ricevi un avviso quando un dipendente richiede ferie.</p>
+                  <p className="text-sm text-muted-foreground">Ricevi un avviso quando un dipendente richiede ferie.</p>
                 </div>
                 <Switch defaultChecked />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="font-bold">Resoconto Settimanale</Label>
-                  <p className="text-xs text-muted-foreground">Invia una mail ogni lunedì con il riepilogo delle ore.</p>
+                  <p className="text-sm text-muted-foreground">Invia una mail ogni lunedì con il riepilogo delle ore.</p>
                 </div>
                 <Switch />
               </div>
@@ -197,14 +195,14 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="font-bold">Geofencing Timbratura</Label>
-                  <p className="text-xs text-muted-foreground">Consenti la timbratura solo se il dipendente è entro 100m dalla sede.</p>
+                  <p className="text-sm text-muted-foreground">Consenti la timbratura solo se il dipendente è entro 100m dalla sede.</p>
                 </div>
                 <Switch />
               </div>
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label className="font-bold">Accesso Anonimo</Label>
-                  <p className="text-xs text-muted-foreground">Permetti l'accesso semplificato per prototipazione.</p>
+                  <p className="text-sm text-muted-foreground">Permetti l'accesso semplificato per prototipazione.</p>
                 </div>
                 <Switch defaultChecked />
               </div>

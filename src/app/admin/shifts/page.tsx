@@ -185,16 +185,17 @@ export default function ShiftsPage() {
           // Salta se è il giorno di riposo
           if (dayOfWeekStr === emp.restDay) continue;
 
-          // Salta se il dipendente ha un'assenza registrata per questo giorno (escludiamo i permessi orari per la generazione automatica o li gestiamo se necessario)
+          // Salta se il dipendente ha un'assenza registrata per questo giorno
           const isAbsent = weekAbsences.some(abs => 
             abs.employeeId === emp.id && 
             dateStr >= abs.startDate && 
             dateStr <= (abs.endDate || abs.startDate) &&
-            abs.type !== 'HOURLY_PERMIT' // I permessi orari non bloccano l'intera giornata solitamente
+            abs.type !== 'HOURLY_PERMIT'
           );
           if (isAbsent) continue;
 
           if (emp.contractType === "full-time") {
+            // Mattina 09:00 - 13:00
             const idMORNING = `shift-${emp.id}-${dateStr}-MORNING`;
             const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
             const endAM = new Date(targetDay); endAM.setHours(13, 0, 0);
@@ -211,9 +212,10 @@ export default function ShiftsPage() {
               slot: "MORNING"
             }, { merge: true });
 
+            // Pomeriggio 17:00 - 20:20
             const idAFTERNOON = `shift-${emp.id}-${dateStr}-AFTERNOON`;
             const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
-            const endPM = new Date(targetDay); endPM.setHours(20, 0, 0);
+            const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
             
             setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAFTERNOON), {
               id: idAFTERNOON,
@@ -228,9 +230,10 @@ export default function ShiftsPage() {
             }, { merge: true });
           } 
           else {
+            // Part-time Pomeriggio 17:00 - 20:20
             const idAFTERNOON = `shift-${emp.id}-${dateStr}-AFTERNOON`;
             const startPT = new Date(targetDay); startPT.setHours(17, 0, 0);
-            const endPT = new Date(targetDay); endPT.setHours(20, 0, 0);
+            const endPT = new Date(targetDay); endPT.setHours(20, 20, 0);
             
             setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAFTERNOON), {
               id: idAFTERNOON,
@@ -309,7 +312,7 @@ export default function ShiftsPage() {
                 <UserMinus className="h-4 w-4" /> Registra Assenza
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="max-w-md">
               <DialogHeader>
                 <DialogTitle className="font-black text-2xl">Registra Malattia/Ferie/Permessi</DialogTitle>
                 <DialogDescription>L'assenza verrà mostrata in calendario e i turni automatici verranno saltati per quel periodo.</DialogDescription>
@@ -508,13 +511,13 @@ function ShiftCard({ shift, emp, db, styles }: { shift: any, emp: any, db: any, 
       <div className="flex items-center gap-2.5 mb-2">
         <Avatar className="h-7 w-7 border shadow-sm ring-1 ring-white">
           <AvatarImage src={emp?.photoUrl} />
-          <AvatarFallback className="text-[10px] font-bold bg-slate-100">{emp?.firstName?.charAt(0)}</AvatarFallback>
+          <AvatarFallback className="text-sm font-bold bg-slate-100">{emp?.firstName?.charAt(0)}</AvatarFallback>
         </Avatar>
         <div className="flex flex-col min-w-0">
           <span className="text-xs font-black truncate text-[#1e293b] leading-tight">
             {emp?.firstName} {emp?.lastName?.charAt(0)}.
           </span>
-          <span className="text-[8px] font-bold text-muted-foreground uppercase truncate">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase truncate">
             {emp?.jobTitle || "Collaboratore"}
           </span>
         </div>
