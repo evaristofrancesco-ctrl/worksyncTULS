@@ -100,13 +100,12 @@ export default function ShiftsPage() {
   }, [db])
   const { data: employees, isLoading: isEmployeesLoading } = useCollection(employeesQuery)
 
-  // Filtro per escludere Francesco Evaristo e IT
+  // Filtro specifico solo per Francesco Evaristo
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
     return employees.filter(emp => {
-      const isIT = emp.jobTitle?.toLowerCase().includes('it');
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
-      return !isIT && !isFrancesco;
+      return !isFrancesco;
     });
   }, [employees]);
 

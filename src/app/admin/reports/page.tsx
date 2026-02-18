@@ -93,11 +93,10 @@ export default function ReportsPage() {
     const monthStart = startOfMonth(targetDate)
     const monthEnd = endOfMonth(targetDate)
 
-    // Esclusione IT e Francesco Evaristo
+    // Esclusione solo Francesco Evaristo
     const targetEmployees = employees.filter(emp => {
-      const isIT = emp.jobTitle?.toLowerCase().includes('it');
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
-      return !isIT && !isFrancesco;
+      return !isFrancesco;
     });
 
     return targetEmployees.map(emp => {
@@ -187,7 +186,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Ore nette: <b>Turni Team - Assenze</b>. Escluso personale IT.</p>
+          <p className="text-slate-500 font-medium">Ore nette: <b>Turni Team - Assenze</b>. Riepilogo operativo del personale.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">

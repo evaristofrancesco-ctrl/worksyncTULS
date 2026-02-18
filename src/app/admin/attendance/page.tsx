@@ -84,10 +84,9 @@ export default function AttendancePage() {
       for (const emp of employees) {
         if (!emp.isActive || emp.autoClockIn === false) continue;
         
-        // Esclusione IT / Francesco Evaristo
-        const isIT = emp.jobTitle?.toLowerCase().includes('it');
+        // Esclusione specifica Francesco Evaristo
         const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
-        if (isIT || isFrancesco) continue;
+        if (isFrancesco) continue;
 
         const dayOfWeekStr = now.getDay().toString();
         const isRestDay = dayOfWeekStr === emp.restDay;
@@ -130,7 +129,7 @@ export default function AttendancePage() {
           }
         }
       }
-      toast({ title: "Completato", description: `Generate ${count} timbrature rispettando i riposi e le esclusioni.` });
+      toast({ title: "Completato", description: `Generate ${count} timbrature rispettando i riposi.` });
     } finally {
       setIsGenerating(false);
     }
