@@ -92,87 +92,87 @@ function EmployeeForm({
 
   return (
     <div className="flex flex-col">
-      <DialogHeader className="bg-[#227FD8] p-4 text-white space-y-1">
-        <DialogTitle className="text-lg font-black flex items-center gap-2 uppercase">
+      <DialogHeader className="bg-[#227FD8] p-6 text-white space-y-1">
+        <DialogTitle className="text-xl font-black flex items-center gap-2 uppercase">
           {submitLabel === 'SALVA MODIFICHE' ? <Edit className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />} {title}
         </DialogTitle>
-        <DialogDescription className="text-blue-100 text-[10px]">Configurazione profilazione e impostazioni timbratura.</DialogDescription>
+        <DialogDescription className="text-blue-100 text-sm">Configurazione profilazione e impostazioni timbratura.</DialogDescription>
       </DialogHeader>
       
       <Tabs defaultValue="personali" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-9 bg-muted/20 p-0.5 rounded-none border-b">
-          <TabsTrigger value="personali" className="font-black text-[9px] gap-1.5 h-8"><User className="h-3 w-3" /> DATI PERSONALI</TabsTrigger>
-          <TabsTrigger value="lavoro" className="font-black text-[9px] gap-1.5 h-8"><Briefcase className="h-3 w-3" /> LAVORO</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 h-12 bg-muted/20 p-1 rounded-none border-b">
+          <TabsTrigger value="personali" className="font-black text-xs gap-2"><User className="h-4 w-4" /> DATI PERSONALI</TabsTrigger>
+          <TabsTrigger value="lavoro" className="font-black text-xs gap-2"><Briefcase className="h-4 w-4" /> LAVORO</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="personali" className="p-4 space-y-2.5">
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Nome *</Label>
-              <Input className="h-8 text-xs" placeholder="es. Mario" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} />
+        <TabsContent value="personali" className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Nome *</Label>
+              <Input className="h-10 text-sm" placeholder="es. Mario" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} />
             </div>
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Cognome *</Label>
-              <Input className="h-8 text-xs" placeholder="es. Rossi" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} />
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Cognome *</Label>
+              <Input className="h-10 text-sm" placeholder="es. Rossi" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} />
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="font-bold text-[9px] uppercase text-muted-foreground">Email di Accesso *</Label>
+          <div className="space-y-1.5">
+            <Label className="font-bold text-xs uppercase text-muted-foreground">Email di Accesso *</Label>
             <div className="relative">
-              <Mail className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input className="pl-8 h-8 text-xs" placeholder="mario.rossi@tulas.it" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-10 h-10 text-sm" placeholder="mario.rossi@tulas.it" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Password *</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Password *</Label>
               <div className="relative">
-                <Lock className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input type="password" dir="ltr" className="pl-8 h-8 text-xs" placeholder="••••••••" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input type="password" dir="ltr" className="pl-10 h-10 text-sm" placeholder="••••••••" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
               </div>
             </div>
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">URL Foto</Label>
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">URL Foto</Label>
               <div className="relative">
-                <ImageIcon className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input className="pl-8 h-8 text-xs" placeholder="https://..." value={formData.photoUrl} onChange={e => setFormData({...formData, photoUrl: e.target.value})} />
+                <ImageIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input className="pl-10 h-10 text-sm" placeholder="https://..." value={formData.photoUrl} onChange={e => setFormData({...formData, photoUrl: e.target.value})} />
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-between p-2.5 bg-[#227FD8]/5 rounded-lg border border-[#227FD8]/10 mt-1">
+          <div className="flex items-center justify-between p-4 bg-[#227FD8]/5 rounded-xl border border-[#227FD8]/10 mt-2">
             <div className="space-y-0.5">
-              <Label className="text-xs font-bold text-[#1e293b]">Privilegi Amministratore</Label>
-              <p className="text-[9px] text-muted-foreground leading-none">Accesso alla dashboard gestionale.</p>
+              <Label className="text-sm font-bold text-[#1e293b]">Privilegi Amministratore</Label>
+              <p className="text-xs text-muted-foreground">Accesso alla dashboard gestionale completa.</p>
             </div>
-            <Switch className="scale-75" checked={formData.isAdmin} onCheckedChange={v => setFormData({...formData, isAdmin: v})} />
+            <Switch checked={formData.isAdmin} onCheckedChange={v => setFormData({...formData, isAdmin: v})} />
           </div>
         </TabsContent>
 
-        <TabsContent value="lavoro" className="p-4 space-y-2.5">
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Reparto</Label>
-              <Input className="h-8 text-xs" placeholder="es. Vendite" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} />
+        <TabsContent value="lavoro" className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Reparto</Label>
+              <Input className="h-10 text-sm" placeholder="es. Vendite" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} />
             </div>
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Ruolo</Label>
-              <Input className="h-8 text-xs" placeholder="es. Store Manager" value={formData.jobTitle} onChange={e => setFormData({...formData, jobTitle: e.target.value})} />
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Ruolo</Label>
+              <Input className="h-10 text-sm" placeholder="es. Store Manager" value={formData.jobTitle} onChange={e => setFormData({...formData, jobTitle: e.target.value})} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Sede Operativa</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Sede Operativa</Label>
               <Select value={formData.locationId} onValueChange={v => setFormData({...formData, locationId: v})}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Seleziona sede" /></SelectTrigger>
+                <SelectTrigger className="h-10 text-sm"><SelectValue placeholder="Seleziona sede" /></SelectTrigger>
                 <SelectContent>
                   {locations?.map(loc => <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Contratto</Label>
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Contratto</Label>
               <Select value={formData.contractType} onValueChange={handleContractChange}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="full-time">Full-time (40h)</SelectItem>
                   <SelectItem value="part-time">Part-time (20h)</SelectItem>
@@ -180,38 +180,38 @@ function EmployeeForm({
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Giorno Riposo</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Giorno Riposo</Label>
               <Select value={formData.restDay} onValueChange={v => setFormData({...formData, restDay: v})}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {DAYS_OF_WEEK.map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1">
-              <Label className="font-bold text-[9px] uppercase text-muted-foreground">Ore Settimanali</Label>
-              <Input className="h-8 text-xs" type="number" value={formData.weeklyHours} onChange={e => setFormData({...formData, weeklyHours: Number(e.target.value)})} />
+            <div className="space-y-1.5">
+              <Label className="font-bold text-xs uppercase text-muted-foreground">Ore Settimanali</Label>
+              <Input className="h-10 text-sm" type="number" value={formData.weeklyHours} onChange={e => setFormData({...formData, weeklyHours: Number(e.target.value)})} />
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-2.5 bg-amber-500/10 rounded-lg border border-amber-500/20 mt-1">
-            <div className="flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5 text-amber-500 fill-current" />
+          <div className="flex items-center justify-between p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 mt-2">
+            <div className="flex items-center gap-3">
+              <Zap className="h-5 w-5 text-amber-500 fill-current" />
               <div className="space-y-0.5">
-                <Label className="text-xs font-bold text-[#1e293b]">Timbratura Automatica</Label>
-                <p className="text-[9px] text-muted-foreground leading-none">Generazione automatica dei log.</p>
+                <Label className="text-sm font-bold text-[#1e293b]">Timbratura Automatica</Label>
+                <p className="text-xs text-muted-foreground">Generazione automatica log mattino/pomeriggio.</p>
               </div>
             </div>
-            <Switch className="scale-75" checked={formData.autoClockIn} onCheckedChange={v => setFormData({...formData, autoClockIn: v})} />
+            <Switch checked={formData.autoClockIn} onCheckedChange={v => setFormData({...formData, autoClockIn: v})} />
           </div>
         </TabsContent>
       </Tabs>
 
-      <DialogFooter className="p-4 bg-muted/10 border-t">
-        <Button variant="ghost" size="sm" onClick={onCancel} className="font-bold text-[10px] uppercase h-8">Annulla</Button>
-        <Button size="sm" onClick={() => onSubmit(formData)} className="bg-[#227FD8] h-9 px-6 font-black shadow-md uppercase text-[10px] tracking-wider">{submitLabel}</Button>
+      <DialogFooter className="p-6 bg-muted/10 border-t">
+        <Button variant="ghost" onClick={onCancel} className="font-bold uppercase h-11">Annulla</Button>
+        <Button onClick={() => onSubmit(formData)} className="bg-[#227FD8] h-11 px-8 font-black shadow-md uppercase tracking-wider">{submitLabel}</Button>
       </DialogFooter>
     </div>
   )
@@ -237,12 +237,6 @@ export default function EmployeesPage() {
   const [editingEmployeeData, setEditingEmployeeData] = useState<any>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-
-  useEffect(() => {
-    if (editingEmployeeData) {
-      setIsEditOpen(true)
-    }
-  }, [editingEmployeeData])
 
   const defaultNewEmployee = {
     firstName: "",
@@ -305,7 +299,7 @@ export default function EmployeesPage() {
     updateDocumentNonBlocking(employeeRef, updateData)
     setIsEditOpen(false)
     setEditingEmployeeData(null)
-    toast({ title: "Profilo Aggiornato", description: "Le modifiche sono state salvate." })
+    toast({ title: "Profilo Aggiornato", description: "Le modifiche sono state salvate con successo." })
   }
 
   const filteredEmployees = useMemo(() => {
@@ -318,33 +312,34 @@ export default function EmployeesPage() {
   }, [employees, searchQuery])
 
   const handleEditClick = (emp: any) => {
-    // Disaccoppiamento asincrono per evitare il blocco del focus trap tra Dropdown e Dialog
+    // Disaccoppiamento asincrono migliorato per prevenire il freeze di Radix UI
+    setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
     setTimeout(() => {
-      setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
-    }, 10);
+      setIsEditOpen(true)
+    }, 150);
   }
 
   const handleDelete = (id: string) => {
     const employeeRef = doc(db, "employees", id)
     deleteDocumentNonBlocking(employeeRef)
-    toast({ title: "Eliminato", description: "Il collaboratore è stato rimosso." })
+    toast({ title: "Eliminato", description: "Il collaboratore è stato rimosso correttamente." })
   }
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-black tracking-tight text-[#1e293b]">Gestione Dipendenti</h1>
-          <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider opacity-60">Database Collaboratori</p>
+          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Gestione Dipendenti</h1>
+          <p className="text-muted-foreground">Database collaboratori e configurazione accessi.</p>
         </div>
         
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="gap-2 bg-[#227FD8] hover:bg-[#227FD8]/90 font-bold uppercase text-[10px] h-9">
-              <Plus className="h-3.5 w-3.5" /> Aggiungi Collaboratore
+            <Button className="gap-2 bg-[#227FD8] hover:bg-[#227FD8]/90 font-bold uppercase h-12 px-6 shadow-lg">
+              <Plus className="h-5 w-5" /> Aggiungi Collaboratore
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl">
+          <DialogContent className="sm:max-w-[650px] p-0 overflow-hidden border-none shadow-2xl">
             <EmployeeForm 
               initialData={defaultNewEmployee}
               onSubmit={handleAddEmployee}
@@ -358,14 +353,14 @@ export default function EmployeesPage() {
       </div>
 
       <Card className="border-none shadow-sm bg-white/80 overflow-hidden">
-        <CardHeader className="py-3 px-4 border-b">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <CardTitle className="text-sm font-black text-[#1e293b] uppercase tracking-widest">Elenco Team</CardTitle>
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+        <CardHeader className="py-4 px-6 border-b">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <CardTitle className="text-base font-black text-[#1e293b] uppercase tracking-wider">Elenco Team</CardTitle>
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Cerca per nome o email..."
-                className="pl-7 bg-muted/30 border-none h-7.5 text-xs"
+                className="pl-10 bg-muted/30 border-none h-10 text-sm"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
@@ -375,81 +370,81 @@ export default function EmployeesPage() {
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/30">
-              <TableRow className="h-9">
-                <TableHead className="text-[9px] font-black uppercase py-0 pl-4">Collaboratore</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-0">Ruolo / Sede</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-0">Contratto</TableHead>
-                <TableHead className="text-[9px] font-black uppercase py-0">Riposo</TableHead>
-                <TableHead className="text-right text-[9px] font-black uppercase py-0 pr-4">Azioni</TableHead>
+              <TableRow className="h-12">
+                <TableHead className="text-xs font-black uppercase pl-6">Collaboratore</TableHead>
+                <TableHead className="text-xs font-black uppercase">Ruolo / Sede</TableHead>
+                <TableHead className="text-xs font-black uppercase text-center">Contratto</TableHead>
+                <TableHead className="text-xs font-black uppercase">Riposo</TableHead>
+                <TableHead className="text-right text-xs font-black uppercase pr-6">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {employeesLoading ? (
-                <TableRow><TableCell colSpan={5} className="py-12 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
               ) : filteredEmployees.map((emp) => (
-                <TableRow key={emp.id} className="hover:bg-muted/10 transition-colors h-11">
-                  <TableCell className="pl-4">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7 border shadow-sm">
+                <TableRow key={emp.id} className="hover:bg-muted/10 transition-colors h-14">
+                  <TableCell className="pl-6">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
                         <AvatarImage src={emp.photoUrl} />
-                        <AvatarFallback className="font-bold text-[9px]">{emp.firstName?.charAt(0)}</AvatarFallback>
+                        <AvatarFallback className="font-bold text-xs">{emp.firstName?.charAt(0)}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
-                        <div className="flex items-center gap-1 font-bold text-[#1e293b] text-[11px]">
+                        <div className="flex items-center gap-1.5 font-bold text-[#1e293b] text-sm">
                           {emp.firstName} {emp.lastName}
-                          {emp.role === 'admin' && <ShieldCheck className="h-2.5 w-2.5 text-[#227FD8]" />}
+                          {emp.role === 'admin' && <ShieldCheck className="h-3.5 w-3.5 text-[#227FD8]" />}
                         </div>
-                        <div className="flex items-center gap-1 text-[9px] text-muted-foreground leading-none">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                            {emp.email}
-                           {emp.autoClockIn !== false && <Zap className="h-2 w-2 text-amber-500 fill-current" />}
+                           {emp.autoClockIn !== false && <Zap className="h-3 w-3 text-amber-500 fill-current" />}
                         </div>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col leading-tight">
-                      <span className="text-[10px] font-bold">{emp.jobTitle}</span>
-                      <span className="text-[8px] text-muted-foreground uppercase tracking-tight">{emp.locationName}</span>
+                      <span className="text-sm font-bold text-[#1e293b]">{emp.jobTitle}</span>
+                      <span className="text-xs text-muted-foreground uppercase tracking-tight">{emp.locationName}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-[8px] border-[#227FD8]/20 text-[#227FD8] font-black px-1.5 h-3.5">
+                  <TableCell className="text-center">
+                    <Badge variant="outline" className="text-xs border-[#227FD8]/30 text-[#227FD8] font-black px-3 py-1">
                       {emp.contractType?.toUpperCase()}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col leading-tight">
-                      <span className="text-[10px] font-bold text-[#1e293b]">{DAYS_OF_WEEK.find(d => d.value === emp.restDay)?.label}</span>
+                      <span className="text-sm font-bold text-[#1e293b]">{DAYS_OF_WEEK.find(d => d.value === emp.restDay)?.label}</span>
                       {emp.restStartTime && emp.restStartTime !== "00:00" && (
-                        <span className="text-[8px] text-amber-600 font-bold uppercase">
+                        <span className="text-xs text-amber-600 font-bold">
                           {emp.restStartTime}-{emp.restEndTime}
                         </span>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right pr-4">
+                  <TableCell className="text-right pr-6">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full"><MoreVertical className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full"><MoreVertical className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem 
                           onSelect={(e) => {
                             e.preventDefault();
                             handleEditClick(emp);
                           }}
-                          className="text-xs font-bold cursor-pointer"
+                          className="text-sm font-bold cursor-pointer py-2"
                         >
-                          <Edit className="h-3 w-3 mr-2" /> Modifica
+                          <Edit className="h-4 w-4 mr-2" /> Modifica
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          className="text-xs text-destructive font-bold cursor-pointer" 
+                          className="text-sm text-destructive font-bold cursor-pointer py-2" 
                           onSelect={(e) => {
                             e.preventDefault();
                             handleDelete(emp.id);
                           }}
                         >
-                          <Trash2 className="h-3 w-3 mr-2" /> Elimina
+                          <Trash2 className="h-4 w-4 mr-2" /> Elimina
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -457,7 +452,7 @@ export default function EmployeesPage() {
                 </TableRow>
               ))}
               {!employeesLoading && filteredEmployees.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-12 text-center text-[10px] text-muted-foreground italic">Nessun collaboratore trovato.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="py-20 text-center text-sm text-muted-foreground italic font-medium">Nessun collaboratore trovato nel database.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -471,7 +466,7 @@ export default function EmployeesPage() {
           if (!open) setEditingEmployeeData(null);
         }}
       >
-        <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl">
+        <DialogContent className="sm:max-w-[650px] p-0 overflow-hidden border-none shadow-2xl">
           {editingEmployeeData && (
             <EmployeeForm 
               key={editingEmployeeData.id}

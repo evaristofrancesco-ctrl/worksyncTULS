@@ -66,16 +66,6 @@ export default function ModificationRequestsPage() {
     });
   }, [allRequests, db, employeeId]);
 
-  const pendingRequests = useMemo(() => {
-    if (!allRequests) return [];
-    return allRequests.filter(r => r.status === "PENDING");
-  }, [allRequests]);
-
-  const managedRequests = useMemo(() => {
-    if (!allRequests) return [];
-    return allRequests.filter(r => r.status !== "PENDING");
-  }, [allRequests]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!employeeId || !db) return
@@ -85,7 +75,7 @@ export default function ModificationRequestsPage() {
       toast({
         variant: "destructive",
         title: "Campi Mancanti",
-        description: "Compila tutti i campi richiesti."
+        description: "Compila tutti i campi richiesti per ENTRA ed ESCE."
       })
       return
     }
@@ -118,147 +108,167 @@ export default function ModificationRequestsPage() {
     
     setTimeout(() => {
       setIsSubmitting(false)
-      toast({ title: "Inviata", description: "La tua richiesta è ora in attesa." })
+      toast({ title: "Inviata", description: "La tua richiesta è in attesa di revisione." })
     }, 500)
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex items-center gap-3">
-        <ClipboardList className="h-7 w-7 text-[#227FD8]" />
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 pb-12">
+      <div className="flex items-center gap-4">
+        <div className="h-12 w-12 rounded-2xl bg-[#227FD8]/10 flex items-center justify-center text-[#227FD8]">
+          <ClipboardList className="h-7 w-7" />
+        </div>
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-[#1e293b]">Entra/Esce</h1>
-          <p className="text-xs text-muted-foreground">Invia e monitora le movimentazioni degli articoli.</p>
+          <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Entra/Esce</h1>
+          <p className="text-sm text-muted-foreground">Invia le movimentazioni degli articoli per l'approvazione.</p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-5 space-y-4">
-          <Card className="border-none shadow-sm bg-white/80 ring-1 ring-slate-200">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-base font-black uppercase">Nuovo Invio</CardTitle>
+      <div className="grid gap-8 lg:grid-cols-12 items-start">
+        <div className="lg:col-span-5 space-y-6">
+          <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200 overflow-hidden">
+            <CardHeader className="pb-4 border-b bg-slate-50/50">
+              <CardTitle className="text-lg font-black uppercase tracking-widest">Nuovo Invio</CardTitle>
             </CardHeader>
-            <CardContent className="pt-4">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-3">
+            <CardContent className="pt-6">
+              <form onSubmit={handleSubmit} className="space-y-8">
+                <div className="space-y-4">
                   <div className="flex items-center gap-2 text-green-600">
-                    <ArrowDownLeft className="h-4 w-4" />
-                    <span className="font-black uppercase tracking-widest text-[10px]">ENTRA</span>
+                    <ArrowDownLeft className="h-5 w-5" />
+                    <span className="font-black uppercase tracking-widest text-xs">COSA ENTRA</span>
                   </div>
-                  <div className="grid gap-2">
-                    <Input 
-                      placeholder="Codice a barre..." 
-                      className="h-8 text-xs bg-slate-50 border-slate-200"
-                      value={form.entra.barcode}
-                      onChange={(e) => setForm({...form, entra: {...form.entra, barcode: e.target.value}})}
-                    />
-                    <Input 
-                      placeholder="Nome articolo..." 
-                      className="h-8 text-xs bg-slate-50 border-slate-200"
-                      value={form.entra.name}
-                      onChange={(e) => setForm({...form, entra: {...form.entra, name: e.target.value}})}
-                    />
-                    <Input 
-                      type="number" 
-                      placeholder="Pezzi" 
-                      className="h-8 text-xs bg-slate-50 border-slate-200"
-                      value={form.entra.pieces}
-                      onChange={(e) => setForm({...form, entra: {...form.entra, pieces: e.target.value}})}
-                    />
+                  <div className="grid gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Codice a Barre</Label>
+                      <Input 
+                        placeholder="Scannerizza o digita..." 
+                        className="h-10 text-sm"
+                        value={form.entra.barcode}
+                        onChange={(e) => setForm({...form, entra: {...form.entra, barcode: e.target.value}})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Nome Articolo</Label>
+                      <Input 
+                        placeholder="Nome dell'articolo..." 
+                        className="h-10 text-sm"
+                        value={form.entra.name}
+                        onChange={(e) => setForm({...form, entra: {...form.entra, name: e.target.value}})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Pezzi</Label>
+                      <Input 
+                        type="number" 
+                        placeholder="Quantità" 
+                        className="h-10 text-sm"
+                        value={form.entra.pieces}
+                        onChange={(e) => setForm({...form, entra: {...form.entra, pieces: e.target.value}})}
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <Separator />
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div className="flex items-center gap-2 text-rose-600">
-                    <ArrowUpRight className="h-4 w-4" />
-                    <span className="font-black uppercase tracking-widest text-[10px]">ESCE</span>
+                    <ArrowUpRight className="h-5 w-5" />
+                    <span className="font-black uppercase tracking-widest text-xs">COSA ESCE</span>
                   </div>
-                  <div className="grid gap-2">
-                    <Input 
-                      placeholder="Codice a barre..." 
-                      className="h-8 text-xs bg-slate-50 border-slate-200"
-                      value={form.esce.barcode}
-                      onChange={(e) => setForm({...form, esce: {...form.esce, barcode: e.target.value}})}
-                    />
-                    <Input 
-                      placeholder="Nome articolo..." 
-                      className="h-8 text-xs bg-slate-50 border-slate-200"
-                      value={form.esce.name}
-                      onChange={(e) => setForm({...form, esce: {...form.esce, name: e.target.value}})}
-                    />
-                    <Input 
-                      type="number" 
-                      placeholder="Pezzi" 
-                      className="h-8 text-xs bg-slate-50 border-slate-200"
-                      value={form.esce.pieces}
-                      onChange={(e) => setForm({...form, esce: {...form.esce, pieces: e.target.value}})}
-                    />
+                  <div className="grid gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Codice a Barre</Label>
+                      <Input 
+                        placeholder="Scannerizza o digita..." 
+                        className="h-10 text-sm"
+                        value={form.esce.barcode}
+                        onChange={(e) => setForm({...form, esce: {...form.esce, barcode: e.target.value}})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Nome Articolo</Label>
+                      <Input 
+                        placeholder="Nome dell'articolo..." 
+                        className="h-10 text-sm"
+                        value={form.esce.name}
+                        onChange={(e) => setForm({...form, esce: {...form.esce, name: e.target.value}})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Pezzi</Label>
+                      <Input 
+                        type="number" 
+                        placeholder="Quantità" 
+                        className="h-10 text-sm"
+                        value={form.esce.pieces}
+                        onChange={(e) => setForm({...form, esce: {...form.esce, pieces: e.target.value}})}
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <Button 
                   type="submit" 
-                  className="w-full h-10 bg-[#227FD8] hover:bg-[#227FD8]/90 font-black text-xs uppercase"
+                  className="w-full h-12 bg-[#227FD8] hover:bg-[#227FD8]/90 font-black text-sm uppercase tracking-widest shadow-lg"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-2" />}
-                  Invia Entra/Esce
+                  {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 mr-3" />}
+                  Invia Movimentazione
                 </Button>
               </form>
             </CardContent>
           </Card>
           
-          <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex gap-2.5">
-             <AlertCircle className="h-4 w-4 text-blue-600 shrink-0" />
-             <p className="text-[10px] text-blue-800 leading-normal">
-               I tuoi invii rimarranno visibili per <b>7 giorni</b> prima di essere rimosse dall'archivio.
+          <div className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex gap-4">
+             <AlertCircle className="h-6 w-6 text-blue-600 shrink-0" />
+             <p className="text-xs text-blue-800 leading-relaxed font-medium">
+               I tuoi invii rimarranno visibili per <b>7 giorni</b> prima di essere rimossi automaticamente dall'archivio personale.
              </p>
           </div>
         </div>
 
-        <div className="lg:col-span-7 space-y-4">
+        <div className="lg:col-span-7 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black uppercase tracking-widest text-slate-500">I Miei Invii</h2>
+            <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">I Miei Invii Recenti</h2>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-4">
             {isLoading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+              <div className="flex justify-center py-20"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
             ) : allRequests && allRequests.length > 0 ? (
               allRequests.map((req) => {
                 const isPending = req.status === "PENDING";
                 const isApproved = req.status === "APPROVED";
                 return (
-                  <Card key={req.id} className={`border-none shadow-sm transition-all overflow-hidden ${isPending ? 'ring-1 ring-amber-200' : 'opacity-80 bg-slate-50'}`}>
-                    <div className={`px-3 py-1.5 flex justify-between items-center text-[9px] font-bold ${isPending ? 'bg-amber-50' : isApproved ? 'bg-green-50' : 'bg-rose-50'}`}>
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {new Date(req.submittedAt).toLocaleString('it-IT')}
+                  <Card key={req.id} className={`border-none shadow-sm transition-all overflow-hidden ${isPending ? 'ring-2 ring-amber-100' : 'opacity-90 bg-white/50'}`}>
+                    <div className={`px-4 py-2 flex justify-between items-center text-[11px] font-bold ${isPending ? 'bg-amber-50' : isApproved ? 'bg-green-50' : 'bg-rose-50'}`}>
+                      <span className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5" /> {new Date(req.submittedAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <Badge className={`h-4 text-[8px] border-none px-1.5 font-black uppercase tracking-tighter ${
-                        isPending ? 'bg-amber-200 text-amber-800' : 
+                      <Badge className={`h-5 text-[9px] border-none px-2 font-black uppercase tracking-widest ${
+                        isPending ? 'bg-amber-200 text-amber-900' : 
                         isApproved ? 'bg-green-600 text-white' : 
                         'bg-rose-600 text-white'
                       }`}>
-                        {isPending ? 'ATTESA APPROVAZIONE' : isApproved ? 'GESTITA' : 'RIFIUTATA'}
+                        {isPending ? 'IN ATTESA' : isApproved ? 'APPROVATA' : 'RIFIUTATA'}
                       </Badge>
                     </div>
-                    <div className="p-3 grid grid-cols-2 divide-x">
-                      <div className="pr-3">
-                        <p className="text-[8px] font-black uppercase text-green-600 mb-0.5">Entra</p>
-                        <p className="text-xs font-bold truncate leading-none mb-1">{req.entra.name}</p>
-                        <div className="flex justify-between items-end">
-                          <code className="text-[8px] text-muted-foreground">{req.entra.barcode}</code>
-                          <span className="text-[9px] font-black">Qta: {req.entra.pieces}</span>
+                    <div className="p-4 grid grid-cols-2 divide-x border-t">
+                      <div className="pr-4">
+                        <p className="text-[10px] font-black uppercase text-green-600 mb-1">Entra</p>
+                        <p className="text-sm font-bold text-[#1e293b] truncate mb-1">{req.entra.name}</p>
+                        <div className="flex justify-between items-center mt-2">
+                          <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono text-muted-foreground">{req.entra.barcode}</code>
+                          <span className="text-xs font-black">x{req.entra.pieces}</span>
                         </div>
                       </div>
-                      <div className="pl-3">
-                        <p className="text-[8px] font-black uppercase text-rose-600 mb-0.5">Esce</p>
-                        <p className="text-xs font-bold truncate leading-none mb-1">{req.esce.name}</p>
-                        <div className="flex justify-between items-end">
-                          <code className="text-[8px] text-muted-foreground">{req.esce.barcode}</code>
-                          <span className="text-[9px] font-black">Qta: {req.esce.pieces}</span>
+                      <div className="pl-4">
+                        <p className="text-[10px] font-black uppercase text-rose-600 mb-1">Esce</p>
+                        <p className="text-sm font-bold text-[#1e293b] truncate mb-1">{req.esce.name}</p>
+                        <div className="flex justify-between items-center mt-2">
+                          <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono text-muted-foreground">{req.esce.barcode}</code>
+                          <span className="text-xs font-black">x{req.esce.pieces}</span>
                         </div>
                       </div>
                     </div>
@@ -266,9 +276,9 @@ export default function ModificationRequestsPage() {
                 )
               })
             ) : (
-              <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-2xl border border-dashed opacity-50">
-                <Inbox className="h-10 w-10 mb-2" />
-                <p className="text-[10px] font-bold">Nessun invio effettuato</p>
+              <div className="flex flex-col items-center justify-center py-24 bg-muted/20 rounded-3xl border border-dashed opacity-40">
+                <Inbox className="h-12 w-12 mb-4" />
+                <p className="text-sm font-bold uppercase tracking-widest">Nessuna movimentazione inviata</p>
               </div>
             )}
           </div>
