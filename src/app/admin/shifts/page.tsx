@@ -255,10 +255,24 @@ export default function ShiftsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-bold uppercase text-xs text-slate-500">Data Inizio</Label>
+                    <Label className="font-bold uppercase text-xs text-slate-500">Giorno</Label>
                     <Input type="date" className="h-11" value={newAbsence.startDate} onChange={e => setNewAbsence({...newAbsence, startDate: e.target.value})} />
                   </div>
                 </div>
+
+                {newAbsence.type === 'HOURLY_PERMIT' && (
+                  <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
+                    <div className="space-y-2">
+                      <Label className="font-bold uppercase text-xs text-slate-500">Dalle ore</Label>
+                      <Input type="time" className="h-11" value={newAbsence.startTime} onChange={e => setNewAbsence({...newAbsence, startTime: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-bold uppercase text-xs text-slate-500">Alle ore</Label>
+                      <Input type="time" className="h-11" value={newAbsence.endTime} onChange={e => setNewAbsence({...newAbsence, endTime: e.target.value})} />
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label className="font-bold uppercase text-xs text-slate-500">Nota</Label>
                   <Textarea placeholder="..." value={newAbsence.reason} onChange={e => setNewAbsence({...newAbsence, reason: e.target.value})} />
