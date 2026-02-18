@@ -35,7 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, isWithinInterval, parseISO, isSameMonth } from "date-fns"
+import { startOfMonth, endOfMonth, parseISO } from "date-fns"
 import { cn } from "@/lib/utils"
 
 const MONTHS = [
@@ -58,6 +58,16 @@ export default function ReportsPage() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth().toString())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Generazione dinamica degli anni (da 2 anni fa a 1 anno nel futuro)
+  const yearsOptions = useMemo(() => {
+    const current = new Date().getFullYear()
+    const years = []
+    for (let i = current - 2; i <= current + 1; i++) {
+      years.push(i.toString())
+    }
+    return years.reverse() // L'anno più recente in alto
+  }, [])
 
   // Recupero Dati
   const employeesQuery = useMemoFirebase(() => {
@@ -89,10 +99,9 @@ export default function ReportsPage() {
       // 1. Calcolo ore lavorate effettive (Timbrature nel mese selezionato)
       const empEntries = allEntries.filter(entry => {
         if (entry.employeeId !== emp.id) return false;
-        if (entry.companyId !== "default" && entry.companyId) return false; // Filtro azienda
+        if (entry.companyId !== "default" && entry.companyId) return false;
         
         const checkIn = entry.checkInTime ? parseISO(entry.checkInTime) : null;
-        // Verifichiamo che la timbratura sia avvenuta nel mese/anno selezionato
         return checkIn && checkIn >= monthStart && checkIn <= monthEnd;
       });
 
@@ -112,10 +121,10 @@ export default function ReportsPage() {
       const empRequests = allRequests.filter(req => {
         if (req.employeeId !== emp.id) return false;
         const status = (req.status || "").toUpperCase();
+        // Accettiamo sia lo stato italiano che inglese
         if (status !== "APPROVATO" && status !== "APPROVED") return false;
         
         const reqStart = parseISO(req.startDate);
-        // Verifichiamo che la richiesta sia nel mese selezionato
         return reqStart >= monthStart && reqStart <= monthEnd;
       });
 
@@ -136,7 +145,7 @@ export default function ReportsPage() {
             if (hours > 0) permitHours += hours;
           }
         } else if (req.type === "PERSONAL") {
-          permitHours += 8; // Il permesso giornaliero conta come 8 ore
+          permitHours += 8; 
         }
       });
 
@@ -193,8 +202,9 @@ export default function ReportsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="2024">2024</SelectItem>
-              <SelectItem value="2025">2025</SelectItem>
+              {yearsOptions.map(year => (
+                <SelectItem key={year} value={year}>{year}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
