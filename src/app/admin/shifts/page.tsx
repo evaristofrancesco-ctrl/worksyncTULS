@@ -64,7 +64,11 @@ export default function ShiftsPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [currentDate, setCurrentDate] = useState(new Date())
   
+  // Stati per i Dialog
   const [isAbsenceOpen, setIsAbsenceOpen] = useState(false)
+  const [isShiftOpen, setIsShiftOpen] = useState(false)
+
+  // Dati per nuova assenza
   const [newAbsence, setNewAbsence] = useState({
     employeeId: "",
     type: "VACATION",
@@ -73,6 +77,15 @@ export default function ShiftsPage() {
     startTime: "09:00",
     endTime: "13:00",
     reason: ""
+  })
+
+  // Dati per nuovo turno manuale
+  const [newManualShift, setNewManualShift] = useState({
+    employeeId: "",
+    date: format(new Date(), 'yyyy-MM-dd'),
+    startTime: "09:00",
+    endTime: "13:00",
+    title: "Turno Manuale"
   })
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
@@ -108,7 +121,7 @@ export default function ShiftsPage() {
     if (!shifts) return [];
     const weekEnd = addDays(weekStart, 7);
     return shifts.filter(s => {
-      if (s.companyId !== "default") return false;
+      if (s.companyId !== "default" && s.companyId) return false;
       try {
         const d = parseISO(s.date);
         return d >= weekStart && d < weekEnd;
@@ -210,6 +223,36 @@ export default function ShiftsPage() {
     toast({ title: "Assenza Salvata" });
   }
 
+  const handleSaveManualShift = () => {
+    if (!newManualShift.employeeId || !newManualShift.date || !newManualShift.startTime || !newManualShift.endTime) {
+      toast({ variant: "destructive", title: "Errore", description: "Tutti i campi sono obbligatori." });
+      return;
+    }
+
+    const id = `shift-man-${Date.now()}`;
+    const startObj = new Date(`${newManualShift.date}T${newManualShift.startTime}`);
+    const endObj = new Date(`${newManualShift.date}T${newManualShift.endTime}`);
+    
+    // Determinazione automatica dello slot (AM/PM) basata sull'ora di inizio
+    const startHour = startObj.getHours();
+    const slot = startHour < 14 ? "MORNING" : "AFTERNOON";
+
+    setDocumentNonBlocking(doc(db, "employees", newManualShift.employeeId, "shifts", id), {
+      id,
+      employeeId: newManualShift.employeeId,
+      title: newManualShift.title || "Turno Extra",
+      date: newManualShift.date,
+      startTime: startObj.toISOString(),
+      endTime: endObj.toISOString(),
+      status: "SCHEDULED",
+      companyId: "default",
+      slot: slot
+    }, { merge: true });
+
+    setIsShiftOpen(false);
+    toast({ title: "Turno Inserito", description: "Il turno è stato salvato correttamente." });
+  }
+
   const navigateWeek = (dir: 'prev' | 'next' | 'today') => {
     if (dir === 'today') setCurrentDate(new Date());
     else if (dir === 'prev') setCurrentDate(subDays(currentDate, 7));
@@ -224,6 +267,7 @@ export default function ShiftsPage() {
           <p className="text-slate-500 font-medium">Visualizzazione agenda: Giorni x Collaboratori.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* Pulsante Assenza */}
           <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="font-bold border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 h-11 px-6">
@@ -292,9 +336,54 @@ export default function ShiftsPage() {
           <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="font-bold border-blue-200 text-[#227FD8] h-11">
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />} Genera Settimana
           </Button>
-          <Button className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-11 shadow-lg">
-            <Plus className="h-4 w-4 mr-2" /> Nuovo Turno
-          </Button>
+
+          {/* Pulsante Nuovo Turno Manuale */}
+          <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-11 shadow-lg">
+                <Plus className="h-4 w-4 mr-2" /> Nuovo Turno
+              </Button>
+            </DialogTrigger>
+            <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="font-black text-2xl">Inserimento Turno</DialogTitle>
+                <DialogDescription>Assegna manualmente un orario a un collaboratore.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label className="font-bold uppercase text-xs text-slate-500">Collaboratore</Label>
+                  <Select value={newManualShift.employeeId} onValueChange={(v) => setNewManualShift({...newManualShift, employeeId: v})}>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectContent>
+                      {employees?.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-bold uppercase text-xs text-slate-500">Data Turno</Label>
+                  <Input type="date" className="h-11" value={newManualShift.date} onChange={e => setNewManualShift({...newManualShift, date: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="font-bold uppercase text-xs text-slate-500">Ora Inizio</Label>
+                    <Input type="time" className="h-11" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-bold uppercase text-xs text-slate-500">Ora Fine</Label>
+                    <Input type="time" className="h-11" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-bold uppercase text-xs text-slate-500">Titolo (opzionale)</Label>
+                  <Input placeholder="es. Turno Extra, Inventario..." value={newManualShift.title} onChange={e => setNewManualShift({...newManualShift, title: e.target.value})} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsShiftOpen(false)} className="font-bold">Annulla</Button>
+                <Button onClick={handleSaveManualShift} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8 h-11">SALVA TURNO</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -549,7 +638,7 @@ function ShiftItem({ shift, db }: { shift: any, db: any }) {
     )}>
       <div className="flex items-center justify-between mb-0.5">
         <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
-          Turno
+          {shift.title || "Turno"}
         </span>
         <button 
           onClick={() => deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id))}
