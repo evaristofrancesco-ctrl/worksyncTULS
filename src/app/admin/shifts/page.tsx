@@ -19,7 +19,8 @@ import {
   UserMinus,
   Activity,
   Umbrella,
-  AlertTriangle
+  AlertTriangle,
+  Timer
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -77,6 +78,8 @@ export default function ShiftsPage() {
     type: "VACATION",
     startDate: format(new Date(), 'yyyy-MM-dd'),
     endDate: "",
+    startTime: "09:00",
+    endTime: "13:00",
     reason: ""
   })
 
@@ -182,11 +185,12 @@ export default function ShiftsPage() {
           // Salta se è il giorno di riposo
           if (dayOfWeekStr === emp.restDay) continue;
 
-          // Salta se il dipendente ha un'assenza registrata per questo giorno
+          // Salta se il dipendente ha un'assenza registrata per questo giorno (escludiamo i permessi orari per la generazione automatica o li gestiamo se necessario)
           const isAbsent = weekAbsences.some(abs => 
             abs.employeeId === emp.id && 
             dateStr >= abs.startDate && 
-            dateStr <= (abs.endDate || abs.startDate)
+            dateStr <= (abs.endDate || abs.startDate) &&
+            abs.type !== 'HOURLY_PERMIT' // I permessi orari non bloccano l'intera giornata solitamente
           );
           if (isAbsent) continue;
 
@@ -273,7 +277,15 @@ export default function ShiftsPage() {
     }, { merge: true })
 
     setIsAbsenceOpen(false)
-    setNewAbsence({ employeeId: "", type: "VACATION", startDate: format(new Date(), 'yyyy-MM-dd'), endDate: "", reason: "" })
+    setNewAbsence({ 
+      employeeId: "", 
+      type: "VACATION", 
+      startDate: format(new Date(), 'yyyy-MM-dd'), 
+      endDate: "", 
+      startTime: "09:00", 
+      endTime: "13:00", 
+      reason: "" 
+    })
     toast({ title: "Assenza Registrata", description: "L'assenza è stata inserita e auto-approvata." })
   }
 
@@ -299,7 +311,7 @@ export default function ShiftsPage() {
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle className="font-black text-2xl">Registra Malattia/Ferie</DialogTitle>
+                <DialogTitle className="font-black text-2xl">Registra Malattia/Ferie/Permessi</DialogTitle>
                 <DialogDescription>L'assenza verrà mostrata in calendario e i turni automatici verranno saltati per quel periodo.</DialogDescription>
               </DialogHeader>
               <div className="space-y-5 py-4">
@@ -322,7 +334,8 @@ export default function ShiftsPage() {
                       <SelectContent>
                         <SelectItem value="VACATION">Ferie</SelectItem>
                         <SelectItem value="SICK">Malattia</SelectItem>
-                        <SelectItem value="PERSONAL">Permesso</SelectItem>
+                        <SelectItem value="PERSONAL">Permesso Giornaliero</SelectItem>
+                        <SelectItem value="HOURLY_PERMIT">Permesso Orario</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -331,12 +344,27 @@ export default function ShiftsPage() {
                     <Input type="date" className="h-11" value={newAbsence.startDate} onChange={e => setNewAbsence({...newAbsence, startDate: e.target.value})} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Data Fine (opzionale)</Label>
-                    <Input type="date" className="h-11" value={newAbsence.endDate} onChange={e => setNewAbsence({...newAbsence, endDate: e.target.value})} />
+
+                {newAbsence.type === 'HOURLY_PERMIT' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Ora Inizio</Label>
+                      <Input type="time" className="h-11" value={newAbsence.startTime} onChange={e => setNewAbsence({...newAbsence, startTime: e.target.value})} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Ora Fine</Label>
+                      <Input type="time" className="h-11" value={newAbsence.endTime} onChange={e => setNewAbsence({...newAbsence, endTime: e.target.value})} />
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Data Fine (opzionale)</Label>
+                      <Input type="date" className="h-11" value={newAbsence.endDate} onChange={e => setNewAbsence({...newAbsence, endDate: e.target.value})} />
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Nota Amministrazione</Label>
                   <Textarea placeholder="es. Certificato medico inviato, urgenza familiare, ecc." value={newAbsence.reason} onChange={e => setNewAbsence({...newAbsence, reason: e.target.value})} />
@@ -344,7 +372,7 @@ export default function ShiftsPage() {
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setIsAbsenceOpen(false)} className="font-bold">Annulla</Button>
-                <Button onClick={handleSaveAbsence} className="bg-amber-500 hover:bg-amber-600 font-black h-12 px-10 uppercase shadow-lg">CONFERMA ASSENZA</Button>
+                <Button onClick={handleSaveAbsence} className="bg-amber-500 hover:bg-amber-600 font-black h-12 px-10 uppercase shadow-lg">CONFERMA REGISTRAZIONE</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -508,12 +536,20 @@ function ShiftCard({ shift, emp, db, styles }: { shift: any, emp: any, db: any, 
 }
 
 function AbsenceCard({ abs, emp, db }: { abs: any, emp: any, db: any }) {
-  const Icon = abs.type === 'SICK' ? Activity : abs.type === 'VACATION' ? Umbrella : UserMinus;
+  const isHourly = abs.type === 'HOURLY_PERMIT';
+  const Icon = abs.type === 'SICK' ? Activity : abs.type === 'VACATION' ? Umbrella : isHourly ? Timer : UserMinus;
   const colorClass = abs.type === 'SICK' 
     ? 'bg-rose-50 text-rose-700 border-rose-200' 
     : abs.type === 'VACATION' 
     ? 'bg-amber-50 text-amber-700 border-amber-200' 
+    : isHourly 
+    ? 'bg-cyan-50 text-cyan-700 border-cyan-200'
     : 'bg-slate-50 text-slate-700 border-slate-200';
+
+  const typeLabel = abs.type === 'SICK' ? 'Malattia' 
+                  : abs.type === 'VACATION' ? 'Ferie' 
+                  : abs.type === 'HOURLY_PERMIT' ? 'Permesso Orario'
+                  : 'Permesso';
 
   return (
     <div className={cn("group relative border rounded-xl p-3 shadow-sm border-l-[4px] transition-all", colorClass)}>
@@ -523,9 +559,16 @@ function AbsenceCard({ abs, emp, db }: { abs: any, emp: any, db: any }) {
         </div>
         <div className="flex flex-col min-w-0">
           <span className="text-xs font-black truncate">{emp?.firstName} {emp?.lastName?.charAt(0)}.</span>
-          <span className="text-[9px] font-black uppercase tracking-wider opacity-80">
-            {abs.type === 'SICK' ? 'Malattia' : abs.type === 'VACATION' ? 'Ferie' : 'Permesso'}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black uppercase tracking-wider opacity-80">
+              {typeLabel}
+            </span>
+            {isHourly && abs.startTime && (
+              <span className="text-[9px] font-bold text-cyan-800">
+                {abs.startTime} - {abs.endTime}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       <Button 
