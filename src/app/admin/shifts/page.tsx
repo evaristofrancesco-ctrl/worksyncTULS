@@ -200,7 +200,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-slate-500 font-medium">Visualizzazione orizzontale settimanale del team.</p>
+          <p className="text-slate-500 font-medium">Visualizzazione verticale settimanale (Giorni x Collaboratori).</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
@@ -279,84 +279,87 @@ export default function ShiftsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="w-full">
-            <div className="min-w-[1200px]">
-              {/* Header Tabella */}
-              <div className="flex border-b bg-slate-50/30">
-                <div className="w-[240px] p-4 font-black text-xs uppercase tracking-widest text-slate-400 sticky left-0 bg-white border-r z-20 flex items-center gap-2">
-                  <Users className="h-4 w-4" /> Collaboratore
+          <ScrollArea className="w-full h-[700px]">
+            <div className="inline-block min-w-full">
+              {/* Header Tabella: Collaboratori */}
+              <div className="flex sticky top-0 z-30 bg-white border-b shadow-sm">
+                <div className="w-[180px] p-4 font-black text-[10px] uppercase tracking-widest text-slate-400 sticky left-0 bg-white border-r z-40 flex items-center justify-center">
+                  Giorno
                 </div>
-                {daysOfVisualizedWeek.map((day) => {
-                  const isToday = isSameDay(day, new Date());
-                  return (
-                    <div key={day.toISOString()} className={cn(
-                      "flex-1 p-4 text-center border-r last:border-r-0 min-w-[160px]",
-                      isToday ? "bg-blue-50/50" : ""
-                    )}>
-                      <div className="text-[10px] font-black uppercase text-slate-400">{format(day, 'EEEE', { locale: it })}</div>
-                      <div className={cn("text-xl font-black mt-1", isToday ? "text-[#227FD8]" : "text-slate-700")}>
-                        {format(day, 'dd MMMM', { locale: it })}
-                      </div>
+                {employees?.map((emp) => (
+                  <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3 bg-white">
+                    <Avatar className="h-9 w-9 border shadow-sm shrink-0">
+                      <AvatarImage src={emp.photoUrl} />
+                      <AvatarFallback className="font-bold">{emp.firstName.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-bold text-slate-900 truncate text-sm">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[10px] font-black text-slate-400 uppercase truncate tracking-tighter">{emp.jobTitle}</span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
 
-              {/* Corpo Tabella */}
+              {/* Corpo Tabella: Giorni */}
               <div className="divide-y">
                 {isEmployeesLoading || isShiftsLoading ? (
                   <div className="py-20 text-center flex flex-col items-center gap-4">
                     <Loader2 className="h-8 w-8 animate-spin text-[#227FD8]" />
                     <p className="text-sm font-bold text-slate-400">Caricamento pianificazione...</p>
                   </div>
-                ) : employees?.map((emp) => (
-                  <div key={emp.id} className="flex hover:bg-slate-50/30 transition-colors group">
-                    {/* Colonna Dipendente Stoccata */}
-                    <div className="w-[240px] p-4 sticky left-0 bg-white border-r z-10 flex items-center gap-3 shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
-                      <Avatar className="h-10 w-10 border shadow-sm">
-                        <AvatarImage src={emp.photoUrl} />
-                        <AvatarFallback className="font-bold">{emp.firstName.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-bold text-slate-900 truncate text-sm">{emp.firstName} {emp.lastName}</span>
-                        <span className="text-[10px] font-black text-slate-400 uppercase truncate tracking-tighter">{emp.jobTitle}</span>
-                      </div>
-                    </div>
+                ) : daysOfVisualizedWeek.map((day) => {
+                  const dayStr = format(day, 'yyyy-MM-dd');
+                  const isToday = isSameDay(day, new Date());
 
-                    {/* Celle Giornaliere */}
-                    {daysOfVisualizedWeek.map((day) => {
-                      const dayStr = format(day, 'yyyy-MM-dd');
-                      const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
-                      const dayAbsence = weekAbsences.find(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
-                      const isRestDay = emp.restDay === day.getDay().toString();
-
-                      return (
-                        <div key={dayStr} className={cn(
-                          "flex-1 p-2 border-r last:border-r-0 min-w-[160px] flex flex-col gap-2 min-h-[140px]",
-                          isRestDay ? "bg-slate-50/50" : ""
-                        )}>
-                          {isRestDay && !dayShifts.length && !dayAbsence && (
-                            <div className="flex-1 flex flex-col items-center justify-center opacity-30">
-                              <Sun className="h-5 w-5 text-slate-300" />
-                              <span className="text-[10px] font-black uppercase tracking-widest mt-1">Riposo</span>
-                            </div>
-                          )}
-
-                          {dayAbsence && (
-                            <AbsenceItem abs={dayAbsence} db={db} />
-                          )}
-
-                          {dayShifts.map(shift => (
-                            <ShiftItem key={shift.id} shift={shift} db={db} />
-                          ))}
+                  return (
+                    <div key={dayStr} className={cn(
+                      "flex group hover:bg-slate-50/30 transition-colors",
+                      isToday ? "bg-blue-50/20" : ""
+                    )}>
+                      {/* Colonna Giorno Stoccata */}
+                      <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center items-center text-center shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
+                        <div className="text-[10px] font-black uppercase text-slate-400">{format(day, 'EEEE', { locale: it })}</div>
+                        <div className={cn("text-xl font-black mt-1 leading-none", isToday ? "text-[#227FD8]" : "text-slate-700")}>
+                          {format(day, 'dd')}
                         </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                        <div className="text-[10px] font-bold text-slate-400 uppercase">{format(day, 'MMMM', { locale: it })}</div>
+                      </div>
+
+                      {/* Celle Collaboratori */}
+                      {employees?.map((emp) => {
+                        const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
+                        const dayAbsence = weekAbsences.find(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
+                        const isRestDay = emp.restDay === day.getDay().toString();
+
+                        return (
+                          <div key={`${dayStr}-${emp.id}`} className={cn(
+                            "min-w-[220px] p-2 border-r last:border-r-0 flex flex-col gap-2 min-h-[140px]",
+                            isRestDay ? "bg-slate-50/50" : ""
+                          )}>
+                            {isRestDay && !dayShifts.length && !dayAbsence && (
+                              <div className="flex-1 flex flex-col items-center justify-center opacity-30">
+                                <Sun className="h-5 w-5 text-slate-300" />
+                                <span className="text-[10px] font-black uppercase tracking-widest mt-1">Riposo</span>
+                              </div>
+                            )}
+
+                            {dayAbsence && (
+                              <AbsenceItem abs={dayAbsence} db={db} />
+                            )}
+
+                            {dayShifts.map(shift => (
+                              <ShiftItem key={shift.id} shift={shift} db={db} />
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <ScrollBar orientation="horizontal" />
+            <ScrollBar orientation="vertical" />
           </ScrollArea>
         </CardContent>
       </Card>
@@ -395,7 +398,7 @@ function ShiftItem({ shift, db }: { shift: any, db: any }) {
 
 function AbsenceItem({ abs, db }: { abs: any, db: any }) {
   const Icon = abs.type === 'SICK' ? Activity : abs.type === 'VACATION' ? Umbrella : Timer;
-  const labels: any = { VACATION: 'Ferie', SICK: 'Malattia', PERSONAL: 'Permesso', HOURLY_PERMIT: 'Orario' };
+  const labels: any = { VACATION: 'Ferie', SICK: 'Malattia', PERSONAL: 'Permesso', HOURLY_PERMIT: 'Orario', REST_SWAP: 'Cambio Riposo' };
   
   return (
     <div className="group relative rounded-xl p-3 bg-rose-50 border-l-4 border-rose-500 text-rose-900 shadow-sm animate-in slide-in-from-top-2 duration-300">
@@ -410,7 +413,9 @@ function AbsenceItem({ abs, db }: { abs: any, db: any }) {
       </div>
       <div className="flex items-center gap-2 font-black text-sm">
         <Icon className="h-4 w-4" />
-        {abs.type === 'HOURLY_PERMIT' ? `${abs.startTime} - ${abs.endTime}` : 'Tutto il giorno'}
+        <span className="truncate">
+          {abs.type === 'HOURLY_PERMIT' ? `${abs.startTime} - ${abs.endTime}` : 'Tutto il giorno'}
+        </span>
       </div>
     </div>
   )
