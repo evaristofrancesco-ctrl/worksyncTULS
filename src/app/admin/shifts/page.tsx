@@ -22,7 +22,8 @@ import {
   AlertTriangle,
   Timer,
   Users,
-  Building2
+  Building2,
+  Lock
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -150,11 +151,15 @@ export default function ShiftsPage() {
     }
     setIsGenerating(true);
     try {
+      // PROTEZIONE: Cancella solo i turni automatici (o senza tipo definito per retrocompatibilità)
       if (weekShifts.length > 0) {
         for (const shift of weekShifts) {
-          deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id));
+          if (shift.type !== "MANUAL") {
+            deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id));
+          }
         }
       }
+      
       for (const emp of employees) {
         if (!emp.isActive) continue;
         for (let i = 0; i < 6; i++) { 
@@ -175,36 +180,46 @@ export default function ShiftsPage() {
             const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
             if (!morningOverlaps) {
               const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
-              const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
-              const endAM = new Date(targetDay); endAM.setHours(13, 0, 0);
-              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
-                id: idAM, employeeId: emp.id, title: "Turno Mattina", date: dateStr, startTime: startAM.toISOString(), endTime: endAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING"
-              }, { merge: true });
+              // Controlla se esiste già un turno manuale che copre questo slot (stesso ID o sovrapposto)
+              const hasManual = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() < 14);
+              if (!hasManual) {
+                const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
+                const endAM = new Date(targetDay); endAM.setHours(13, 0, 0);
+                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
+                  id: idAM, employeeId: emp.id, title: "Turno Mattina", date: dateStr, startTime: startAM.toISOString(), endTime: endAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO"
+                }, { merge: true });
+              }
             }
 
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
             if (!afternoonOverlaps) {
               const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
-              const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
-              const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
-              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
-                id: idPM, employeeId: emp.id, title: "Turno Pomeriggio", date: dateStr, startTime: startPM.toISOString(), endTime: endPM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON"
-              }, { merge: true });
+              const hasManual = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() >= 14);
+              if (!hasManual) {
+                const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
+                const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
+                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
+                  id: idPM, employeeId: emp.id, title: "Turno Pomeriggio", date: dateStr, startTime: startPM.toISOString(), endTime: endPM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
+                }, { merge: true });
+              }
             }
           } else {
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
             if (!afternoonOverlaps) {
               const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
-              const startPT = new Date(targetDay); startPT.setHours(17, 0, 0);
-              const endPT = new Date(targetDay); endPT.setHours(20, 20, 0);
-              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
-                id: idPM, employeeId: emp.id, title: "Turno Pomeriggio (PT)", date: dateStr, startTime: startPT.toISOString(), endTime: endPT.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON"
-              }, { merge: true });
+              const hasManual = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() >= 14);
+              if (!hasManual) {
+                const startPT = new Date(targetDay); startPT.setHours(17, 0, 0);
+                const endPT = new Date(targetDay); endPT.setHours(20, 20, 0);
+                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
+                  id: idPM, employeeId: emp.id, title: "Turno Pomeriggio (PT)", date: dateStr, startTime: startPT.toISOString(), endTime: endPT.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
+                }, { merge: true });
+              }
             }
           }
         }
       }
-      toast({ title: "Settimana Rigenerata", description: "Turni aggiornati rispettando le fasce di riposo orarie." });
+      toast({ title: "Settimana Rigenerata", description: "Turni aggiornati rispettando le fasce e i turni manuali." });
     } finally {
       setIsGenerating(false);
     }
@@ -233,7 +248,6 @@ export default function ShiftsPage() {
     const startObj = new Date(`${newManualShift.date}T${newManualShift.startTime}`);
     const endObj = new Date(`${newManualShift.date}T${newManualShift.endTime}`);
     
-    // Determinazione automatica dello slot (AM/PM) basata sull'ora di inizio
     const startHour = startObj.getHours();
     const slot = startHour < 14 ? "MORNING" : "AFTERNOON";
 
@@ -246,11 +260,12 @@ export default function ShiftsPage() {
       endTime: endObj.toISOString(),
       status: "SCHEDULED",
       companyId: "default",
-      slot: slot
+      slot: slot,
+      type: "MANUAL" // SEGNA COME MANUALE PER PROTEZIONE
     }, { merge: true });
 
     setIsShiftOpen(false);
-    toast({ title: "Turno Inserito", description: "Il turno è stato salvato correttamente." });
+    toast({ title: "Turno Inserito", description: "Il turno manuale è protetto dall'automatismo." });
   }
 
   const navigateWeek = (dir: 'prev' | 'next' | 'today') => {
@@ -523,9 +538,8 @@ export default function ShiftsPage() {
                       })}
 
                       {/* Specchietto Riepilogo Sedi (Fine Riga) */}
-                      <div className="min-w-[250px] p-3 border-l-2 border-[#227FD8]/10 bg-blue-50/20 sticky right-0 z-20 shadow-[-4px_0_10px_rgba(0,0,0,0.05)] flex flex-col gap-4">
+                      <div className="min-w-[250px] p-3 border-l-2 border-[#227FD8]/10 bg-blue-50/20 sticky right-0 z-20 shadow-[-4px_0_10_rgba(0,0,0,0.05)] flex flex-col gap-4">
                         <div className="space-y-3">
-                          {/* AM Summary */}
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-2 opacity-50">
                               <span className="text-[8px] font-black tracking-widest uppercase text-[#227FD8]">AM Copertura</span>
@@ -562,13 +576,9 @@ export default function ShiftsPage() {
                                   </div>
                                 )
                               })}
-                              {(!locations || locations.length === 0) && (
-                                <p className="text-[8px] text-slate-400 italic text-center py-1">Nessuna sede configurata</p>
-                              )}
                             </div>
                           </div>
 
-                          {/* PM Summary */}
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-2 opacity-50">
                               <span className="text-[8px] font-black tracking-widest uppercase text-slate-500">PM Copertura</span>
@@ -605,9 +615,6 @@ export default function ShiftsPage() {
                                   </div>
                                 )
                               })}
-                              {(!locations || locations.length === 0) && (
-                                <p className="text-[8px] text-slate-400 italic text-center py-1">Nessuna sede configurata</p>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -630,6 +637,7 @@ function ShiftItem({ shift, db }: { shift: any, db: any }) {
   const start = parseISO(shift.startTime);
   const end = parseISO(shift.endTime);
   const isMorning = start.getHours() < 14;
+  const isManual = shift.type === 'MANUAL';
 
   return (
     <div className={cn(
@@ -637,9 +645,12 @@ function ShiftItem({ shift, db }: { shift: any, db: any }) {
       isMorning ? "bg-amber-50/50 border-amber-400 text-amber-900" : "bg-blue-50/50 border-blue-400 text-blue-900"
     )}>
       <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
-          {shift.title || "Turno"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
+            {shift.title || "Turno"}
+          </span>
+          {isManual && <Lock className="h-2.5 w-2.5 text-blue-600/50" title="Inserimento Manuale Protetto" />}
+        </div>
         <button 
           onClick={() => deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id))}
           className="h-4 w-4 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
