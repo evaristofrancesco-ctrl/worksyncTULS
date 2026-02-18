@@ -96,46 +96,46 @@ function EmployeeForm({
         <DialogTitle className="text-xl font-bold flex items-center gap-2 uppercase">
           {submitLabel === 'SALVA MODIFICHE' ? <Edit className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />} {title}
         </DialogTitle>
-        <DialogDescription className="text-blue-50 text-sm italic">Configurazione completa del profilo collaboratore.</DialogDescription>
+        <DialogDescription className="text-blue-50 text-base">Configurazione completa del profilo collaboratore.</DialogDescription>
       </DialogHeader>
       
       <Tabs defaultValue="personali" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-100 p-1 rounded-none border-b">
-          <TabsTrigger value="personali" className="font-bold text-sm gap-2"><User className="h-4 w-4" /> DATI PERSONALI</TabsTrigger>
-          <TabsTrigger value="lavoro" className="font-bold text-sm gap-2"><Briefcase className="h-4 w-4" /> IMPOSTAZIONI LAVORO</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 h-14 bg-slate-100 p-1 rounded-none border-b">
+          <TabsTrigger value="personali" className="font-bold text-base gap-2"><User className="h-5 w-5" /> DATI PERSONALI</TabsTrigger>
+          <TabsTrigger value="lavoro" className="font-bold text-base gap-2"><Briefcase className="h-5 w-5" /> IMPOSTAZIONI LAVORO</TabsTrigger>
         </TabsList>
 
         <TabsContent value="personali" className="p-6 space-y-6">
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Nome *</Label>
-              <Input className="h-11 text-base" placeholder="es. Mario" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} />
+              <Input className="h-12 text-base" placeholder="es. Mario" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} />
             </div>
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Cognome *</Label>
-              <Input className="h-11 text-base" placeholder="es. Rossi" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} />
+              <Input className="h-12 text-base" placeholder="es. Rossi" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} />
             </div>
           </div>
           <div className="space-y-2">
             <Label className="font-bold text-sm uppercase text-slate-500">Email di Accesso *</Label>
             <div className="relative">
-              <Mail className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-              <Input className="pl-10 h-11 text-base" placeholder="mario.rossi@tulas.it" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+              <Mail className="absolute left-3 top-4 h-4 w-4 text-slate-400" />
+              <Input className="pl-10 h-12 text-base" placeholder="mario.rossi@tulas.it" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Password *</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-                <Input type="password" dir="ltr" className="pl-10 h-11 text-base" placeholder="••••••••" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+                <Lock className="absolute left-3 top-4 h-4 w-4 text-slate-400" />
+                <Input type="password" dir="ltr" className="pl-10 h-12 text-base" placeholder="••••••••" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
               </div>
             </div>
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">URL Foto</Label>
               <div className="relative">
-                <ImageIcon className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-                <Input className="pl-10 h-11 text-base" placeholder="https://..." value={formData.photoUrl} onChange={e => setFormData({...formData, photoUrl: e.target.value})} />
+                <ImageIcon className="absolute left-3 top-4 h-4 w-4 text-slate-400" />
+                <Input className="pl-10 h-12 text-base" placeholder="https://..." value={formData.photoUrl} onChange={e => setFormData({...formData, photoUrl: e.target.value})} />
               </div>
             </div>
           </div>
@@ -153,7 +153,7 @@ function EmployeeForm({
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Sede Operativa</Label>
               <Select value={formData.locationId} onValueChange={v => setFormData({...formData, locationId: v})}>
-                <SelectTrigger className="h-11 text-base"><SelectValue placeholder="Seleziona sede" /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Seleziona sede" /></SelectTrigger>
                 <SelectContent>
                   {locations?.map(loc => <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>)}
                 </SelectContent>
@@ -162,7 +162,7 @@ function EmployeeForm({
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Contratto</Label>
               <Select value={formData.contractType} onValueChange={handleContractChange}>
-                <SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="full-time">Full-time (40h)</SelectItem>
                   <SelectItem value="part-time">Part-time (20h)</SelectItem>
@@ -175,7 +175,7 @@ function EmployeeForm({
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Giorno di Riposo</Label>
               <Select value={formData.restDay} onValueChange={v => setFormData({...formData, restDay: v})}>
-                <SelectTrigger className="h-11 text-base"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {DAYS_OF_WEEK.map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
                 </SelectContent>
@@ -183,18 +183,18 @@ function EmployeeForm({
             </div>
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Inizio Riposo Orario</Label>
-              <Input type="time" className="h-11 text-base" value={formData.restStartTime} onChange={e => setFormData({...formData, restStartTime: e.target.value})} />
+              <Input type="time" className="h-12 text-base" value={formData.restStartTime} onChange={e => setFormData({...formData, restStartTime: e.target.value})} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-6">
              <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Ore Settimanali</Label>
-              <Input className="h-11 text-base" type="number" value={formData.weeklyHours} onChange={e => setFormData({...formData, weeklyHours: Number(e.target.value)})} />
+              <Input className="h-12 text-base" type="number" value={formData.weeklyHours} onChange={e => setFormData({...formData, weeklyHours: Number(e.target.value)})} />
             </div>
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Fine Riposo Orario</Label>
-              <Input type="time" className="h-11 text-base" value={formData.restEndTime} onChange={e => setFormData({...formData, restEndTime: e.target.value})} />
+              <Input type="time" className="h-12 text-base" value={formData.restEndTime} onChange={e => setFormData({...formData, restEndTime: e.target.value})} />
             </div>
           </div>
 
@@ -212,8 +212,8 @@ function EmployeeForm({
       </Tabs>
 
       <DialogFooter className="p-6 bg-slate-50 border-t rounded-b-lg">
-        <Button variant="ghost" onClick={onCancel} className="font-bold uppercase text-sm">Annulla</Button>
-        <Button onClick={() => onSubmit(formData)} className="bg-[#227FD8] hover:bg-[#227FD8]/90 px-10 font-bold shadow-md uppercase text-sm">
+        <Button variant="ghost" onClick={onCancel} className="font-bold uppercase text-base">Annulla</Button>
+        <Button onClick={() => onSubmit(formData)} className="bg-[#227FD8] hover:bg-[#227FD8]/90 px-10 font-bold shadow-md uppercase text-base h-12">
           {submitLabel}
         </Button>
       </DialogFooter>
@@ -264,7 +264,7 @@ export default function EmployeesPage() {
     setEditingEmployeeData(null);
     setIsEditOpen(false);
     
-    // Disaccoppiamento asincrono critico per evitare il freeze (focus conflict)
+    // Disaccoppiamento asincrono critico per evitare il freeze
     setTimeout(() => {
       setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' });
       setIsEditOpen(true);
@@ -315,6 +315,11 @@ export default function EmployeesPage() {
     setIsEditOpen(false)
     setEditingEmployeeData(null)
     toast({ title: "Profilo Aggiornato", description: "Le modifiche sono state salvate correttamente." })
+    
+    // Workaround estremo per il problema del freeze: refresh automatico della pagina
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
   }
 
   const filteredEmployees = useMemo(() => {
@@ -342,7 +347,7 @@ export default function EmployeesPage() {
         
         <Button 
           onClick={() => setIsAddDialogOpen(true)} 
-          className="gap-2 bg-[#227FD8] hover:bg-[#227FD8]/90 font-bold uppercase h-12 px-8 shadow-lg"
+          className="gap-2 bg-[#227FD8] hover:bg-[#227FD8]/90 font-bold uppercase h-14 px-8 shadow-lg text-base"
         >
           <Plus className="h-6 w-6" /> Aggiungi Collaboratore
         </Button>
@@ -351,12 +356,12 @@ export default function EmployeesPage() {
       <Card className="border-none shadow-sm bg-white overflow-hidden">
         <CardHeader className="py-6 px-8 border-b">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <CardTitle className="text-lg font-black text-slate-900 uppercase tracking-wider">Elenco Dipendenti</CardTitle>
+            <CardTitle className="text-xl font-black text-slate-900 uppercase tracking-wider">Elenco Dipendenti</CardTitle>
             <div className="relative w-full max-w-sm">
-              <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-4 h-4 w-4 text-slate-400" />
               <Input
                 placeholder="Cerca per nome o email..."
-                className="pl-10 bg-slate-50 border-slate-200 h-11 text-base"
+                className="pl-10 bg-slate-50 border-slate-200 h-12 text-base"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
@@ -404,7 +409,7 @@ export default function EmployeesPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="outline" className="text-xs border-blue-200 text-[#227FD8] bg-blue-50 font-black px-4 py-1 uppercase tracking-tighter">
+                    <Badge variant="outline" className="text-xs border-blue-200 text-[#227FD8] bg-blue-50 font-black px-4 py-1.5 uppercase">
                       {emp.contractType}
                     </Badge>
                   </TableCell>
@@ -412,9 +417,9 @@ export default function EmployeesPage() {
                     <div className="flex flex-col">
                       <span className="text-sm font-bold text-slate-700">{DAYS_OF_WEEK.find(d => d.value === emp.restDay)?.label}</span>
                       {emp.restStartTime && emp.restStartTime !== "00:00" && (
-                        <span className="text-xs text-amber-600 font-black flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {emp.restStartTime}-{emp.restEndTime}
+                        <span className="text-xs text-amber-600 font-black flex items-center gap-1 mt-1">
+                          <Clock className="h-4 w-4" />
+                          {emp.restStartTime} - {emp.restEndTime}
                         </span>
                       )}
                     </div>
@@ -422,26 +427,26 @@ export default function EmployeesPage() {
                   <TableCell className="text-right pr-8">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-slate-200"><MoreVertical className="h-5 w-5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full hover:bg-slate-200"><MoreVertical className="h-6 w-6" /></Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuContent align="end" className="w-64">
                         <DropdownMenuItem 
                           onSelect={(e) => {
-                            e.preventDefault(); // Previene il freeze di Radix Focus
+                            e.preventDefault();
                             handleEditClick(emp);
                           }}
-                          className="font-bold cursor-pointer py-3 text-sm"
+                          className="font-bold cursor-pointer py-3 text-base"
                         >
-                          <Edit className="h-4 w-4 mr-3" /> Modifica Profilo
+                          <Edit className="h-5 w-5 mr-3" /> Modifica Profilo
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          className="text-destructive font-bold cursor-pointer py-3 text-sm" 
+                          className="text-destructive font-bold cursor-pointer py-3 text-base" 
                           onSelect={(e) => {
                             e.preventDefault();
                             handleDelete(emp.id);
                           }}
                         >
-                          <Trash2 className="h-4 w-4 mr-3" /> Elimina Collaboratore
+                          <Trash2 className="h-5 w-5 mr-3" /> Elimina Collaboratore
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -449,7 +454,7 @@ export default function EmployeesPage() {
                 </TableRow>
               ))}
               {!employeesLoading && filteredEmployees.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-32 text-center text-slate-400 font-bold italic">Nessun collaboratore trovato nel sistema.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="py-32 text-center text-slate-400 font-bold italic text-lg">Nessun collaboratore trovato nel sistema.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -459,8 +464,8 @@ export default function EmployeesPage() {
       {/* Dialog Nuova Scheda */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent 
-          onOpenAutoFocus={(e) => e.preventDefault()} // Cruciale per prevenire il freeze
-          className="sm:max-w-[700px] p-0 border-none shadow-2xl overflow-hidden rounded-lg"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-[750px] p-0 border-none shadow-2xl overflow-hidden rounded-lg"
         >
           <EmployeeForm 
             initialData={defaultNewEmployee}
@@ -479,8 +484,8 @@ export default function EmployeesPage() {
         if (!open) setEditingEmployeeData(null);
       }}>
         <DialogContent 
-          onOpenAutoFocus={(e) => e.preventDefault()} // Cruciale per prevenire il freeze
-          className="sm:max-w-[700px] p-0 border-none shadow-2xl overflow-hidden rounded-lg"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-[750px] p-0 border-none shadow-2xl overflow-hidden rounded-lg"
         >
           {editingEmployeeData && (
             <EmployeeForm 
