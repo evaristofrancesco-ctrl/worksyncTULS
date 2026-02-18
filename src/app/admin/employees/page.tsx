@@ -260,18 +260,16 @@ export default function EmployeesPage() {
     autoClockIn: true
   }
 
-  // Risoluzione freeze: apertura asincrona tramite effetto dedicato
-  useEffect(() => {
-    if (editingEmployeeData && !isEditOpen) {
-      const timer = setTimeout(() => setIsEditOpen(true), 150);
-      return () => clearTimeout(timer);
-    }
-  }, [editingEmployeeData, isEditOpen]);
-
+  // Risoluzione freeze definitiva: uso di setTimeout per separare gli eventi di focus
   const handleEditClick = (emp: any) => {
-    // Interrompiamo il focus del menu prima di settare i dati
+    // Chiudiamo eventuali stati aperti e puliamo
     setIsEditOpen(false);
-    setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' });
+    
+    // Piccolo ritardo per permettere al menu di chiudersi e rilasciare il focus
+    setTimeout(() => {
+      setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' });
+      setIsEditOpen(true);
+    }, 150);
   }
 
   const handleAddEmployee = (data: any) => {
@@ -430,7 +428,7 @@ export default function EmployeesPage() {
                       <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem 
                           onSelect={(e) => {
-                            e.preventDefault(); // Fondamentale per evitare il freeze del focus
+                            e.preventDefault(); // Fondamentale per evitare il freeze del focus di Radix
                             handleEditClick(emp);
                           }}
                           className="font-bold cursor-pointer py-3 text-sm"
