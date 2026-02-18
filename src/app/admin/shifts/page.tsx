@@ -113,7 +113,7 @@ export default function ShiftsPage() {
     const weekEnd = addDays(weekStart, 7);
     return allRequests.filter(r => {
       const status = (r.status || "").toUpperCase();
-      if (status !== "APPROVATO" && status !== "APPROVED") return false;
+      if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return false;
       try {
         const start = parseISO(r.startDate);
         const end = r.endDate ? parseISO(r.endDate) : start;
@@ -140,37 +140,54 @@ export default function ShiftsPage() {
           const targetDay = addDays(weekStart, i);
           const dayOfWeekStr = targetDay.getDay().toString();
           const dateStr = format(targetDay, 'yyyy-MM-dd');
-          if (dayOfWeekStr === emp.restDay) continue;
+          
+          const isRestDay = dayOfWeekStr === emp.restDay;
+          const rStart = emp.restStartTime || "00:00";
+          const rEnd = emp.restEndTime || "00:00";
+
+          // Controllo assenze approvate
           const isAbsent = weekAbsences.some(abs => 
             abs.employeeId === emp.id && dateStr >= abs.startDate && dateStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT'
           );
           if (isAbsent) continue;
 
           if (emp.contractType === "full-time") {
-            const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
-            const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
-            const endAM = new Date(targetDay); endAM.setHours(13, 0, 0);
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
-              id: idAM, employeeId: emp.id, title: "Turno Mattina", date: dateStr, startTime: startAM.toISOString(), endTime: endAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING"
-            }, { merge: true });
+            // Turno Mattina: 09:00 - 13:00
+            const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
+            if (!morningOverlaps) {
+              const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
+              const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
+              const endAM = new Date(targetDay); endAM.setHours(13, 0, 0);
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
+                id: idAM, employeeId: emp.id, title: "Turno Mattina", date: dateStr, startTime: startAM.toISOString(), endTime: endAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING"
+              }, { merge: true });
+            }
 
-            const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
-            const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
-            const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
-              id: idPM, employeeId: emp.id, title: "Turno Pomeriggio", date: dateStr, startTime: startPM.toISOString(), endTime: endPM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON"
-            }, { merge: true });
+            // Turno Pomeriggio: 17:00 - 20:20
+            const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
+            if (!afternoonOverlaps) {
+              const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
+              const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
+              const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
+                id: idPM, employeeId: emp.id, title: "Turno Pomeriggio", date: dateStr, startTime: startPM.toISOString(), endTime: endPM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON"
+              }, { merge: true });
+            }
           } else {
-            const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
-            const startPT = new Date(targetDay); startPT.setHours(17, 0, 0);
-            const endPT = new Date(targetDay); endPT.setHours(20, 20, 0);
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
-              id: idPM, employeeId: emp.id, title: "Turno Pomeriggio (PT)", date: dateStr, startTime: startPT.toISOString(), endTime: endPT.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON"
-            }, { merge: true });
+            // Part-time: 17:00 - 20:20
+            const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
+            if (!afternoonOverlaps) {
+              const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
+              const startPT = new Date(targetDay); startPT.setHours(17, 0, 0);
+              const endPT = new Date(targetDay); endPT.setHours(20, 20, 0);
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
+                id: idPM, employeeId: emp.id, title: "Turno Pomeriggio (PT)", date: dateStr, startTime: startPT.toISOString(), endTime: endPT.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON"
+              }, { merge: true });
+            }
           }
         }
       }
-      toast({ title: "Settimana Rigenerata", description: "Turni aggiornati correttamente." });
+      toast({ title: "Settimana Rigenerata", description: "Turni aggiornati rispettando le fasce di riposo orarie." });
     } finally {
       setIsGenerating(false);
     }
@@ -200,19 +217,19 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-slate-500 font-medium">Visualizzazione verticale settimanale (Giorni x Collaboratori).</p>
+          <p className="text-slate-500 font-medium">Visualizzazione agenda: Giorni x Collaboratori.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="font-bold border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 h-11 px-6">
-                <UserMinus className="h-4 w-4 mr-2" /> Assenza
+                <UserMinus className="h-4 w-4 mr-2" /> Registra Assenza
               </Button>
             </DialogTrigger>
             <DialogContent onOpenAutoFocus={(e) => e.preventDefault()} className="max-w-md">
               <DialogHeader>
-                <DialogTitle className="font-black text-2xl">Registra Assenza</DialogTitle>
-                <DialogDescription>Inserisci ferie, malattia o permessi per un dipendente.</DialogDescription>
+                <DialogTitle className="font-black text-2xl">Assenza Dipendente</DialogTitle>
+                <DialogDescription>Inserisci ferie, malattia o permessi.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -255,7 +272,7 @@ export default function ShiftsPage() {
           </Dialog>
 
           <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="font-bold border-blue-200 text-[#227FD8] h-11">
-            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />} Reset e Genera
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />} Genera Settimana
           </Button>
           <Button className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-11 shadow-lg">
             <Plus className="h-4 w-4 mr-2" /> Nuovo Turno
@@ -281,10 +298,10 @@ export default function ShiftsPage() {
         <CardContent className="p-0">
           <ScrollArea className="w-full h-[700px]">
             <div className="inline-block min-w-full">
-              {/* Header Tabella: Collaboratori */}
+              {/* Header Tabella: Collaboratori (Sticky in alto) */}
               <div className="flex sticky top-0 z-30 bg-white border-b shadow-sm">
                 <div className="w-[180px] p-4 font-black text-[10px] uppercase tracking-widest text-slate-400 sticky left-0 bg-white border-r z-40 flex items-center justify-center">
-                  Giorno
+                  DATA / TEAM
                 </div>
                 {employees?.map((emp) => (
                   <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3 bg-white">
@@ -300,12 +317,12 @@ export default function ShiftsPage() {
                 ))}
               </div>
 
-              {/* Corpo Tabella: Giorni */}
+              {/* Corpo Tabella: Giorni (Righe) */}
               <div className="divide-y">
                 {isEmployeesLoading || isShiftsLoading ? (
                   <div className="py-20 text-center flex flex-col items-center gap-4">
                     <Loader2 className="h-8 w-8 animate-spin text-[#227FD8]" />
-                    <p className="text-sm font-bold text-slate-400">Caricamento pianificazione...</p>
+                    <p className="text-sm font-bold text-slate-400">Analisi pianificazione...</p>
                   </div>
                 ) : daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
@@ -316,7 +333,7 @@ export default function ShiftsPage() {
                       "flex group hover:bg-slate-50/30 transition-colors",
                       isToday ? "bg-blue-50/20" : ""
                     )}>
-                      {/* Colonna Giorno Stoccata */}
+                      {/* Colonna Giorno (Sticky a sinistra) */}
                       <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center items-center text-center shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
                         <div className="text-[10px] font-black uppercase text-slate-400">{format(day, 'EEEE', { locale: it })}</div>
                         <div className={cn("text-xl font-black mt-1 leading-none", isToday ? "text-[#227FD8]" : "text-slate-700")}>
@@ -325,21 +342,27 @@ export default function ShiftsPage() {
                         <div className="text-[10px] font-bold text-slate-400 uppercase">{format(day, 'MMMM', { locale: it })}</div>
                       </div>
 
-                      {/* Celle Collaboratori */}
+                      {/* Celle Collaboratori per questo Giorno */}
                       {employees?.map((emp) => {
                         const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
                         const dayAbsence = weekAbsences.find(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
                         const isRestDay = emp.restDay === day.getDay().toString();
+                        const rStart = emp.restStartTime || "00:00";
+                        const rEnd = emp.restEndTime || "00:00";
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className={cn(
                             "min-w-[220px] p-2 border-r last:border-r-0 flex flex-col gap-2 min-h-[140px]",
                             isRestDay ? "bg-slate-50/50" : ""
                           )}>
-                            {isRestDay && !dayShifts.length && !dayAbsence && (
-                              <div className="flex-1 flex flex-col items-center justify-center opacity-30">
-                                <Sun className="h-5 w-5 text-slate-300" />
-                                <span className="text-[10px] font-black uppercase tracking-widest mt-1">Riposo</span>
+                            {/* Visualizzazione Riposo Orario se è il suo giorno di riposo e non ha assenze totali */}
+                            {isRestDay && !dayAbsence && (
+                              <div className="rounded-lg border border-dashed border-slate-300 p-2 bg-white/40 flex flex-col items-center justify-center gap-1">
+                                <div className="flex items-center gap-1.5 text-slate-400">
+                                  <Sun className="h-3 w-3" />
+                                  <span className="text-[9px] font-black uppercase tracking-widest">Riposo</span>
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-500">{rStart} - {rEnd}</span>
                               </div>
                             )}
 
@@ -414,7 +437,7 @@ function AbsenceItem({ abs, db }: { abs: any, db: any }) {
       <div className="flex items-center gap-2 font-black text-sm">
         <Icon className="h-4 w-4" />
         <span className="truncate">
-          {abs.type === 'HOURLY_PERMIT' ? `${abs.startTime} - ${abs.endTime}` : 'Tutto il giorno'}
+          {abs.type === 'HOURLY_PERMIT' ? `${abs.startTime} - ${abs.endTime}` : 'Assenza Totale'}
         </span>
       </div>
     </div>
