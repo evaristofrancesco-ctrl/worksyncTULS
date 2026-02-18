@@ -240,7 +240,7 @@ export default function EmployeesPage() {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
 
-  // Pattern "Sedi": Attiva il dialogo solo quando i dati sono pronti
+  // Pattern stabile anti-freeze: Il dialogo si apre solo tramite effetto asincrono
   useEffect(() => {
     if (editingEmployeeData) {
       setIsEditOpen(true)
@@ -321,7 +321,11 @@ export default function EmployeesPage() {
   }, [employees, searchQuery])
 
   const handleEditClick = (emp: any) => {
-    setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
+    // Il ritardo garantisce che il menu a tendina si chiuda correttamente
+    // liberando il focus trap prima che il dialogo tenti di catturarlo.
+    setTimeout(() => {
+      setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
+    }, 100)
   }
 
   const handleDelete = (id: string) => {
