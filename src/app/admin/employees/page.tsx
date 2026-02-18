@@ -96,7 +96,7 @@ function EmployeeForm({
         <DialogTitle className="text-xl font-bold flex items-center gap-2 uppercase">
           {submitLabel === 'SALVA MODIFICHE' ? <Edit className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />} {title}
         </DialogTitle>
-        <DialogDescription className="text-blue-50 text-sm">Configurazione completa del profilo collaboratore.</DialogDescription>
+        <DialogDescription className="text-blue-50 text-sm italic">Configurazione completa del profilo collaboratore.</DialogDescription>
       </DialogHeader>
       
       <Tabs defaultValue="personali" className="w-full">
@@ -264,7 +264,7 @@ export default function EmployeesPage() {
     setEditingEmployeeData(null);
     setIsEditOpen(false);
     
-    // Disaccoppiamento asincrono per evitare il focus conflict tra menu e dialog
+    // Disaccoppiamento asincrono critico per evitare il freeze (focus conflict)
     setTimeout(() => {
       setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' });
       setIsEditOpen(true);
@@ -427,7 +427,7 @@ export default function EmployeesPage() {
                       <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem 
                           onSelect={(e) => {
-                            e.preventDefault(); 
+                            e.preventDefault(); // Previene il freeze di Radix Focus
                             handleEditClick(emp);
                           }}
                           className="font-bold cursor-pointer py-3 text-sm"
@@ -459,7 +459,7 @@ export default function EmployeesPage() {
       {/* Dialog Nuova Scheda */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent 
-          onOpenAutoFocus={(e) => e.preventDefault()}
+          onOpenAutoFocus={(e) => e.preventDefault()} // Cruciale per prevenire il freeze
           className="sm:max-w-[700px] p-0 border-none shadow-2xl overflow-hidden rounded-lg"
         >
           <EmployeeForm 
@@ -479,7 +479,7 @@ export default function EmployeesPage() {
         if (!open) setEditingEmployeeData(null);
       }}>
         <DialogContent 
-          onOpenAutoFocus={(e) => e.preventDefault()}
+          onOpenAutoFocus={(e) => e.preventDefault()} // Cruciale per prevenire il freeze
           className="sm:max-w-[700px] p-0 border-none shadow-2xl overflow-hidden rounded-lg"
         >
           {editingEmployeeData && (
