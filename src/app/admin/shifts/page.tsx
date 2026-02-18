@@ -448,16 +448,33 @@ export default function ShiftsPage() {
                                   if (e.locationId !== loc.id) return false;
                                   return weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
                                 }).length || 0;
-                                if (count === 0) return null;
+                                
                                 return (
-                                  <div key={loc.id} className="flex justify-between items-center bg-white/80 px-2 py-1.5 rounded-lg border border-blue-100 shadow-sm">
-                                    <span className="text-[9px] font-black truncate pr-2 text-slate-700 uppercase tracking-tighter">{loc.name}</span>
-                                    <Badge className="h-4 px-1.5 text-[10px] font-black bg-[#227FD8]">{count}</Badge>
+                                  <div key={loc.id} className={cn(
+                                    "flex justify-between items-center px-2 py-1.5 rounded-lg border shadow-sm transition-all",
+                                    count === 0 
+                                      ? "bg-rose-50 border-rose-200 animate-pulse ring-1 ring-rose-500/20" 
+                                      : "bg-white/80 border-blue-100"
+                                  )}>
+                                    <span className={cn(
+                                      "text-[9px] font-black truncate pr-2 uppercase tracking-tighter",
+                                      count === 0 ? "text-rose-700" : "text-slate-700"
+                                    )}>
+                                      {loc.name}
+                                    </span>
+                                    {count === 0 ? (
+                                      <div className="flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3 text-rose-600" />
+                                        <Badge variant="destructive" className="h-4 px-1 text-[8px] font-black uppercase">SCOPERTO</Badge>
+                                      </div>
+                                    ) : (
+                                      <Badge className="h-4 px-1.5 text-[10px] font-black bg-[#227FD8]">{count}</Badge>
+                                    )}
                                   </div>
                                 )
                               })}
-                              {(!locations || locations.every(loc => employees?.filter(e => e.locationId === loc.id && weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14)).length === 0)) && (
-                                <p className="text-[8px] text-slate-400 italic text-center py-1">Nessuna copertura</p>
+                              {(!locations || locations.length === 0) && (
+                                <p className="text-[8px] text-slate-400 italic text-center py-1">Nessuna sede configurata</p>
                               )}
                             </div>
                           </div>
@@ -474,16 +491,33 @@ export default function ShiftsPage() {
                                   if (e.locationId !== loc.id) return false;
                                   return weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
                                 }).length || 0;
-                                if (count === 0) return null;
+                                
                                 return (
-                                  <div key={loc.id} className="flex justify-between items-center bg-white/80 px-2 py-1.5 rounded-lg border border-slate-100 shadow-sm">
-                                    <span className="text-[9px] font-black truncate pr-2 text-slate-700 uppercase tracking-tighter">{loc.name}</span>
-                                    <Badge className="h-4 px-1.5 text-[10px] font-black bg-slate-700">{count}</Badge>
+                                  <div key={loc.id} className={cn(
+                                    "flex justify-between items-center px-2 py-1.5 rounded-lg border shadow-sm transition-all",
+                                    count === 0 
+                                      ? "bg-rose-50 border-rose-200 animate-pulse ring-1 ring-rose-500/20" 
+                                      : "bg-white/80 border-slate-100"
+                                  )}>
+                                    <span className={cn(
+                                      "text-[9px] font-black truncate pr-2 uppercase tracking-tighter",
+                                      count === 0 ? "text-rose-700" : "text-slate-700"
+                                    )}>
+                                      {loc.name}
+                                    </span>
+                                    {count === 0 ? (
+                                      <div className="flex items-center gap-1">
+                                        <AlertTriangle className="h-3 w-3 text-rose-600" />
+                                        <Badge variant="destructive" className="h-4 px-1 text-[8px] font-black uppercase">SCOPERTO</Badge>
+                                      </div>
+                                    ) : (
+                                      <Badge className="h-4 px-1.5 text-[10px] font-black bg-slate-700">{count}</Badge>
+                                    )}
                                   </div>
                                 )
                               })}
-                              {(!locations || locations.every(loc => employees?.filter(e => e.locationId === loc.id && weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14)).length === 0)) && (
-                                <p className="text-[8px] text-slate-400 italic text-center py-1">Nessuna copertura</p>
+                              {(!locations || locations.length === 0) && (
+                                <p className="text-[8px] text-slate-400 italic text-center py-1">Nessuna sede configurata</p>
                               )}
                             </div>
                           </div>
