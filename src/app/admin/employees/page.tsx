@@ -260,16 +260,15 @@ export default function EmployeesPage() {
     autoClockIn: true
   }
 
-  // Risoluzione freeze definitiva: uso di setTimeout per separare gli eventi di focus
   const handleEditClick = (emp: any) => {
-    // Chiudiamo eventuali stati aperti e puliamo
+    setEditingEmployeeData(null);
     setIsEditOpen(false);
     
-    // Piccolo ritardo per permettere al menu di chiudersi e rilasciare il focus
+    // Disaccoppiamento asincrono per evitare il focus conflict tra menu e dialog
     setTimeout(() => {
       setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' });
       setIsEditOpen(true);
-    }, 150);
+    }, 100);
   }
 
   const handleAddEmployee = (data: any) => {
@@ -401,7 +400,7 @@ export default function EmployeesPage() {
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="text-base font-bold text-slate-800">{emp.jobTitle}</span>
-                      <span className="text-xs text-slate-400 font-black uppercase tracking-widest">{emp.locationName}</span>
+                      <span className="text-sm text-slate-400 font-black uppercase tracking-widest">{emp.locationName}</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
@@ -428,7 +427,7 @@ export default function EmployeesPage() {
                       <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuItem 
                           onSelect={(e) => {
-                            e.preventDefault(); // Fondamentale per evitare il freeze del focus di Radix
+                            e.preventDefault(); 
                             handleEditClick(emp);
                           }}
                           className="font-bold cursor-pointer py-3 text-sm"
@@ -459,7 +458,10 @@ export default function EmployeesPage() {
 
       {/* Dialog Nuova Scheda */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="sm:max-w-[700px] p-0 border-none shadow-2xl overflow-hidden rounded-lg">
+        <DialogContent 
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-[700px] p-0 border-none shadow-2xl overflow-hidden rounded-lg"
+        >
           <EmployeeForm 
             initialData={defaultNewEmployee}
             onSubmit={handleAddEmployee}
@@ -476,7 +478,10 @@ export default function EmployeesPage() {
         setIsEditOpen(open);
         if (!open) setEditingEmployeeData(null);
       }}>
-        <DialogContent className="sm:max-w-[700px] p-0 border-none shadow-2xl overflow-hidden rounded-lg">
+        <DialogContent 
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="sm:max-w-[700px] p-0 border-none shadow-2xl overflow-hidden rounded-lg"
+        >
           {editingEmployeeData && (
             <EmployeeForm 
               initialData={editingEmployeeData}
