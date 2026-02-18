@@ -237,7 +237,15 @@ export default function EmployeesPage() {
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingEmployeeData, setEditingEmployeeData] = useState<any>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+
+  // Pattern "Sedi": Attiva il dialogo solo quando i dati sono pronti
+  useEffect(() => {
+    if (editingEmployeeData) {
+      setIsEditOpen(true)
+    }
+  }, [editingEmployeeData])
 
   const defaultNewEmployee = {
     firstName: "",
@@ -298,6 +306,7 @@ export default function EmployeesPage() {
     }
 
     updateDocumentNonBlocking(employeeRef, updateData)
+    setIsEditOpen(false)
     setEditingEmployeeData(null)
     toast({ title: "Profilo Aggiornato", description: "Le modifiche sono state salvate." })
   }
@@ -312,10 +321,7 @@ export default function EmployeesPage() {
   }, [employees, searchQuery])
 
   const handleEditClick = (emp: any) => {
-    // Decouple from dropdown event loop to prevent freeze
-    setTimeout(() => {
-      setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
-    }, 10)
+    setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
   }
 
   const handleDelete = (id: string) => {
@@ -463,10 +469,11 @@ export default function EmployeesPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog Modifica Gestito con stato unico per evitare freeze */}
+      {/* Dialog Modifica Gestito con pattern stabile anti-freeze */}
       <Dialog 
-        open={!!editingEmployeeData} 
+        open={isEditOpen} 
         onOpenChange={(open) => {
+          setIsEditOpen(open);
           if (!open) setEditingEmployeeData(null);
         }}
       >
@@ -476,7 +483,10 @@ export default function EmployeesPage() {
               key={editingEmployeeData.id}
               initialData={editingEmployeeData}
               onSubmit={handleUpdateEmployee}
-              onCancel={() => setEditingEmployeeData(null)}
+              onCancel={() => {
+                setIsEditOpen(false);
+                setEditingEmployeeData(null);
+              }}
               locations={locations || []}
               title="Modifica Scheda Dipendente"
               submitLabel="SALVA MODIFICHE"
