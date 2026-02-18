@@ -44,7 +44,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -92,11 +91,11 @@ function EmployeeForm({
 
   return (
     <div className="flex flex-col">
-      <DialogHeader className="bg-primary p-6 text-white space-y-1">
+      <DialogHeader className="bg-primary p-6 text-white">
         <DialogTitle className="text-xl font-bold flex items-center gap-2 uppercase">
           {submitLabel === 'SALVA MODIFICHE' ? <Edit className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />} {title}
         </DialogTitle>
-        <DialogDescription className="text-blue-50 text-sm">Configurazione profilo e impostazioni timbratura.</DialogDescription>
+        <DialogDescription className="text-blue-50">Configurazione profilo e impostazioni timbratura.</DialogDescription>
       </DialogHeader>
       
       <Tabs defaultValue="personali" className="w-full">
@@ -258,6 +257,14 @@ export default function EmployeesPage() {
     autoClockIn: true
   }
 
+  // Risoluzione freeze: apertura asincrona tramite effetto
+  useEffect(() => {
+    if (editingEmployeeData && !isEditOpen) {
+      const timer = setTimeout(() => setIsEditOpen(true), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [editingEmployeeData, isEditOpen]);
+
   const handleAddEmployee = (data: any) => {
     if (!data.firstName || !data.lastName || !data.email || !data.password) {
       toast({ variant: "destructive", title: "Campi Mancanti", description: "Compila tutti i campi obbligatori." })
@@ -313,14 +320,8 @@ export default function EmployeesPage() {
     )
   }, [employees, searchQuery])
 
-  // CORREZIONE DEFINITIVA FREEZE: Disaccoppiamento asincrono tramite Timeout
   const handleEditClick = (emp: any) => {
     setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' })
-    // Utilizziamo un micro-timeout per permettere al DropdownMenu di chiudersi completamente
-    // Questo previene il conflitto di focus (freeze) di Radix UI
-    setTimeout(() => {
-      setIsEditOpen(true)
-    }, 150)
   }
 
   const handleDelete = (id: string) => {
@@ -334,29 +335,18 @@ export default function EmployeesPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestione Dipendenti</h1>
-          <p className="text-muted-foreground">Anagrafica team e configurazione accessi.</p>
+          <p className="text-base text-muted-foreground">Anagrafica team e configurazione accessi.</p>
         </div>
         
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 bg-primary hover:bg-primary/90 font-bold uppercase h-11 px-6 shadow-md">
-              <Plus className="h-5 w-5" /> Aggiungi Collaboratore
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[650px] p-0 overflow-hidden border-none shadow-2xl">
-            <EmployeeForm 
-              initialData={defaultNewEmployee}
-              onSubmit={handleAddEmployee}
-              onCancel={() => setIsAddDialogOpen(false)}
-              locations={locations || []}
-              title="Nuova Scheda"
-              submitLabel="SALVA DIPENDENTE"
-            />
-          </DialogContent>
-        </Dialog>
+        <Button 
+          onClick={() => setIsAddDialogOpen(true)} 
+          className="gap-2 bg-primary hover:bg-primary/90 font-bold uppercase h-11 px-6 shadow-md"
+        >
+          <Plus className="h-5 w-5" /> Aggiungi Collaboratore
+        </Button>
       </div>
 
-      <Card className="border-none shadow-sm bg-white/80 overflow-hidden">
+      <Card className="border-none shadow-sm bg-white overflow-hidden">
         <CardHeader className="py-4 px-6 border-b">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <CardTitle className="text-base font-bold text-foreground uppercase tracking-wider">Elenco Team</CardTitle>
@@ -389,7 +379,7 @@ export default function EmployeesPage() {
                 <TableRow key={emp.id} className="hover:bg-muted/10 transition-colors h-16">
                   <TableCell className="pl-6">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                      <Avatar className="h-10 w-10 border shadow-sm">
                         <AvatarImage src={emp.photoUrl} />
                         <AvatarFallback className="font-bold text-sm">{emp.firstName?.charAt(0)}</AvatarFallback>
                       </Avatar>
@@ -434,15 +424,15 @@ export default function EmployeesPage() {
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuItem 
                           onSelect={(e) => {
-                            e.preventDefault(); // Preveniamo il comportamento di focus di default
+                            e.preventDefault();
                             handleEditClick(emp);
                           }}
-                          className="text-sm font-bold cursor-pointer py-2"
+                          className="font-bold cursor-pointer py-2"
                         >
                           <Edit className="h-4 w-4 mr-2" /> Modifica
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          className="text-sm text-destructive font-bold cursor-pointer py-2" 
+                          className="text-destructive font-bold cursor-pointer py-2" 
                           onSelect={(e) => {
                             e.preventDefault();
                             handleDelete(emp.id);
@@ -456,30 +446,38 @@ export default function EmployeesPage() {
                 </TableRow>
               ))}
               {!employeesLoading && filteredEmployees.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-20 text-center text-sm text-muted-foreground italic font-medium">Nessun collaboratore trovato nel database.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="py-20 text-center text-sm text-muted-foreground italic font-medium">Nessun collaboratore trovato.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      {/* Dialog di modifica - separato dal mapping per stabilità del focus */}
-      <Dialog 
-        open={isEditOpen} 
-        onOpenChange={(open) => {
-          setIsEditOpen(open);
-          if (!open) {
-            // Puliamo i dati solo dopo la chiusura completa
-            setTimeout(() => setEditingEmployeeData(null), 200);
-          }
-        }}
-      >
+      {/* Dialog Nuova Scheda */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="sm:max-w-[650px] p-0 overflow-hidden border-none shadow-2xl">
+          <EmployeeForm 
+            initialData={defaultNewEmployee}
+            onSubmit={handleAddEmployee}
+            onCancel={() => setIsAddDialogOpen(false)}
+            locations={locations || []}
+            title="Nuova Scheda"
+            submitLabel="SALVA DIPENDENTE"
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Modifica Scheda */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-[650px] p-0 overflow-hidden border-none shadow-2xl">
           {editingEmployeeData && (
             <EmployeeForm 
               initialData={editingEmployeeData}
               onSubmit={handleUpdateEmployee}
-              onCancel={() => setIsEditOpen(false)}
+              onCancel={() => {
+                setIsEditOpen(false);
+                setEditingEmployeeData(null);
+              }}
               locations={locations || []}
               title="Modifica Scheda"
               submitLabel="SALVA MODIFICHE"
