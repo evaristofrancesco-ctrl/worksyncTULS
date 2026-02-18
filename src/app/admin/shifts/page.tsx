@@ -100,6 +100,16 @@ export default function ShiftsPage() {
   }, [db])
   const { data: employees, isLoading: isEmployeesLoading } = useCollection(employeesQuery)
 
+  // Filtro per escludere Francesco Evaristo e IT
+  const displayEmployees = useMemo(() => {
+    if (!employees) return [];
+    return employees.filter(emp => {
+      const isIT = emp.jobTitle?.toLowerCase().includes('it');
+      const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
+      return !isIT && !isFrancesco;
+    });
+  }, [employees]);
+
   const locationsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "companies", "default", "locations");
@@ -145,13 +155,12 @@ export default function ShiftsPage() {
   }, [allRequests, weekStart]);
 
   const handleAutoGenerate = async () => {
-    if (!employees || employees.length === 0) {
-      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente trovato." });
+    if (!displayEmployees || displayEmployees.length === 0) {
+      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente operativo trovato." });
       return;
     }
     setIsGenerating(true);
     try {
-      // PROTEZIONE: Cancella solo i turni automatici (o senza tipo definito per retrocompatibilità)
       if (weekShifts.length > 0) {
         for (const shift of weekShifts) {
           if (shift.type !== "MANUAL") {
@@ -160,7 +169,7 @@ export default function ShiftsPage() {
         }
       }
       
-      for (const emp of employees) {
+      for (const emp of displayEmployees) {
         if (!emp.isActive) continue;
         for (let i = 0; i < 6; i++) { 
           const targetDay = addDays(weekStart, i);
@@ -180,7 +189,6 @@ export default function ShiftsPage() {
             const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
             if (!morningOverlaps) {
               const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
-              // Controlla se esiste già un turno manuale che copre questo slot (stesso ID o sovrapposto)
               const hasManual = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() < 14);
               if (!hasManual) {
                 const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
@@ -261,7 +269,7 @@ export default function ShiftsPage() {
       status: "SCHEDULED",
       companyId: "default",
       slot: slot,
-      type: "MANUAL" // SEGNA COME MANUALE PER PROTEZIONE
+      type: "MANUAL"
     }, { merge: true });
 
     setIsShiftOpen(false);
@@ -282,7 +290,6 @@ export default function ShiftsPage() {
           <p className="text-slate-500 font-medium">Visualizzazione agenda: Giorni x Collaboratori.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Pulsante Assenza */}
           <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="font-bold border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 h-11 px-6">
@@ -300,7 +307,7 @@ export default function ShiftsPage() {
                   <Select value={newAbsence.employeeId} onValueChange={(v) => setNewAbsence({...newAbsence, employeeId: v})}>
                     <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
                     <SelectContent>
-                      {employees?.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}
+                      {displayEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -352,7 +359,6 @@ export default function ShiftsPage() {
             {isGenerating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />} Genera Settimana
           </Button>
 
-          {/* Pulsante Nuovo Turno Manuale */}
           <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
             <DialogTrigger asChild>
               <Button className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-11 shadow-lg">
@@ -370,7 +376,7 @@ export default function ShiftsPage() {
                   <Select value={newManualShift.employeeId} onValueChange={(v) => setNewManualShift({...newManualShift, employeeId: v})}>
                     <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
                     <SelectContent>
-                      {employees?.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}
+                      {displayEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -424,7 +430,7 @@ export default function ShiftsPage() {
                 <div className="w-[180px] p-4 font-black text-[10px] uppercase tracking-widest text-slate-400 sticky left-0 bg-white border-r z-40 flex items-center justify-center">
                   DATA / TEAM
                 </div>
-                {employees?.map((emp) => (
+                {displayEmployees.map((emp) => (
                   <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3 bg-white">
                     <Avatar className="h-9 w-9 border shadow-sm shrink-0">
                       <AvatarImage src={emp.photoUrl} />
@@ -436,7 +442,6 @@ export default function ShiftsPage() {
                     </div>
                   </div>
                 ))}
-                {/* Header Riepilogo Sedi */}
                 <div className="min-w-[250px] p-4 font-black text-[10px] uppercase tracking-widest text-[#227FD8] bg-blue-50/50 flex items-center justify-center border-l-2 border-[#227FD8]/20 sticky right-0 z-40 shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
                   COPERTURA SEDI
                 </div>
@@ -465,7 +470,7 @@ export default function ShiftsPage() {
                         <div className="text-[10px] font-bold text-slate-400 uppercase">{format(day, 'MMMM', { locale: it })}</div>
                       </div>
 
-                      {employees?.map((emp) => {
+                      {displayEmployees.map((emp) => {
                         const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
                         const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
                         
@@ -495,14 +500,12 @@ export default function ShiftsPage() {
                             "min-w-[220px] p-3 border-r last:border-r-0 flex flex-col gap-3 min-h-[180px]",
                             isRestDay ? "bg-slate-50/30" : ""
                           )}>
-                            {/* Assenze Giornata Intera */}
                             {allDayAbsences.length > 0 && (
                               <div className="space-y-1">
                                 {allDayAbsences.map(abs => <AbsenceItem key={abs.id} abs={abs} db={db} />)}
                               </div>
                             )}
 
-                            {/* Sezione Mattina */}
                             <div className="space-y-2">
                               <div className="flex items-center gap-2 opacity-30">
                                 <span className="text-[8px] font-black tracking-widest uppercase">AM</span>
@@ -518,7 +521,6 @@ export default function ShiftsPage() {
                               </div>
                             </div>
 
-                            {/* Sezione Pomeriggio */}
                             <div className="space-y-2">
                               <div className="flex items-center gap-2 opacity-30">
                                 <span className="text-[8px] font-black tracking-widest uppercase">PM</span>
@@ -537,7 +539,6 @@ export default function ShiftsPage() {
                         );
                       })}
 
-                      {/* Specchietto Riepilogo Sedi (Fine Riga) */}
                       <div className="min-w-[250px] p-3 border-l-2 border-[#227FD8]/10 bg-blue-50/20 sticky right-0 z-20 shadow-[-4px_0_10_rgba(0,0,0,0.05)] flex flex-col gap-4">
                         <div className="space-y-3">
                           <div className="space-y-1.5">
@@ -547,7 +548,7 @@ export default function ShiftsPage() {
                             </div>
                             <div className="space-y-1">
                               {locations?.map(loc => {
-                                const count = employees?.filter(e => {
+                                const count = displayEmployees.filter(e => {
                                   if (e.locationId !== loc.id) return false;
                                   return weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
                                 }).length || 0;
@@ -586,7 +587,7 @@ export default function ShiftsPage() {
                             </div>
                             <div className="space-y-1">
                               {locations?.map(loc => {
-                                const count = employees?.filter(e => {
+                                const count = displayEmployees.filter(e => {
                                   if (e.locationId !== loc.id) return false;
                                   return weekShifts.some(s => s.employeeId === e.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
                                 }).length || 0;

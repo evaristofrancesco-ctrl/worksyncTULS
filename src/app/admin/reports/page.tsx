@@ -35,7 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, parseISO, eachDayOfInterval } from "date-fns"
+import { startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isWithinInterval } from "date-fns"
 import { cn } from "@/lib/utils"
 
 const MONTHS = [
@@ -62,7 +62,7 @@ export default function ReportsPage() {
   const yearsOptions = useMemo(() => {
     const current = new Date().getFullYear()
     const years = []
-    for (let i = current - 2; i <= current + 1; i++) {
+    for (let i = current - 3; i <= current + 1; i++) {
       years.push(i.toString())
     }
     return years.reverse()
@@ -93,18 +93,20 @@ export default function ReportsPage() {
     const monthStart = startOfMonth(targetDate)
     const monthEnd = endOfMonth(targetDate)
 
-    return employees.map(emp => {
-      // 1. Calcolo ore lavorate dai TURNI TEAM nel mese
+    // Esclusione IT e Francesco Evaristo
+    const targetEmployees = employees.filter(emp => {
+      const isIT = emp.jobTitle?.toLowerCase().includes('it');
+      const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
+      return !isIT && !isFrancesco;
+    });
+
+    return targetEmployees.map(emp => {
       const empShifts = allShifts.filter(shift => {
         if (shift.employeeId !== emp.id) return false;
-        if (shift.companyId !== "default" && shift.companyId) return false;
-        
         try {
           const shiftDate = parseISO(shift.date);
           return shiftDate >= monthStart && shiftDate <= monthEnd;
-        } catch (e) {
-          return false;
-        }
+        } catch (e) { return false; }
       });
 
       let totalWorkHours = 0;
@@ -113,25 +115,19 @@ export default function ReportsPage() {
           const start = parseISO(shift.startTime).getTime();
           const end = parseISO(shift.endTime).getTime();
           const diffMs = end - start;
-          if (diffMs > 0) {
-            totalWorkHours += diffMs / (1000 * 60 * 60);
-          }
+          if (diffMs > 0) totalWorkHours += diffMs / (1000 * 60 * 60);
         }
       });
 
-      // 2. Calcolo ore da richieste approvate (Ferie, Malattia, Permessi)
       const empRequests = allRequests.filter(req => {
         if (req.employeeId !== emp.id) return false;
         const status = (req.status || "").toUpperCase();
-        if (status !== "APPROVATO" && status !== "APPROVED" && status !== "APP") return false;
-        
+        if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return false;
         try {
           const reqStart = parseISO(req.startDate);
           const reqEnd = req.endDate ? parseISO(req.endDate) : reqStart;
           return (reqStart <= monthEnd && reqEnd >= monthStart);
-        } catch (e) {
-          return false;
-        }
+        } catch (e) { return false; }
       });
 
       let vacationHours = 0;
@@ -142,20 +138,15 @@ export default function ReportsPage() {
         try {
           const rStart = parseISO(req.startDate);
           const rEnd = req.endDate ? parseISO(req.endDate) : rStart;
-
           const overlapStart = rStart < monthStart ? monthStart : rStart;
           const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
+          const daysInInterval = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
+          const count = daysInInterval.length;
 
-          const daysInMonth = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
-          const count = daysInMonth.length;
-
-          if (req.type === "VACATION") {
-            vacationHours += count * 8;
-          } else if (req.type === "SICK") {
-            sickHours += count * 8;
-          } else if (req.type === "PERSONAL") {
-            permitHours += count * 8;
-          } else if (req.type === "HOURLY_PERMIT") {
+          if (req.type === "VACATION") vacationHours += count * 8;
+          else if (req.type === "SICK") sickHours += count * 8;
+          else if (req.type === "PERSONAL") permitHours += count * 8;
+          else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
@@ -166,7 +157,6 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
-      // Calcolo finale: Turni pianificati MENO le assenze
       const resultTotal = totalWorkHours - vacationHours - sickHours - permitHours;
 
       return {
@@ -185,9 +175,7 @@ export default function ReportsPage() {
 
   const handleRefresh = () => {
     setIsRefreshing(true)
-    setTimeout(() => {
-      setIsRefreshing(false)
-    }, 800)
+    setTimeout(() => setIsRefreshing(false), 800)
   }
 
   const isLoading = employeesLoading || shiftsLoading || requestsLoading || isRefreshing;
@@ -199,7 +187,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Ore nette calcolate: <b>Pianificato - Assenze</b>.</p>
+          <p className="text-slate-500 font-medium">Ore nette: <b>Turni Team - Assenze</b>. Escluso personale IT.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
@@ -208,9 +196,7 @@ export default function ReportsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {MONTHS.map(m => (
-                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-              ))}
+              {MONTHS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
             </SelectContent>
           </Select>
           
@@ -219,9 +205,7 @@ export default function ReportsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {yearsOptions.map(year => (
-                <SelectItem key={year} value={year}>{year}</SelectItem>
-              ))}
+              {yearsOptions.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
             </SelectContent>
           </Select>
 
@@ -244,7 +228,7 @@ export default function ReportsPage() {
         <CardHeader className="border-b bg-slate-50/50">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-              <Users className="h-4 w-4" /> Dettaglio Calcolo (Turni - Assenze)
+              <Users className="h-4 w-4" /> Dettaglio Calcolo
             </CardTitle>
             <Button variant="outline" size="sm" className="h-8 text-xs font-bold gap-2">
               <Download className="h-3.5 w-3.5" /> Esporta Report
@@ -313,7 +297,7 @@ export default function ReportsPage() {
               )) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-40 text-center text-slate-400 italic font-medium">
-                    Nessun dato per il periodo selezionato.
+                    Nessun dato operativo per il periodo selezionato.
                   </TableCell>
                 </TableRow>
               )}
@@ -321,41 +305,6 @@ export default function ReportsPage() {
           </Table>
         </CardContent>
       </Card>
-
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="border-none shadow-sm bg-blue-50/50 border-l-4 border-l-[#227FD8]">
-          <CardHeader className="p-5 pb-2">
-            <CardTitle className="text-xs font-black uppercase text-blue-700 tracking-widest">Totale Lordo Pianificato</CardTitle>
-          </CardHeader>
-          <CardContent className="p-5 pt-0">
-            <p className="text-2xl font-black text-slate-900">
-              {reportData.reduce((acc, curr) => acc + parseFloat(curr.workHours), 0).toFixed(1)}h
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-none shadow-sm bg-amber-50/50 border-l-4 border-l-amber-500">
-          <CardHeader className="p-5 pb-2">
-            <CardTitle className="text-xs font-black uppercase text-amber-700 tracking-widest">Totale Assenze (Ferie/Mal/Per)</CardTitle>
-          </CardHeader>
-          <CardContent className="p-5 pt-0">
-            <p className="text-2xl font-black text-slate-900">
-              {(reportData.reduce((acc, curr) => acc + parseFloat(curr.vacationHours) + parseFloat(curr.sickHours) + parseFloat(curr.permitHours), 0)).toFixed(1)}h
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm bg-green-50/50 border-l-4 border-l-green-500">
-          <CardHeader className="p-5 pb-2">
-            <CardTitle className="text-xs font-black uppercase text-green-700 tracking-widest">Totale Ore Nette</CardTitle>
-          </CardHeader>
-          <CardContent className="p-5 pt-0">
-            <p className="text-2xl font-black text-slate-900">
-              {reportData.reduce((acc, curr) => acc + parseFloat(curr.totalHours), 0).toFixed(1)}h
-            </p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   )
 }

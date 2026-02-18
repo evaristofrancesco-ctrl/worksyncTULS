@@ -84,6 +84,11 @@ export default function AttendancePage() {
       for (const emp of employees) {
         if (!emp.isActive || emp.autoClockIn === false) continue;
         
+        // Esclusione IT / Francesco Evaristo
+        const isIT = emp.jobTitle?.toLowerCase().includes('it');
+        const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
+        if (isIT || isFrancesco) continue;
+
         const dayOfWeekStr = now.getDay().toString();
         const isRestDay = dayOfWeekStr === emp.restDay;
         const rStart = emp.restStartTime || "00:00";
@@ -91,7 +96,6 @@ export default function AttendancePage() {
         const dateStr = now.toISOString().split('T')[0];
 
         if (emp.contractType === 'full-time') {
-          // Mattina 09:00 - 13:00 (Check se sovrapposto a riposo orario)
           const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
           if (!morningOverlaps) {
             const idAM = `auto-${emp.id}-${dateStr}-MORNING`;
@@ -103,7 +107,6 @@ export default function AttendancePage() {
             count++;
           }
 
-          // Pomeriggio 17:00 - 20:20 (Check se sovrapposto a riposo orario)
           const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
           if (!afternoonOverlaps) {
             const idPM = `auto-${emp.id}-${dateStr}-AFTERNOON`;
@@ -115,7 +118,6 @@ export default function AttendancePage() {
             count++;
           }
         } else {
-          // Part-time Pomeriggio 17:00 - 20:20
           const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
           if (!afternoonOverlaps) {
             const idPM = `auto-${emp.id}-${dateStr}-AFTERNOON`;
@@ -128,7 +130,7 @@ export default function AttendancePage() {
           }
         }
       }
-      toast({ title: "Completato", description: `Generate ${count} timbrature rispettando i riposi orari.` });
+      toast({ title: "Completato", description: `Generate ${count} timbrature rispettando i riposi e le esclusioni.` });
     } finally {
       setIsGenerating(false);
     }
