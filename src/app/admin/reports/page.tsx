@@ -35,7 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, parseISO } from "date-fns"
+import { startOfMonth, endOfMonth, parseISO, isWithinInterval, eachDayOfInterval, isSameDay } from "date-fns"
 import { cn } from "@/lib/utils"
 
 const MONTHS = [
@@ -59,17 +59,15 @@ export default function ReportsPage() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Generazione dinamica degli anni (da 2 anni fa a 1 anno nel futuro)
   const yearsOptions = useMemo(() => {
     const current = new Date().getFullYear()
     const years = []
     for (let i = current - 2; i <= current + 1; i++) {
       years.push(i.toString())
     }
-    return years.reverse() // L'anno più recente in alto
+    return years.reverse()
   }, [])
 
-  // Recupero Dati
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
@@ -96,7 +94,7 @@ export default function ReportsPage() {
     const monthEnd = endOfMonth(targetDate)
 
     return employees.map(emp => {
-      // 1. Calcolo ore lavorate effettive (Timbrature nel mese selezionato)
+      // 1. Calcolo ore lavorate effettive (Timbrature nel mese)
       const empEntries = allEntries.filter(entry => {
         if (entry.employeeId !== emp.id) return false;
         if (entry.companyId !== "default" && entry.companyId) return false;
@@ -117,40 +115,54 @@ export default function ReportsPage() {
         }
       });
 
-      // 2. Calcolo ore da richieste approvate (Ferie, Malattia, Permessi nel mese selezionato)
+      // 2. Calcolo ore da richieste approvate (Ferie, Malattia, Permessi)
       const empRequests = allRequests.filter(req => {
         if (req.employeeId !== emp.id) return false;
         const status = (req.status || "").toUpperCase();
-        // Accettiamo sia lo stato italiano che inglese
         if (status !== "APPROVATO" && status !== "APPROVED") return false;
         
         const reqStart = parseISO(req.startDate);
-        return reqStart >= monthStart && reqStart <= monthEnd;
+        const reqEnd = req.endDate ? parseISO(req.endDate) : reqStart;
+
+        // Verifica se la richiesta si sovrappone al mese selezionato
+        return (reqStart <= monthEnd && reqEnd >= monthStart);
       });
 
-      let vacationDays = 0;
-      let sickDays = 0;
+      let vacationHours = 0;
+      let sickHours = 0;
       let permitHours = 0;
 
       empRequests.forEach(req => {
-        if (req.type === "VACATION") {
-          vacationDays += 1;
-        } else if (req.type === "SICK") {
-          sickDays += 1;
-        } else if (req.type === "HOURLY_PERMIT") {
-          if (req.startTime && req.endTime) {
-            const [h1, m1] = req.startTime.split(':').map(Number);
-            const [h2, m2] = req.endTime.split(':').map(Number);
-            const hours = (h2 + m2/60) - (h1 + m1/60);
-            if (hours > 0) permitHours += hours;
+        const rStart = parseISO(req.startDate);
+        const rEnd = req.endDate ? parseISO(req.endDate) : rStart;
+
+        // Giorni della richiesta che cadono nel mese corrente
+        const overlapStart = rStart < monthStart ? monthStart : rStart;
+        const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
+
+        try {
+          const daysInMonth = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
+          const count = daysInMonth.length;
+
+          if (req.type === "VACATION") {
+            vacationHours += count * 8;
+          } else if (req.type === "SICK") {
+            sickHours += count * 8;
+          } else if (req.type === "PERSONAL") {
+            permitHours += count * 8;
+          } else if (req.type === "HOURLY_PERMIT") {
+            // I permessi orari sono solitamente su singolo giorno
+            if (req.startTime && req.endTime) {
+              const [h1, m1] = req.startTime.split(':').map(Number);
+              const [h2, m2] = req.endTime.split(':').map(Number);
+              const hours = (h2 + m2/60) - (h1 + m1/60);
+              if (hours > 0) permitHours += (hours * count); // Di solito count è 1
+            }
           }
-        } else if (req.type === "PERSONAL") {
-          permitHours += 8; 
+        } catch (e) {
+          // Salta intervalli invalidi
         }
       });
-
-      const totalVacationHours = vacationDays * 8;
-      const totalSickHours = sickDays * 8;
 
       return {
         id: emp.id,
@@ -158,10 +170,10 @@ export default function ReportsPage() {
         photoUrl: emp.photoUrl,
         jobTitle: emp.jobTitle,
         workHours: totalWorkHours.toFixed(1),
-        vacationHours: totalVacationHours.toFixed(1),
-        sickHours: totalSickHours.toFixed(1),
+        vacationHours: vacationHours.toFixed(1),
+        sickHours: sickHours.toFixed(1),
         permitHours: permitHours.toFixed(1),
-        totalHours: (totalWorkHours + totalVacationHours + totalSickHours + permitHours).toFixed(1)
+        totalHours: (totalWorkHours + vacationHours + sickHours + permitHours).toFixed(1)
       }
     });
   }, [employees, allEntries, allRequests, selectedMonth, selectedYear]);
