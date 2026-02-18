@@ -12,8 +12,7 @@ import {
   Activity, 
   Timer,
   Loader2,
-  ChevronLeft,
-  ChevronRight
+  RefreshCw
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -35,9 +34,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, query, where } from "firebase/firestore"
-import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
-import { it } from "date-fns/locale"
+import { collection, collectionGroup } from "firebase/firestore"
+import { startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
+import { cn } from "@/lib/utils"
 
 const MONTHS = [
   { label: "Gennaio", value: "0" },
@@ -58,6 +57,7 @@ export default function ReportsPage() {
   const db = useFirestore()
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth().toString())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Dati
   const employeesQuery = useMemoFirebase(() => {
@@ -113,7 +113,7 @@ export default function ReportsPage() {
 
       empRequests.forEach(req => {
         if (req.type === "VACATION") {
-          vacationDays += 1; // Assumiamo 1 giorno per richiesta se non specificato altrimenti
+          vacationDays += 1;
         } else if (req.type === "SICK") {
           sickDays += 1;
         } else if (req.type === "HOURLY_PERMIT") {
@@ -123,7 +123,7 @@ export default function ReportsPage() {
             permitHours += (h2 + m2/60) - (h1 + m1/60);
           }
         } else if (req.type === "PERSONAL") {
-          permitHours += 8; // Assumiamo 8 ore per permesso giornaliero
+          permitHours += 8;
         }
       });
 
@@ -141,10 +141,18 @@ export default function ReportsPage() {
     });
   }, [employees, allEntries, allRequests, selectedMonth, selectedYear]);
 
-  const isLoading = employeesLoading || entriesLoading || requestsLoading;
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    // Simuliamo un ricalcolo per dare feedback all'utente (i dati sono già live)
+    setTimeout(() => {
+      setIsRefreshing(false)
+    }, 600)
+  }
+
+  const isLoading = employeesLoading || entriesLoading || requestsLoading || isRefreshing;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
@@ -153,7 +161,7 @@ export default function ReportsPage() {
           <p className="text-slate-500 font-medium">Riepilogo ore lavorate, permessi e assenze del team.</p>
         </div>
         
-        <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
+        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
             <SelectTrigger className="w-[150px] border-none font-bold">
               <SelectValue />
@@ -174,6 +182,19 @@ export default function ReportsPage() {
               <SelectItem value="2025">2025</SelectItem>
             </SelectContent>
           </Select>
+
+          <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50"
+            onClick={handleRefresh}
+            disabled={isLoading}
+          >
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+            Ricalcola
+          </Button>
         </div>
       </div>
 
