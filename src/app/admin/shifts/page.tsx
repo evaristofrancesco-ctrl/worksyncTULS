@@ -284,29 +284,29 @@ export default function ShiftsPage() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-black text-[#1e293b]">Pianificazione Turni Team</h1>
-          <p className="text-xs text-muted-foreground">Gestione turni e monitoraggio indisponibilità (Malattie/Ferie).</p>
+          <h1 className="text-3xl font-black text-[#1e293b]">Pianificazione Turni Team</h1>
+          <p className="text-sm text-muted-foreground">Gestione turni e monitoraggio indisponibilità (Malattie/Ferie/Permessi).</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-3">
           <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2 border-amber-500 text-amber-600 font-black h-9 text-[11px] shadow-sm uppercase">
-                <UserMinus className="h-3.5 w-3.5" /> Registra Assenza
+              <Button variant="outline" className="gap-2 border-amber-500 text-amber-600 font-black h-11 px-5 shadow-sm uppercase">
+                <UserMinus className="h-4 w-4" /> Registra Assenza
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle className="font-black text-xl">Registra Malattia/Ferie</DialogTitle>
-                <DialogDescription>L'assenza verrà mostrata in calendario e i turni automatici verranno saltati.</DialogDescription>
+                <DialogTitle className="font-black text-2xl">Registra Malattia/Ferie</DialogTitle>
+                <DialogDescription>L'assenza verrà mostrata in calendario e i turni automatici verranno saltati per quel periodo.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
+              <div className="space-y-5 py-4">
                 <div className="space-y-2">
-                  <Label className="font-bold text-xs uppercase">Dipendente *</Label>
+                  <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Dipendente *</Label>
                   <Select value={newAbsence.employeeId} onValueChange={(v) => setNewAbsence({...newAbsence, employeeId: v})}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona un collaboratore..." /></SelectTrigger>
                     <SelectContent>
                       {employees?.map(e => (
                         <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>
@@ -316,9 +316,9 @@ export default function ShiftsPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="font-bold text-xs uppercase">Tipo</Label>
+                    <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Tipo Assenza</Label>
                     <Select value={newAbsence.type} onValueChange={(v) => setNewAbsence({...newAbsence, type: v})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="VACATION">Ferie</SelectItem>
                         <SelectItem value="SICK">Malattia</SelectItem>
@@ -327,50 +327,53 @@ export default function ShiftsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-bold text-xs uppercase">Inizio *</Label>
-                    <Input type="date" value={newAbsence.startDate} onChange={e => setNewAbsence({...newAbsence, startDate: e.target.value})} />
+                    <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Data Inizio *</Label>
+                    <Input type="date" className="h-11" value={newAbsence.startDate} onChange={e => setNewAbsence({...newAbsence, startDate: e.target.value})} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="font-bold text-xs uppercase">Fine (opzionale)</Label>
-                    <Input type="date" value={newAbsence.endDate} onChange={e => setNewAbsence({...newAbsence, endDate: e.target.value})} />
+                    <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Data Fine (opzionale)</Label>
+                    <Input type="date" className="h-11" value={newAbsence.endDate} onChange={e => setNewAbsence({...newAbsence, endDate: e.target.value})} />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-bold text-xs uppercase">Nota Amministrazione</Label>
-                  <Textarea placeholder="es. Certificato medico n. 123..." value={newAbsence.reason} onChange={e => setNewAbsence({...newAbsence, reason: e.target.value})} />
+                  <Label className="font-bold text-xs uppercase tracking-wider text-slate-500">Nota Amministrazione</Label>
+                  <Textarea placeholder="es. Certificato medico inviato, urgenza familiare, ecc." value={newAbsence.reason} onChange={e => setNewAbsence({...newAbsence, reason: e.target.value})} />
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setIsAbsenceOpen(false)} className="font-bold">Annulla</Button>
-                <Button onClick={handleSaveAbsence} className="bg-amber-500 font-black h-11 px-8 uppercase">SALVA ASSENZA</Button>
+                <Button onClick={handleSaveAbsence} className="bg-amber-500 hover:bg-amber-600 font-black h-12 px-10 uppercase shadow-lg">CONFERMA ASSENZA</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 border-[#227FD8] text-[#227FD8] font-black h-9 text-[11px] shadow-sm uppercase">
-            {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 border-[#227FD8] text-[#227FD8] font-black h-11 px-5 shadow-sm uppercase">
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             Reset e Rigenera
           </Button>
-          <Button className="gap-2 bg-[#227FD8] font-black h-9 text-[11px] shadow-md hover:bg-[#227FD8]/90 uppercase"><Plus className="h-3.5 w-3.5" /> Nuovo Turno</Button>
+          <Button className="gap-2 bg-[#227FD8] font-black h-11 px-6 shadow-md hover:bg-[#227FD8]/90 uppercase text-xs">
+            <Plus className="h-4 w-4" /> Nuovo Turno
+          </Button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigateWeek('prev')} className="h-8 w-8 rounded-full"><ChevronLeft className="h-4 w-4" /></Button>
-          <div className="flex flex-col items-center min-w-[180px]">
-            <span className="text-md font-black text-[#1e293b] uppercase tracking-tighter">
-              {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
+      <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+        <div className="flex items-center gap-6">
+          <Button variant="ghost" size="icon" onClick={() => navigateWeek('prev')} className="h-10 w-10 rounded-full hover:bg-slate-100"><ChevronLeft className="h-6 w-6" /></Button>
+          <div className="flex flex-col items-center min-w-[240px]">
+            <span className="text-xl font-black text-[#1e293b] uppercase tracking-tight">
+              {format(weekStart, 'dd MMMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMMM', { locale: it })}
             </span>
+            <span className="text-xs font-bold text-muted-foreground mt-0.5">Settimana in corso</span>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => navigateWeek('next')} className="h-8 w-8 rounded-full"><ChevronRight className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => navigateWeek('next')} className="h-10 w-10 rounded-full hover:bg-slate-100"><ChevronRight className="h-6 w-6" /></Button>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => navigateWeek('today')} className="font-bold h-7 text-[10px]">OGGI</Button>
+        <Button variant="secondary" size="sm" onClick={() => navigateWeek('today')} className="font-black h-9 px-6 text-xs uppercase tracking-widest border border-slate-200">OGGI</Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-start">
         {daysOfVisualizedWeek.map((day) => {
           const dayStr = format(day, 'yyyy-MM-dd')
           const isToday = isSameDay(day, new Date())
@@ -394,53 +397,64 @@ export default function ShiftsPage() {
           
           return (
             <Card key={dayStr} className={cn(
-              "border-none shadow-sm overflow-hidden flex flex-col min-h-[480px]",
-              isToday ? "bg-[#227FD8]/5 ring-2 ring-[#227FD8]/20" : "bg-white/80"
+              "border-none shadow-sm overflow-hidden flex flex-col min-h-[550px] transition-all duration-300",
+              isToday ? "bg-[#227FD8]/5 ring-2 ring-[#227FD8]/30 shadow-blue-100 shadow-xl" : "bg-white"
             )}>
               <div className={cn(
-                "p-2 text-center border-b font-black uppercase tracking-tighter",
-                isToday ? "bg-[#227FD8] text-white" : "bg-muted/30 text-[#1e293b]"
+                "p-3 text-center border-b font-black uppercase tracking-tight",
+                isToday ? "bg-[#227FD8] text-white" : "bg-slate-50 text-[#1e293b]"
               )}>
-                <div className="text-[10px]">{format(day, 'EEEE', { locale: it })}</div>
-                <div className="text-lg leading-none mt-0.5">{format(day, 'dd')}</div>
+                <div className="text-[11px] opacity-80">{format(day, 'EEEE', { locale: it })}</div>
+                <div className="text-2xl leading-none mt-1">{format(day, 'dd')}</div>
               </div>
-              <CardContent className="p-1.5 flex-1 space-y-3">
+              <CardContent className="p-3 flex-1 space-y-6">
                 {isShiftsLoading ? (
-                  <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                  <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground opacity-30" /></div>
                 ) : (
                   <>
                     {/* Visualizzazione Assenze */}
                     {absencesForDay.length > 0 && (
-                      <div className="space-y-1">
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 px-1">Indisponibili</div>
                         {absencesForDay.map(abs => (
                           <AbsenceCard key={abs.id} abs={abs} emp={employeeMap[abs.employeeId]} db={db} />
                         ))}
-                        <div className="border-b border-dashed my-2" />
+                        <div className="border-b border-dashed border-slate-200 my-4" />
                       </div>
                     )}
 
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-amber-50 rounded text-amber-700">
-                        <Sun className="h-2.5 w-2.5" />
-                        <span className="text-[8px] font-black uppercase tracking-widest">Mattina</span>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between px-2 py-1 bg-amber-50 rounded-lg text-amber-700">
+                        <div className="flex items-center gap-2">
+                          <Sun className="h-3 w-3" />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Mattina</span>
+                        </div>
+                        <span className="text-[9px] font-bold opacity-70">{morningShifts.length}</span>
                       </div>
-                      {morningShifts.length > 0 ? morningShifts.map(shift => (
-                        <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} styles={locationStyles} />
-                      )) : (
-                        <div className="text-[7px] text-center text-muted-foreground/30 italic py-1">--</div>
-                      )}
+                      <div className="space-y-2.5">
+                        {morningShifts.length > 0 ? morningShifts.map(shift => (
+                          <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} styles={locationStyles} />
+                        )) : (
+                          <div className="text-[9px] text-center text-muted-foreground/20 italic py-2 border border-dashed rounded-lg">Vuoto</div>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-blue-50 rounded text-blue-700">
-                        <Moon className="h-2.5 w-2.5" />
-                        <span className="text-[8px] font-black uppercase tracking-widest">Pomeriggio</span>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between px-2 py-1 bg-blue-50 rounded-lg text-blue-700">
+                        <div className="flex items-center gap-2">
+                          <Moon className="h-3 w-3" />
+                          <span className="text-[9px] font-black uppercase tracking-widest">Pomeriggio</span>
+                        </div>
+                        <span className="text-[9px] font-bold opacity-70">{afternoonShifts.length}</span>
                       </div>
-                      {afternoonShifts.length > 0 ? afternoonShifts.map(shift => (
-                        <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} styles={locationStyles} />
-                      )) : (
-                        <div className="text-[7px] text-center text-muted-foreground/30 italic py-1">--</div>
-                      )}
+                      <div className="space-y-2.5">
+                        {afternoonShifts.length > 0 ? afternoonShifts.map(shift => (
+                          <ShiftCard key={shift.id} shift={shift} emp={employeeMap[shift.employeeId]} db={db} styles={locationStyles} />
+                        )) : (
+                          <div className="text-[9px] text-center text-muted-foreground/20 italic py-2 border border-dashed rounded-lg">Vuoto</div>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}
@@ -460,27 +474,34 @@ function ShiftCard({ shift, emp, db, styles }: { shift: any, emp: any, db: any, 
 
   return (
     <div className={cn(
-      "group relative border rounded-lg p-1.5 shadow-xs transition-all border-l-[3px] bg-white hover:ring-1 hover:ring-primary/20",
+      "group relative border rounded-xl p-3 shadow-sm transition-all border-l-[4px] bg-white hover:shadow-md hover:ring-1 hover:ring-primary/10",
       style.border
     )}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <Avatar className="h-5 w-5 border shadow-xs">
+      <div className="flex items-center gap-2.5 mb-2">
+        <Avatar className="h-7 w-7 border shadow-sm ring-1 ring-white">
           <AvatarImage src={emp?.photoUrl} />
-          <AvatarFallback className="text-[7px] font-bold">{emp?.firstName?.charAt(0)}</AvatarFallback>
+          <AvatarFallback className="text-[10px] font-bold bg-slate-100">{emp?.firstName?.charAt(0)}</AvatarFallback>
         </Avatar>
-        <span className="text-[9px] font-black truncate text-[#1e293b]">{emp?.firstName} {emp?.lastName?.charAt(0)}.</span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-xs font-black truncate text-[#1e293b] leading-tight">
+            {emp?.firstName} {emp?.lastName?.charAt(0)}.
+          </span>
+          <span className="text-[8px] font-bold text-muted-foreground uppercase truncate">
+            {emp?.jobTitle || "Collaboratore"}
+          </span>
+        </div>
       </div>
-      <div className="flex items-center gap-1 text-[8px] font-bold text-[#227FD8]">
-        <Clock className="h-2.5 w-2.5" />
+      <div className="flex items-center gap-2 text-[10px] font-black text-[#227FD8] bg-blue-50/50 w-fit px-2 py-0.5 rounded-md">
+        <Clock className="h-3 w-3" />
         {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
       </div>
       <Button 
         variant="ghost" 
         size="icon" 
-        className="absolute -top-1 -right-1 h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-destructive text-white hover:bg-destructive/90"
+        className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-all rounded-full bg-destructive text-white hover:bg-destructive/90 shadow-lg scale-90 hover:scale-100"
         onClick={() => deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id))}
       >
-        <Trash2 className="h-2 w-2" />
+        <Trash2 className="h-3.5 w-3.5" />
       </Button>
     </div>
   )
@@ -488,15 +509,21 @@ function ShiftCard({ shift, emp, db, styles }: { shift: any, emp: any, db: any, 
 
 function AbsenceCard({ abs, emp, db }: { abs: any, emp: any, db: any }) {
   const Icon = abs.type === 'SICK' ? Activity : abs.type === 'VACATION' ? Umbrella : UserMinus;
-  const colorClass = abs.type === 'SICK' ? 'bg-rose-50 text-rose-700 border-rose-200' : abs.type === 'VACATION' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200';
+  const colorClass = abs.type === 'SICK' 
+    ? 'bg-rose-50 text-rose-700 border-rose-200' 
+    : abs.type === 'VACATION' 
+    ? 'bg-amber-50 text-amber-700 border-amber-200' 
+    : 'bg-slate-50 text-slate-700 border-slate-200';
 
   return (
-    <div className={cn("group relative border rounded-lg p-1.5 shadow-xs border-l-[3px] transition-all", colorClass)}>
-      <div className="flex items-center gap-1.5">
-        <Icon className="h-3 w-3" />
+    <div className={cn("group relative border rounded-xl p-3 shadow-sm border-l-[4px] transition-all", colorClass)}>
+      <div className="flex items-center gap-3">
+        <div className="p-1.5 bg-white/50 rounded-lg">
+          <Icon className="h-4 w-4" />
+        </div>
         <div className="flex flex-col min-w-0">
-          <span className="text-[9px] font-black truncate">{emp?.firstName} {emp?.lastName?.charAt(0)}.</span>
-          <span className="text-[7px] font-black uppercase tracking-tighter opacity-70">
+          <span className="text-xs font-black truncate">{emp?.firstName} {emp?.lastName?.charAt(0)}.</span>
+          <span className="text-[9px] font-black uppercase tracking-wider opacity-80">
             {abs.type === 'SICK' ? 'Malattia' : abs.type === 'VACATION' ? 'Ferie' : 'Permesso'}
           </span>
         </div>
@@ -504,10 +531,10 @@ function AbsenceCard({ abs, emp, db }: { abs: any, emp: any, db: any }) {
       <Button 
         variant="ghost" 
         size="icon" 
-        className="absolute -top-1 -right-1 h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-slate-400 text-white"
+        className="absolute -top-2 -right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-all rounded-full bg-slate-600 text-white shadow-lg scale-90 hover:scale-100"
         onClick={() => deleteDocumentNonBlocking(doc(db, "employees", abs.employeeId, "requests", abs.id))}
       >
-        <Trash2 className="h-2 w-2" />
+        <Trash2 className="h-3.5 w-3.5" />
       </Button>
     </div>
   )
