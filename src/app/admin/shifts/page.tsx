@@ -413,7 +413,7 @@ export default function ShiftsPage() {
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={() => navigateWeek('prev')} className="h-9 w-9 rounded-full"><ChevronLeft className="h-5 w-5" /></Button>
               <div className="text-center min-w-[200px]">
-                <span className="text-lg font-black text-slate-900 uppercase">
+                <span className="text-xl font-black text-slate-900 uppercase">
                   {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
                 </span>
               </div>
@@ -426,22 +426,22 @@ export default function ShiftsPage() {
           <ScrollArea className="w-full h-[700px]">
             <div className="inline-block min-w-full">
               <div className="flex sticky top-0 z-30 bg-white border-b shadow-sm">
-                <div className="w-[180px] p-4 font-black text-[10px] uppercase tracking-widest text-slate-400 sticky left-0 bg-white border-r z-40 flex items-center justify-center">
+                <div className="w-[180px] p-4 font-black text-xs uppercase tracking-widest text-slate-400 sticky left-0 bg-white border-r z-40 flex items-center justify-center">
                   DATA / TEAM
                 </div>
                 {displayEmployees.map((emp) => (
                   <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3 bg-white">
-                    <Avatar className="h-9 w-9 border shadow-sm shrink-0">
+                    <Avatar className="h-10 w-10 border shadow-sm shrink-0">
                       <AvatarImage src={emp.photoUrl} />
                       <AvatarFallback className="font-bold">{emp.firstName.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col min-w-0">
-                      <span className="font-bold text-slate-900 truncate text-sm">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[10px] font-black text-slate-400 uppercase truncate tracking-tighter">{emp.jobTitle}</span>
+                      <span className="font-bold text-slate-900 truncate text-base">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-xs font-black text-slate-400 uppercase truncate tracking-tighter">{emp.jobTitle}</span>
                     </div>
                   </div>
                 ))}
-                <div className="min-w-[250px] p-4 font-black text-[10px] uppercase tracking-widest text-[#227FD8] bg-blue-50/50 flex items-center justify-center border-l-2 border-[#227FD8]/20 sticky right-0 z-40 shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
+                <div className="min-w-[250px] p-4 font-black text-xs uppercase tracking-widest text-[#227FD8] bg-blue-50/50 flex items-center justify-center border-l-2 border-[#227FD8]/20 sticky right-0 z-40 shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
                   COPERTURA SEDI
                 </div>
               </div>
@@ -449,8 +449,8 @@ export default function ShiftsPage() {
               <div className="divide-y">
                 {isEmployeesLoading || isShiftsLoading ? (
                   <div className="py-20 text-center flex flex-col items-center gap-4">
-                    <Loader2 className="h-8 w-8 animate-spin text-[#227FD8]" />
-                    <p className="text-sm font-bold text-slate-400">Analisi pianificazione...</p>
+                    <Loader2 className="h-10 w-10 animate-spin text-[#227FD8]" />
+                    <p className="text-base font-bold text-slate-400">Analisi pianificazione...</p>
                   </div>
                 ) : daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
@@ -462,11 +462,11 @@ export default function ShiftsPage() {
                       isToday ? "bg-blue-50/20" : ""
                     )}>
                       <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center items-center text-center shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
-                        <div className="text-[10px] font-black uppercase text-slate-400">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className={cn("text-xl font-black mt-1 leading-none", isToday ? "text-[#227FD8]" : "text-slate-700")}>
+                        <div className="text-xs font-black uppercase text-slate-400">{format(day, 'EEEE', { locale: it })}</div>
+                        <div className={cn("text-2xl font-black mt-1 leading-none", isToday ? "text-[#227FD8]" : "text-slate-700")}>
                           {format(day, 'dd')}
                         </div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase">{format(day, 'MMMM', { locale: it })}</div>
+                        <div className="text-xs font-bold text-slate-400 uppercase">{format(day, 'MMMM', { locale: it })}</div>
                       </div>
 
                       {displayEmployees.map((emp) => {
@@ -507,7 +507,7 @@ export default function ShiftsPage() {
 
                             <div className="space-y-2">
                               <div className="flex items-center gap-2 opacity-30">
-                                <span className="text-[8px] font-black tracking-widest uppercase">AM</span>
+                                <span className="text-[10px] font-black tracking-widest uppercase">AM</span>
                                 <div className="h-px flex-1 bg-slate-300" />
                               </div>
                               <div className="space-y-2">
@@ -522,7 +522,7 @@ export default function ShiftsPage() {
 
                             <div className="space-y-2">
                               <div className="flex items-center gap-2 opacity-30">
-                                <span className="text-[8px] font-black tracking-widest uppercase">PM</span>
+                                <span className="text-[10px] font-black tracking-widest uppercase">PM</span>
                                 <div className="h-px flex-1 bg-slate-300" />
                               </div>
                               <div className="space-y-2">
@@ -542,7 +542,7 @@ export default function ShiftsPage() {
                         <div className="space-y-3">
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-2 opacity-50">
-                              <span className="text-[8px] font-black tracking-widest uppercase text-[#227FD8]">AM Copertura</span>
+                              <span className="text-[10px] font-black tracking-widest uppercase text-[#227FD8]">AM Copertura</span>
                               <div className="h-px flex-1 bg-blue-200" />
                             </div>
                             <div className="space-y-1">
@@ -560,18 +560,18 @@ export default function ShiftsPage() {
                                       : "bg-white/80 border-blue-100"
                                   )}>
                                     <span className={cn(
-                                      "text-[9px] font-black truncate pr-2 uppercase tracking-tighter",
+                                      "text-xs font-black truncate pr-2 uppercase tracking-tighter",
                                       count === 0 ? "text-rose-700" : "text-slate-700"
                                     )}>
                                       {loc.name}
                                     </span>
                                     {count === 0 ? (
                                       <div className="flex items-center gap-1">
-                                        <AlertTriangle className="h-3 w-3 text-rose-600" />
-                                        <Badge variant="destructive" className="h-4 px-1 text-[8px] font-black uppercase">SCOPERTO</Badge>
+                                        <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                                        <Badge variant="destructive" className="h-5 px-1.5 text-[10px] font-black uppercase">SCOPERTO</Badge>
                                       </div>
                                     ) : (
-                                      <Badge className="h-4 px-1.5 text-[10px] font-black bg-[#227FD8]">{count}</Badge>
+                                      <Badge className="h-5 px-2 text-xs font-black bg-[#227FD8]">{count}</Badge>
                                     )}
                                   </div>
                                 )
@@ -581,7 +581,7 @@ export default function ShiftsPage() {
 
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-2 opacity-50">
-                              <span className="text-[8px] font-black tracking-widest uppercase text-slate-500">PM Copertura</span>
+                              <span className="text-[10px] font-black tracking-widest uppercase text-slate-500">PM Copertura</span>
                               <div className="h-px flex-1 bg-slate-200" />
                             </div>
                             <div className="space-y-1">
@@ -599,18 +599,18 @@ export default function ShiftsPage() {
                                       : "bg-white/80 border-slate-100"
                                   )}>
                                     <span className={cn(
-                                      "text-[9px] font-black truncate pr-2 uppercase tracking-tighter",
+                                      "text-xs font-black truncate pr-2 uppercase tracking-tighter",
                                       count === 0 ? "text-rose-700" : "text-slate-700"
                                     )}>
                                       {loc.name}
                                     </span>
                                     {count === 0 ? (
                                       <div className="flex items-center gap-1">
-                                        <AlertTriangle className="h-3 w-3 text-rose-600" />
-                                        <Badge variant="destructive" className="h-4 px-1 text-[8px] font-black uppercase">SCOPERTO</Badge>
+                                        <AlertTriangle className="h-3.5 w-3.5 text-rose-600" />
+                                        <Badge variant="destructive" className="h-5 px-1.5 text-[10px] font-black uppercase">SCOPERTO</Badge>
                                       </div>
                                     ) : (
-                                      <Badge className="h-4 px-1.5 text-[10px] font-black bg-slate-700">{count}</Badge>
+                                      <Badge className="h-5 px-2 text-xs font-black bg-slate-700">{count}</Badge>
                                     )}
                                   </div>
                                 )
@@ -641,25 +641,25 @@ function ShiftItem({ shift, db }: { shift: any, db: any }) {
 
   return (
     <div className={cn(
-      "group relative rounded-lg p-2.5 border-l-4 shadow-sm transition-all animate-in zoom-in-95 duration-200",
+      "group relative rounded-lg p-3 border-l-4 shadow-sm transition-all animate-in zoom-in-95 duration-200",
       isMorning ? "bg-amber-50/50 border-amber-400 text-amber-900" : "bg-blue-50/50 border-blue-400 text-blue-900"
     )}>
-      <div className="flex items-center justify-between mb-0.5">
+      <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
+          <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
             {shift.title || "Turno"}
           </span>
-          {isManual && <Lock className="h-2.5 w-2.5 text-blue-600/50" title="Inserimento Manuale Protetto" />}
+          {isManual && <Lock className="h-3 w-3 text-blue-600/50" title="Inserimento Manuale Protetto" />}
         </div>
         <button 
           onClick={() => deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id))}
-          className="h-4 w-4 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
+          className="h-5 w-5 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
         >
-          <Trash2 className="h-2.5 w-2.5" />
+          <Trash2 className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex items-center gap-1.5 font-black text-xs">
-        <Clock className="h-3 w-3" />
+      <div className="flex items-center gap-1.5 font-black text-sm">
+        <Clock className="h-3.5 w-3.5" />
         {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
       </div>
     </div>
@@ -671,18 +671,18 @@ function AbsenceItem({ abs, db }: { abs: any, db: any }) {
   const labels: any = { VACATION: 'Ferie', SICK: 'Malattia', PERSONAL: 'Permesso', HOURLY_PERMIT: 'Orario', REST_SWAP: 'Cambio Riposo' };
   
   return (
-    <div className="group relative rounded-lg p-2.5 bg-rose-50 border-l-4 border-rose-500 text-rose-900 shadow-sm animate-in slide-in-from-top-2 duration-300">
-      <div className="flex items-center justify-between mb-0.5">
-        <span className="text-[9px] font-black uppercase tracking-widest opacity-60">{labels[abs.type]}</span>
+    <div className="group relative rounded-lg p-3 bg-rose-50 border-l-4 border-rose-500 text-rose-900 shadow-sm animate-in slide-in-from-top-2 duration-300">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{labels[abs.type]}</span>
         <button 
           onClick={() => deleteDocumentNonBlocking(doc(db, "employees", abs.employeeId, "requests", abs.id))}
-          className="h-4 w-4 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
+          className="h-5 w-5 rounded-full bg-white/80 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
         >
-          <Trash2 className="h-2.5 w-2.5" />
+          <Trash2 className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex items-center gap-2 font-black text-xs">
-        <Icon className="h-3.5 w-3.5" />
+      <div className="flex items-center gap-2 font-black text-sm">
+        <Icon className="h-4 w-4" />
         <span className="truncate">
           {abs.type === 'HOURLY_PERMIT' ? `${abs.startTime} - ${abs.endTime}` : 'Assenza Totale'}
         </span>
@@ -693,12 +693,12 @@ function AbsenceItem({ abs, db }: { abs: any, db: any }) {
 
 function RestItem({ data }: { data: any }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-300 p-2 bg-white/40 flex flex-col items-center justify-center gap-0.5 animate-in fade-in duration-200">
+    <div className="rounded-lg border border-dashed border-slate-300 p-2.5 bg-white/40 flex flex-col items-center justify-center gap-1 animate-in fade-in duration-200">
       <div className="flex items-center gap-1 text-slate-400">
-        <Sun className="h-3 w-3" />
-        <span className="text-[8px] font-black uppercase tracking-widest">Riposo</span>
+        <Sun className="h-3.5 w-3.5" />
+        <span className="text-[10px] font-black uppercase tracking-widest">Riposo</span>
       </div>
-      <span className="text-[10px] font-bold text-slate-500">{data.startTime} - {data.endTime}</span>
+      <span className="text-xs font-bold text-slate-500">{data.startTime} - {data.endTime}</span>
     </div>
   )
 }
