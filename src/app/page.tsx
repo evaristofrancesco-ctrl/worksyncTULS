@@ -34,11 +34,11 @@ export default function Home() {
           Pianificazione intelligente, monitoraggio in tempo reale e ottimizzazione basata su AI.
         </p>
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link href="/login">
-            <Button size="lg" className="bg-[#227FD8] hover:bg-[#227FD8]/90 h-14 px-8 text-lg font-bold rounded-2xl shadow-lg group w-full sm:w-auto">
+          <Button asChild size="lg" className="bg-[#227FD8] hover:bg-[#227FD8]/90 h-14 px-8 text-lg font-bold rounded-2xl shadow-lg group w-full sm:w-auto">
+            <Link href="/login">
               Accedi al Portale <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -66,12 +66,12 @@ export default function Home() {
               {copied ? "Copiato" : "Copia Link"}
             </Button>
           </div>
-          <div className="bg-slate-50 p-3 rounded-xl border border-dashed flex items-center justify-between group">
-            <code className="text-xs text-slate-500 truncate mr-2">/login</code>
-            <Link href="/login">
-              <ExternalLink className="h-4 w-4 text-slate-400 group-hover:text-[#227FD8] transition-colors" />
-            </Link>
-          </div>
+          <Link href="/login" className="block group">
+            <div className="bg-slate-50 p-4 rounded-xl border border-dashed flex items-center justify-between hover:bg-blue-50 transition-colors border-slate-200 group-hover:border-[#227FD8]">
+              <code className="text-sm font-black text-[#227FD8] tracking-tight">VAI AL LOGIN COLLABORATORI</code>
+              <ExternalLink className="h-5 w-5 text-slate-400 group-hover:text-[#227FD8] transition-colors" />
+            </div>
+          </Link>
         </div>
       </div>
 

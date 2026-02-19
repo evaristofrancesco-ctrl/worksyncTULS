@@ -41,7 +41,7 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
-      // Ricerca dell'utente nel database Firestore PRIMA del login anonimo
+      // Ricerca dell'utente nel database Firestore
       const employeesRef = collection(db, "employees")
       const q = query(employeesRef, where("email", "==", cleanEmail), limit(1))
       const querySnapshot = await getDocs(q)
@@ -50,7 +50,7 @@ export default function LoginPage() {
 
       if (!querySnapshot.empty) {
         const docData = querySnapshot.docs[0].data()
-        // Verifica esplicita della password salvata nel documento
+        // Verifica della password
         if (docData.password === cleanPassword) {
           userData = docData
         }
@@ -69,7 +69,8 @@ export default function LoginPage() {
         }
 
         // Memorizziamo il ruolo, il nome e l'ID REALE del dipendente
-        localStorage.setItem("userRole", userData.role)
+        const userRole = (userData.role || "").toLowerCase();
+        localStorage.setItem("userRole", userRole)
         localStorage.setItem("userName", fullName)
         localStorage.setItem("employeeId", userData.id)
 
@@ -78,7 +79,7 @@ export default function LoginPage() {
           description: `Bentornato, ${fullName}!`,
         })
         
-        if (userData.role === 'admin') {
+        if (userRole === 'admin') {
           router.push("/admin")
         } else {
           router.push("/employee")
