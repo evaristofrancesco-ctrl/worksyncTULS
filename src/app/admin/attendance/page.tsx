@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Clock, Download, Search, Loader2, Zap, UserCheck } from "lucide-react"
+import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,13 +20,37 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc } from "firebase/firestore"
 import { useState, useMemo } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function AttendancePage() {
   const db = useFirestore()
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  
+  // Stati per i Dialog
+  const [isForceOpen, setIsForceOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editingEntry, setEditingEntry] = useState<any>(null)
+
+  // Form per inserimento forzato
+  const [newEntry, setNewEntry] = useState({
+    employeeId: "",
+    date: new Date().toISOString().split('T')[0],
+    checkIn: "09:00",
+    checkOut: "13:00"
+  })
 
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -135,14 +159,116 @@ export default function AttendancePage() {
     }
   }
 
+  const handleForceEntry = () => {
+    if (!newEntry.employeeId || !newEntry.date || !newEntry.checkIn) {
+      toast({ variant: "destructive", title: "Errore", description: "Dipendente, data e ora entrata obbligatori." });
+      return;
+    }
+
+    const entryId = `forced-${Date.now()}`;
+    const checkInDateTime = new Date(`${newEntry.date}T${newEntry.checkIn}`);
+    const checkOutDateTime = newEntry.checkOut ? new Date(`${newEntry.date}T${newEntry.checkOut}`) : null;
+
+    setDocumentNonBlocking(doc(db, "employees", newEntry.employeeId, "timeentries", entryId), {
+      id: entryId,
+      employeeId: newEntry.employeeId,
+      companyId: "default",
+      checkInTime: checkInDateTime.toISOString(),
+      checkOutTime: checkOutDateTime?.toISOString() || null,
+      status: "PRESENT",
+      isApproved: true,
+      type: "MANUAL",
+      slot: checkInDateTime.getHours() < 14 ? "MORNING" : "AFTERNOON"
+    }, { merge: true });
+
+    setIsForceOpen(false);
+    toast({ title: "Timbratura Inserita" });
+  }
+
+  const handleUpdateEntry = () => {
+    if (!editingEntry) return;
+
+    const baseDate = new Date(editingEntry.checkInTime).toISOString().split('T')[0];
+    const newCheckIn = new Date(`${baseDate}T${editingEntry.editIn}`);
+    const newCheckOut = editingEntry.editOut ? new Date(`${baseDate}T${editingEntry.editOut}`) : null;
+
+    updateDocumentNonBlocking(doc(db, "employees", editingEntry.employeeId, "timeentries", editingEntry.id), {
+      checkInTime: newCheckIn.toISOString(),
+      checkOutTime: newCheckOut?.toISOString() || null,
+      updatedBy: "ADMIN",
+      updatedAt: new Date().toISOString()
+    });
+
+    setIsEditOpen(false);
+    setEditingEntry(null);
+    toast({ title: "Timbratura Aggiornata" });
+  }
+
+  const openEdit = (log: any) => {
+    const cin = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "09:00";
+    const cout = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "";
+    setEditingEntry({ ...log, editIn: cin, editOut: cout });
+    setIsEditOpen(true);
+  }
+
+  const handleDeleteEntry = (log: any) => {
+    deleteDocumentNonBlocking(doc(db, "employees", log.employeeId, "timeentries", log.id));
+    toast({ title: "Timbratura Eliminata" });
+  }
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between gap-4">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-[#1e293b]">Registro Presenze</h1>
-          <p className="text-sm text-muted-foreground">Monitoraggio timbrature del punto vendita.</p>
+          <p className="text-sm text-muted-foreground">Monitoraggio e correzione timbrature del team.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Dialog open={isForceOpen} onOpenChange={setIsForceOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-9">
+                <Plus className="h-4 w-4 mr-1" /> Forza Inserimento
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle className="font-black text-xl uppercase">Timbratura Forzata</DialogTitle>
+                <DialogDescription>Inserisci manualmente un ingresso/uscita per un dipendente.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label className="font-bold uppercase text-xs text-slate-500">Dipendente</Label>
+                  <Select value={newEntry.employeeId} onValueChange={(v) => setNewEntry({...newEntry, employeeId: v})}>
+                    <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectContent>
+                      {employees?.filter(e => e.isActive).map(e => (
+                        <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-bold uppercase text-xs text-slate-500">Data</Label>
+                  <Input type="date" value={newEntry.date} onChange={e => setNewEntry({...newEntry, date: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="font-bold uppercase text-xs text-slate-500">Ora Entrata</Label>
+                    <Input type="time" value={newEntry.checkIn} onChange={e => setNewEntry({...newEntry, checkIn: e.target.value})} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-bold uppercase text-xs text-slate-500">Ora Uscita (opzionale)</Label>
+                    <Input type="time" value={newEntry.checkOut} onChange={e => setNewEntry({...newEntry, checkOut: e.target.value})} />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsForceOpen(false)} className="font-bold">Annulla</Button>
+                <Button onClick={handleForceEntry} className="bg-[#227FD8] font-black px-8">SALVA</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Button onClick={handleAutoClockIn} disabled={isGenerating || isLoading} size="sm" className="bg-amber-500 hover:bg-amber-600 font-bold h-9">
             {isGenerating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1 fill-current" />} Timbratura Automatica
           </Button>
@@ -168,7 +294,7 @@ export default function AttendancePage() {
                   <TableHead className="text-sm font-black uppercase py-0">Data</TableHead>
                   <TableHead className="text-sm font-black uppercase py-0">Entrata</TableHead>
                   <TableHead className="text-sm font-black uppercase py-0">Uscita</TableHead>
-                  <TableHead className="text-sm font-black uppercase py-0 pr-4">Tipo</TableHead>
+                  <TableHead className="text-right text-sm font-black uppercase py-0 pr-4">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -179,7 +305,7 @@ export default function AttendancePage() {
                   const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
                   const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
                   return (
-                    <TableRow key={log.id} className="h-12 hover:bg-muted/10">
+                    <TableRow key={log.id} className="h-12 hover:bg-muted/10 group">
                       <TableCell className="pl-4">
                         <div className="flex items-center gap-2">
                           <Avatar className="h-7 w-7 border">
@@ -194,10 +320,15 @@ export default function AttendancePage() {
                       <TableCell className="text-sm">{cIn?.toLocaleDateString('it-IT')}</TableCell>
                       <TableCell className="text-sm font-bold text-[#227FD8]">{cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</TableCell>
                       <TableCell className="text-sm font-bold text-slate-500">{cOut?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) || "--:--"}</TableCell>
-                      <TableCell className="pr-4">
-                        <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={`h-5 text-[10px] font-black ${!log.checkOutTime ? "bg-green-500" : ""}`}>
-                          {!log.checkOutTime ? "In Servizio" : log.type === "AUTO" ? "AUTO" : "MANUALE"}
-                        </Badge>
+                      <TableCell className="pr-4 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEdit(log)}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-rose-600" onClick={() => handleDeleteEntry(log)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -218,6 +349,38 @@ export default function AttendancePage() {
           </Card>
         </div>
       </div>
+
+      {/* Dialog Modifica Timbratura */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-black text-xl uppercase">Modifica Orari</DialogTitle>
+            <DialogDescription>
+              {editingEntry && employeeMap[editingEntry.employeeId] ? 
+                `${employeeMap[editingEntry.employeeId].firstName} ${employeeMap[editingEntry.employeeId].lastName}` : 
+                "Modifica timbratura"}
+            </DialogDescription>
+          </DialogHeader>
+          {editingEntry && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="font-bold uppercase text-xs text-slate-500">Ora Entrata</Label>
+                <Input type="time" value={editingEntry.editIn} onChange={e => setEditingEntry({...editingEntry, editIn: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold uppercase text-xs text-slate-500">Ora Uscita</Label>
+                <Input type="time" value={editingEntry.editOut} onChange={e => setEditingEntry({...editingEntry, editOut: e.target.value})} />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="font-bold">Annulla</Button>
+            <Button onClick={handleUpdateEntry} className="bg-[#227FD8] font-black gap-2">
+              <Save className="h-4 w-4" /> AGGIORNA
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
