@@ -17,7 +17,8 @@ import {
   Lock,
   Mail,
   Zap,
-  Clock
+  Clock,
+  Award
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -151,6 +152,13 @@ function EmployeeForm({
         <TabsContent value="lavoro" className="p-6 space-y-6">
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
+              <Label className="font-bold text-sm uppercase text-slate-500">Qualifica / Mansione *</Label>
+              <div className="relative">
+                <Award className="absolute left-3 top-4 h-4 w-4 text-slate-400" />
+                <Input className="pl-10 h-12 text-base" placeholder="es. Addetto alle Vendite" value={formData.jobTitle} onChange={e => setFormData({...formData, jobTitle: e.target.value})} />
+              </div>
+            </div>
+            <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Sede Operativa</Label>
               <Select value={formData.locationId} onValueChange={v => setFormData({...formData, locationId: v})}>
                 <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Seleziona sede" /></SelectTrigger>
@@ -159,6 +167,9 @@ function EmployeeForm({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="font-bold text-sm uppercase text-slate-500">Contratto</Label>
               <Select value={formData.contractType} onValueChange={handleContractChange}>
@@ -169,11 +180,15 @@ function EmployeeForm({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label className="font-bold text-sm uppercase text-slate-500">Ore Settimanali</Label>
+              <Input className="h-12 text-base" type="number" value={formData.weeklyHours} onChange={e => setFormData({...formData, weeklyHours: Number(e.target.value)})} />
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 pt-4 border-t">
+          <div className="grid grid-cols-3 gap-4 pt-4 border-t">
             <div className="space-y-2">
-              <Label className="font-bold text-sm uppercase text-slate-500">Giorno di Riposo</Label>
+              <Label className="font-bold text-sm uppercase text-slate-500">Giorno Riposo</Label>
               <Select value={formData.restDay} onValueChange={v => setFormData({...formData, restDay: v})}>
                 <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -182,18 +197,11 @@ function EmployeeForm({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="font-bold text-sm uppercase text-slate-500">Inizio Riposo Orario</Label>
+              <Label className="font-bold text-sm uppercase text-slate-500">Inizio Riposo</Label>
               <Input type="time" className="h-12 text-base" value={formData.restStartTime} onChange={e => setFormData({...formData, restStartTime: e.target.value})} />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-6">
-             <div className="space-y-2">
-              <Label className="font-bold text-sm uppercase text-slate-500">Ore Settimanali</Label>
-              <Input className="h-12 text-base" type="number" value={formData.weeklyHours} onChange={e => setFormData({...formData, weeklyHours: Number(e.target.value)})} />
-            </div>
             <div className="space-y-2">
-              <Label className="font-bold text-sm uppercase text-slate-500">Fine Riposo Orario</Label>
+              <Label className="font-bold text-sm uppercase text-slate-500">Fine Riposo</Label>
               <Input type="time" className="h-12 text-base" value={formData.restEndTime} onChange={e => setFormData({...formData, restEndTime: e.target.value})} />
             </div>
           </div>
@@ -247,7 +255,6 @@ export default function EmployeesPage() {
     lastName: "",
     email: "",
     jobTitle: "",
-    department: "",
     isAdmin: false,
     password: "",
     locationId: "",
@@ -264,7 +271,6 @@ export default function EmployeesPage() {
     setEditingEmployeeData(null);
     setIsEditOpen(false);
     
-    // Disaccoppiamento asincrono critico per evitare il freeze
     setTimeout(() => {
       setEditingEmployeeData({ ...emp, isAdmin: emp.role === 'admin' });
       setIsEditOpen(true);
@@ -272,8 +278,8 @@ export default function EmployeesPage() {
   }
 
   const handleAddEmployee = (data: any) => {
-    if (!data.firstName || !data.lastName || !data.email || !data.password) {
-      toast({ variant: "destructive", title: "Campi Mancanti", description: "Compila tutti i campi obbligatori." })
+    if (!data.firstName || !data.lastName || !data.email || !data.password || !data.jobTitle) {
+      toast({ variant: "destructive", title: "Campi Mancanti", description: "Compila tutti i campi obbligatori, inclusa la Qualifica." })
       return
     }
 
@@ -316,7 +322,6 @@ export default function EmployeesPage() {
     setEditingEmployeeData(null)
     toast({ title: "Profilo Aggiornato", description: "Le modifiche sono state salvate correttamente." })
     
-    // Workaround estremo per il problema del freeze: refresh automatico della pagina
     setTimeout(() => {
       window.location.reload();
     }, 500);
