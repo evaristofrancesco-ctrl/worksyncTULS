@@ -77,12 +77,21 @@ export default function AdminDashboard() {
 
   const recentEntries = useMemo(() => {
     if (!allEntries) return [];
+    const todayStr = new Date().toISOString().split('T')[0];
     return [...allEntries]
-      .filter(e => e.companyId === "default" && e.checkInTime)
+      .filter(e => {
+        if (e.companyId !== "default" || !e.checkInTime) return false;
+        try {
+          const entryDate = new Date(e.checkInTime).toISOString().split('T')[0];
+          return entryDate === todayStr;
+        } catch (err) {
+          return false;
+        }
+      })
       .sort((a, b) => {
         const dateA = new Date(a.checkInTime).getTime();
         const dateB = new Date(b.checkInTime).getTime();
-        return (isNaN(dateB) ? 0 : dateB) - (isNaN(dateA) ? 0 : dateA);
+        return dateB - dateA;
       })
       .slice(0, 5);
   }, [allEntries]);
@@ -148,7 +157,7 @@ export default function AdminDashboard() {
             <Card className="border-none shadow-sm bg-white/80">
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="font-black text-sm">Presenze Recenti</CardTitle>
-                <CardDescription className="text-[10px]">Ultimi movimenti registrati.</CardDescription>
+                <CardDescription className="text-[10px]">Movimenti di oggi.</CardDescription>
               </CardHeader>
               <CardContent className="p-4 pt-2">
                 <div className="space-y-3">
