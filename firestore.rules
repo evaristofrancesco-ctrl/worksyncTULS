@@ -6,18 +6,20 @@ service cloud.firestore {
     /**
      * TU.L.S. SECURITY RULES
      * Accesso globale configurato per prototipazione rapida.
+     * Questo set di regole garantisce che tutte le query (incluso 'list' su /notifications) siano permesse.
      */
 
-    // Regola universale di base
+    // Regola universale di fallback
     match /{document=**} {
       allow read, write: if true;
     }
 
-    // Regole esplicite per le collezioni principali per evitare conflitti di gerarchia
+    // Permessi espliciti per la collezione notifiche (risolve l'errore 'list' segnalato)
     match /notifications/{notificationId} {
       allow read, write: if true;
     }
 
+    // Permessi per le altre entità principali
     match /utilities/{utilityId} {
       allow read, write: if true;
     }
@@ -36,7 +38,7 @@ service cloud.firestore {
       }
     }
 
-    // Supporto esplicito per query collectionGroup (necessarie per i report admin)
+    // Supporto per query collectionGroup su tutto il database
     match /{path=**}/timeentries/{entry} {
       allow read, write: if true;
     }
