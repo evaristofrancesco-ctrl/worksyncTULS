@@ -20,6 +20,7 @@ import { collection, collectionGroup, doc } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { useMemo, useState } from "react"
+import { parseISO, format } from "date-fns"
 
 export default function RequestsPage() {
   const db = useFirestore()
@@ -68,6 +69,39 @@ export default function RequestsPage() {
       adminNote: note,
       updatedAt: new Date().toISOString()
     })
+
+    if (newStatus === "Approvato") {
+      // Sincronizzazione con Registro Presenze (Timbratura Simulata)
+      const startDate = parseISO(request.startDate);
+      const endDate = request.endDate ? parseISO(request.endDate) : startDate;
+      
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = format(d, 'yyyy-MM-dd');
+        const entryId = `entry-abs-req-${request.employeeId}-${dateStr}-${Date.now()}`;
+        const entryRef = doc(db, "employees", request.employeeId, "timeentries", entryId);
+        
+        let checkIn, checkOut;
+        if (request.type === 'HOURLY_PERMIT') {
+          checkIn = new Date(`${dateStr}T${request.startTime || "09:00"}`);
+          checkOut = new Date(`${dateStr}T${request.endTime || "13:00"}`);
+        } else {
+          checkIn = new Date(`${dateStr}T09:00`);
+          checkOut = new Date(`${dateStr}T20:20`);
+        }
+
+        setDocumentNonBlocking(entryRef, {
+          id: entryId,
+          employeeId: request.employeeId,
+          companyId: "default",
+          checkInTime: checkIn.toISOString(),
+          checkOutTime: checkOut.toISOString(),
+          status: "PRESENT",
+          isApproved: true,
+          type: "ABSENCE",
+          absenceType: request.type
+        }, { merge: true });
+      }
+    }
 
     // Crea notifica per il dipendente
     const notifId = `notif-req-${Date.now()}`;
@@ -222,7 +256,7 @@ export default function RequestsPage() {
             <Button variant="ghost" onClick={() => setRejectingRequest(null)} className="font-bold">Annulla</Button>
             <Button 
               className="bg-destructive hover:bg-destructive/90 gap-2 font-black"
-              onClick={() => handleUpdateStatus(rejectingRequest, "Rifiutato", adminNote)}
+              onClick={async () => handleUpdateStatus(rejectingRequest, "Rifiutato", adminNote)}
               disabled={!adminNote.trim()}
             >
               <Send className="h-4 w-4" /> Conferma Rifiuto

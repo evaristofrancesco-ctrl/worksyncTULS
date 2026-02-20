@@ -1,6 +1,7 @@
+
 "use client"
 
-import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X } from "lucide-react"
+import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X, Umbrella } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -110,12 +111,13 @@ export default function AttendancePage() {
           if (entryDate !== filterDate) return false;
         }
 
-        // Filtro Tipo (User, Auto, Admin)
+        // Filtro Tipo (User, Auto, Admin, Absence)
         if (filterType !== "all") {
           const type = entry.type || "MANUAL";
           if (filterType === "USER" && type !== "MANUAL") return false;
           if (filterType === "AUTO" && type !== "AUTO") return false;
           if (filterType === "ADMIN" && type !== "ADMIN") return false;
+          if (filterType === "ABSENCE" && type !== "ABSENCE") return false;
         }
 
         return true;
@@ -287,6 +289,8 @@ export default function AttendancePage() {
         return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none font-black text-[10px] gap-1"><ShieldCheck className="h-3 w-3" /> ADMIN</Badge>
       case 'AUTO':
         return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none font-black text-[10px] gap-1"><Zap className="h-3 w-3" /> AUTO</Badge>
+      case 'ABSENCE':
+        return <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-none font-black text-[10px] gap-1"><Umbrella className="h-3 w-3" /> ASSENZA</Badge>
       default:
         return <Badge className="bg-blue-100 text-[#227FD8] hover:bg-blue-100 border-none font-black text-[10px] gap-1"><Fingerprint className="h-3 w-3" /> UTENTE</Badge>
     }
@@ -459,6 +463,7 @@ export default function AttendancePage() {
                   <SelectItem value="USER">Inserite da Utente</SelectItem>
                   <SelectItem value="AUTO">Generate Automaticamente</SelectItem>
                   <SelectItem value="ADMIN">Forzate da Admin</SelectItem>
+                  <SelectItem value="ABSENCE">Assenze/Permessi</SelectItem>
                 </SelectContent>
               </Select>
             </div>

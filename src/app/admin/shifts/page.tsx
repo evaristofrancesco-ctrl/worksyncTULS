@@ -238,11 +238,46 @@ export default function ShiftsPage() {
       return;
     }
     const id = `abs-${Date.now()}`;
-    setDocumentNonBlocking(doc(db, "employees", newAbsence.employeeId, "requests", id), {
+    const absenceData = {
       ...newAbsence, id, status: "Approvato", submittedAt: new Date().toISOString(), adminNote: "Inserito da Amministratore"
-    }, { merge: true });
+    };
+    
+    setDocumentNonBlocking(doc(db, "employees", newAbsence.employeeId, "requests", id), absenceData, { merge: true });
+
+    // Sincronizzazione con Registro Presenze (Timbratura Simulata)
+    const startDate = parseISO(newAbsence.startDate);
+    const endDate = newAbsence.endDate ? parseISO(newAbsence.endDate) : startDate;
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = format(d, 'yyyy-MM-dd');
+      const entryId = `entry-abs-${newAbsence.employeeId}-${dateStr}-${Date.now()}`;
+      const entryRef = doc(db, "employees", newAbsence.employeeId, "timeentries", entryId);
+      
+      let checkIn, checkOut;
+      if (newAbsence.type === 'HOURLY_PERMIT') {
+        checkIn = new Date(`${dateStr}T${newAbsence.startTime}`);
+        checkOut = new Date(`${dateStr}T${newAbsence.endTime}`);
+      } else {
+        // Per assenze giornaliere simuliamo l'intero orario operativo per i report
+        checkIn = new Date(`${dateStr}T09:00`);
+        checkOut = new Date(`${dateStr}T20:20`);
+      }
+
+      setDocumentNonBlocking(entryRef, {
+        id: entryId,
+        employeeId: newAbsence.employeeId,
+        companyId: "default",
+        checkInTime: checkIn.toISOString(),
+        checkOutTime: checkOut.toISOString(),
+        status: "PRESENT",
+        isApproved: true,
+        type: "ABSENCE",
+        absenceType: newAbsence.type
+      }, { merge: true });
+    }
+
     setIsAbsenceOpen(false);
-    toast({ title: "Assenza Salvata" });
+    toast({ title: "Assenza Salvata", description: "Il record è stato aggiunto anche al registro presenze." });
   }
 
   const handleSaveManualShift = () => {
@@ -441,7 +476,7 @@ export default function ShiftsPage() {
                     </div>
                   </div>
                 ))}
-                <div className="min-w-[250px] p-4 font-black text-xs uppercase tracking-widest text-[#227FD8] bg-blue-50/50 flex items-center justify-center border-l-2 border-[#227FD8]/20 sticky right-0 z-40 shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
+                <div className="min-w-[250px] p-4 font-black text-xs uppercase tracking-widest text-[#227FD8] bg-blue-50/50 flex items-center justify-center border-l-2 border-[#227FD8]/20 sticky right-0 z-40 shadow-[-4px_0_10_rgba(0,0,0,0.05)]">
                   COPERTURA SEDI
                 </div>
               </div>
@@ -461,7 +496,7 @@ export default function ShiftsPage() {
                       "flex group hover:bg-slate-50/30 transition-colors",
                       isToday ? "bg-blue-50/20" : ""
                     )}>
-                      <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center items-center text-center shadow-[4px_0_10px_rgba(0,0,0,0.02)]">
+                      <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center items-center text-center shadow-[4px_0_10_rgba(0,0,0,0.02)]">
                         <div className="text-xs font-black uppercase text-slate-400">{format(day, 'EEEE', { locale: it })}</div>
                         <div className={cn("text-2xl font-black mt-1 leading-none", isToday ? "text-[#227FD8]" : "text-slate-700")}>
                           {format(day, 'dd')}
