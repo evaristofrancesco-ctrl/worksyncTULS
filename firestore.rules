@@ -5,14 +5,38 @@ service cloud.firestore {
     
     /**
      * TU.L.S. SECURITY RULES
-     * Sblocco totale per prototipazione rapida e supporto Collection Group.
+     * Accesso globale configurato per prototipazione rapida.
      */
 
+    // Regola universale di base
     match /{document=**} {
       allow read, write: if true;
     }
 
-    // Supporto esplicito per query collectionGroup su tutto il database
+    // Regole esplicite per le collezioni principali per evitare conflitti di gerarchia
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    match /utilities/{utilityId} {
+      allow read, write: if true;
+    }
+
+    match /employees/{employeeId} {
+      allow read, write: if true;
+      match /{allSubcollections=**} {
+        allow read, write: if true;
+      }
+    }
+
+    match /companies/{companyId} {
+      allow read, write: if true;
+      match /{allSubcollections=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // Supporto esplicito per query collectionGroup (necessarie per i report admin)
     match /{path=**}/timeentries/{entry} {
       allow read, write: if true;
     }
@@ -22,6 +46,10 @@ service cloud.firestore {
     }
 
     match /{path=**}/requests/{request} {
+      allow read, write: if true;
+    }
+    
+    match /{path=**}/modifications/{mod} {
       allow read, write: if true;
     }
   }
