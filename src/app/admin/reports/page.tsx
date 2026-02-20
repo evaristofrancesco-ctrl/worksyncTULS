@@ -86,6 +86,17 @@ export default function ReportsPage() {
   }, [db])
   const { data: allRequests, isLoading: requestsLoading } = useCollection(requestsQuery)
 
+  // Funzione helper per formattare ore decimali in stringa HHh MMm
+  const formatTime = (decimalHours: number) => {
+    const totalMinutes = Math.round(decimalHours * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    if (hours === 0 && minutes === 0) return "0h";
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}m`;
+  };
+
   const reportData = useMemo(() => {
     if (!employees || !allEntries || !allRequests) return [];
 
@@ -179,12 +190,12 @@ export default function ReportsPage() {
         name: `${emp.firstName} ${emp.lastName}`,
         photoUrl: emp.photoUrl,
         jobTitle: emp.jobTitle,
-        expectedHours: monthlyExpectedHours.toFixed(1),
-        workedHours: actualWorkHours.toFixed(1),
-        vacationHours: vacationHours.toFixed(1),
-        sickHours: sickHours.toFixed(1),
-        permitHours: permitHours.toFixed(1),
-        totalHours: actualWorkHours.toFixed(1)
+        expectedHoursFormatted: formatTime(monthlyExpectedHours),
+        workedHoursFormatted: formatTime(actualWorkHours),
+        vacationHoursFormatted: formatTime(vacationHours),
+        sickHoursFormatted: formatTime(sickHours),
+        permitHoursFormatted: formatTime(permitHours),
+        totalHoursFormatted: formatTime(actualWorkHours)
       }
     });
   }, [employees, allEntries, allRequests, selectedMonth, selectedYear]);
@@ -286,19 +297,19 @@ export default function ReportsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="text-sm font-bold text-slate-400">{row.expectedHours}</span>
+                    <span className="text-sm font-bold text-slate-400">{row.expectedHoursFormatted}</span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="text-sm font-bold text-amber-600">{row.vacationHours}</span>
+                    <span className="text-sm font-bold text-amber-600">{row.vacationHoursFormatted}</span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="text-sm font-bold text-rose-600">{row.sickHours}</span>
+                    <span className="text-sm font-bold text-rose-600">{row.sickHoursFormatted}</span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="text-sm font-bold text-cyan-600">{row.permitHours}</span>
+                    <span className="text-sm font-bold text-cyan-600">{row.permitHoursFormatted}</span>
                   </TableCell>
                   <TableCell className="text-right pr-8">
-                    <span className="text-lg font-black text-[#227FD8]">{row.totalHours}h</span>
+                    <span className="text-lg font-black text-[#227FD8]">{row.totalHoursFormatted}</span>
                   </TableCell>
                 </TableRow>
               )) : (
