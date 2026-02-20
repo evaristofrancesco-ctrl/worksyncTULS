@@ -35,7 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, parseISO, eachDayOfInterval } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns"
 import { cn } from "@/lib/utils"
 
 const MONTHS = [
@@ -90,8 +90,8 @@ export default function ReportsPage() {
     if (!employees || !allEntries || !allRequests) return [];
 
     const targetDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 1);
-    const monthStart = startOfMonth(targetDate)
-    const monthEnd = endOfMonth(targetDate)
+    const monthStart = startOfMonth(targetDate);
+    const monthEnd = endOfMonth(targetDate);
 
     // Esclusione Francesco Evaristo (richiesta specifica precedente)
     const targetEmployees = employees.filter(emp => {
@@ -103,12 +103,14 @@ export default function ReportsPage() {
       // Filtra le timbrature del dipendente per il mese selezionato
       const empEntries = allEntries.filter(entry => {
         if (entry.employeeId !== emp.id) return false;
+        if (entry.companyId !== "default") return false;
         try {
-          const checkIn = parseISO(entry.checkInTime);
+          const checkIn = new Date(entry.checkInTime);
           return checkIn >= monthStart && checkIn <= monthEnd;
         } catch (e) { return false; }
       });
 
+      // Calcolo totale ore timbrate nel mese (differenza reale check-out - check-in)
       let actualWorkHours = 0;
       empEntries.forEach(entry => {
         if (entry.checkInTime && entry.checkOutTime) {
@@ -119,13 +121,14 @@ export default function ReportsPage() {
         }
       });
 
+      // Calcolo assenze approvate
       const empRequests = allRequests.filter(req => {
         if (req.employeeId !== emp.id) return false;
         const status = (req.status || "").toUpperCase();
         if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return false;
         try {
-          const reqStart = parseISO(req.startDate);
-          const reqEnd = req.endDate ? parseISO(req.endDate) : reqStart;
+          const reqStart = new Date(req.startDate);
+          const reqEnd = req.endDate ? new Date(req.endDate) : reqStart;
           return (reqStart <= monthEnd && reqEnd >= monthStart);
         } catch (e) { return false; }
       });
@@ -136,10 +139,14 @@ export default function ReportsPage() {
 
       empRequests.forEach(req => {
         try {
-          const rStart = parseISO(req.startDate);
-          const rEnd = req.endDate ? parseISO(req.endDate) : rStart;
+          const rStart = new Date(req.startDate);
+          const rEnd = req.endDate ? new Date(req.endDate) : rStart;
+          
           const overlapStart = rStart < monthStart ? monthStart : rStart;
           const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
+          
+          if (overlapStart > overlapEnd) return;
+
           const daysInInterval = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
           const count = daysInInterval.length;
 
@@ -166,7 +173,7 @@ export default function ReportsPage() {
         vacationHours: vacationHours.toFixed(1),
         sickHours: sickHours.toFixed(1),
         permitHours: permitHours.toFixed(1),
-        totalHours: actualWorkHours.toFixed(1) // Le ore nette sono quelle effettivamente timbrate
+        totalHours: actualWorkHours.toFixed(1) // Ore nette basate su timbrature reali
       }
     });
   }, [employees, allEntries, allRequests, selectedMonth, selectedYear]);
