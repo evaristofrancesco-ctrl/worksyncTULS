@@ -244,40 +244,8 @@ export default function ShiftsPage() {
     
     setDocumentNonBlocking(doc(db, "employees", newAbsence.employeeId, "requests", id), absenceData, { merge: true });
 
-    // Sincronizzazione con Registro Presenze (Timbratura Simulata)
-    const startDate = parseISO(newAbsence.startDate);
-    const endDate = newAbsence.endDate ? parseISO(newAbsence.endDate) : startDate;
-    
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = format(d, 'yyyy-MM-dd');
-      const entryId = `entry-abs-${newAbsence.employeeId}-${dateStr}-${Date.now()}`;
-      const entryRef = doc(db, "employees", newAbsence.employeeId, "timeentries", entryId);
-      
-      let checkIn, checkOut;
-      if (newAbsence.type === 'HOURLY_PERMIT') {
-        checkIn = new Date(`${dateStr}T${newAbsence.startTime}`);
-        checkOut = new Date(`${dateStr}T${newAbsence.endTime}`);
-      } else {
-        // Per assenze giornaliere simuliamo l'intero orario operativo per i report
-        checkIn = new Date(`${dateStr}T09:00`);
-        checkOut = new Date(`${dateStr}T20:20`);
-      }
-
-      setDocumentNonBlocking(entryRef, {
-        id: entryId,
-        employeeId: newAbsence.employeeId,
-        companyId: "default",
-        checkInTime: checkIn.toISOString(),
-        checkOutTime: checkOut.toISOString(),
-        status: "PRESENT",
-        isApproved: true,
-        type: "ABSENCE",
-        absenceType: newAbsence.type
-      }, { merge: true });
-    }
-
     setIsAbsenceOpen(false);
-    toast({ title: "Assenza Salvata", description: "Il record è stato aggiunto anche al registro presenze." });
+    toast({ title: "Assenza Salvata", description: "Il record è stato salvato correttamente." });
   }
 
   const handleSaveManualShift = () => {

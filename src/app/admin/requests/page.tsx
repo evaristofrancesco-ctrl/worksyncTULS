@@ -20,7 +20,6 @@ import { collection, collectionGroup, doc } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { useMemo, useState } from "react"
-import { parseISO, format } from "date-fns"
 
 export default function RequestsPage() {
   const db = useFirestore()
@@ -70,43 +69,10 @@ export default function RequestsPage() {
       updatedAt: new Date().toISOString()
     })
 
-    if (newStatus === "Approvato") {
-      // Sincronizzazione con Registro Presenze (Timbratura Simulata)
-      const startDate = parseISO(request.startDate);
-      const endDate = request.endDate ? parseISO(request.endDate) : startDate;
-      
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const dateStr = format(d, 'yyyy-MM-dd');
-        const entryId = `entry-abs-req-${request.employeeId}-${dateStr}-${Date.now()}`;
-        const entryRef = doc(db, "employees", request.employeeId, "timeentries", entryId);
-        
-        let checkIn, checkOut;
-        if (request.type === 'HOURLY_PERMIT') {
-          checkIn = new Date(`${dateStr}T${request.startTime || "09:00"}`);
-          checkOut = new Date(`${dateStr}T${request.endTime || "13:00"}`);
-        } else {
-          checkIn = new Date(`${dateStr}T09:00`);
-          checkOut = new Date(`${dateStr}T20:20`);
-        }
-
-        setDocumentNonBlocking(entryRef, {
-          id: entryId,
-          employeeId: request.employeeId,
-          companyId: "default",
-          checkInTime: checkIn.toISOString(),
-          checkOutTime: checkOut.toISOString(),
-          status: "PRESENT",
-          isApproved: true,
-          type: "ABSENCE",
-          absenceType: request.type
-        }, { merge: true });
-      }
-    }
-
     // Crea notifica per il dipendente
     const notifId = `notif-req-${Date.now()}`;
     const statusText = newStatus.toUpperCase();
-    const typeLabel = request.type === 'VACATION' ? 'Ferie' : 'Permesso';
+    const typeLabel = request.type === 'VACATION' ? 'Ferie' : 'un Permesso';
     
     setDocumentNonBlocking(doc(db, "notifications", notifId), {
       id: notifId,
