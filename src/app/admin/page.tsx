@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList } from "lucide-react"
@@ -115,8 +116,28 @@ export default function AdminDashboard() {
 
   const myWeeklyHours = useMemo(() => {
     if (!allEntries || !employeeId) return 0;
-    const personalEntries = allEntries.filter(e => e.employeeId === employeeId);
-    return personalEntries.length * 4; 
+    
+    // Ottieni l'inizio della settimana corrente (Lunedì)
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(now.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+
+    const personalEntries = allEntries.filter(e => {
+      if (e.employeeId !== employeeId) return false;
+      const entryDate = new Date(e.checkInTime);
+      return entryDate >= monday;
+    });
+
+    const totalMs = personalEntries.reduce((acc, entry) => {
+      if (!entry.checkInTime || !entry.checkOutTime) return acc;
+      const start = new Date(entry.checkInTime).getTime();
+      const end = new Date(entry.checkOutTime).getTime();
+      return acc + (end - start);
+    }, 0);
+
+    return Math.round((totalMs / 3600000) * 10) / 10;
   }, [allEntries, employeeId]);
 
   const progress = Math.min(100, (myWeeklyHours / 40) * 100);

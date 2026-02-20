@@ -29,9 +29,14 @@ export default function EmployeeDashboard() {
 
   const entriesQuery = useMemoFirebase(() => {
     if (!db || !employeeId) return null;
-    return query(collection(db, "employees", employeeId, "timeentries"), orderBy("checkInTime", "desc"), limit(3));
+    return query(collection(db, "employees", employeeId, "timeentries"), orderBy("checkInTime", "desc"));
   }, [db, employeeId])
-  const { data: recentEntries, isLoading: isEntriesLoading } = useCollection(entriesQuery)
+  const { data: allEntries, isLoading: isEntriesLoading } = useCollection(entriesQuery)
+
+  const recentEntries = useMemo(() => {
+    if (!allEntries) return [];
+    return allEntries.slice(0, 3);
+  }, [allEntries]);
 
   const todayShift = useMemo(() => {
     if (!shifts) return null;
@@ -39,7 +44,31 @@ export default function EmployeeDashboard() {
     return shifts.find(s => s.date === todayStr);
   }, [shifts]);
 
-  const progress = Math.min(100, ((recentEntries?.length || 0) * 4 / 40) * 100);
+  const myWeeklyHours = useMemo(() => {
+    if (!allEntries || !employeeId) return 0;
+    
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(now.setDate(diff));
+    monday.setHours(0, 0, 0, 0);
+
+    const weeklyEntries = allEntries.filter(e => {
+      const entryDate = new Date(e.checkInTime);
+      return entryDate >= monday;
+    });
+
+    const totalMs = weeklyEntries.reduce((acc, entry) => {
+      if (!entry.checkInTime || !entry.checkOutTime) return acc;
+      const start = new Date(entry.checkInTime).getTime();
+      const end = new Date(entry.checkOutTime).getTime();
+      return acc + (end - start);
+    }, 0);
+
+    return Math.round((totalMs / 3600000) * 10) / 10;
+  }, [allEntries, employeeId]);
+
+  const progress = Math.min(100, (myWeeklyHours / 40) * 100);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
@@ -76,12 +105,12 @@ export default function EmployeeDashboard() {
 
             <Card className="border-none shadow-sm bg-white/80">
               <CardHeader className="p-4 pb-2">
-                <CardDescription className="text-amber-600 font-black uppercase text-[9px] tracking-widest">Progressi 40h</CardDescription>
+                <CardDescription className="text-amber-600 font-black uppercase text-[9px] tracking-widest">Progressi {myWeeklyHours}h / 40h</CardDescription>
                 <CardTitle className="text-lg font-black text-[#1e293b]">{Math.round(progress)}%</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-2">
                 <Progress value={progress} className="h-1.5" />
-                <p className="text-[9px] text-muted-foreground italic">Calcolato su ultime timbrature.</p>
+                <p className="text-[9px] text-muted-foreground italic">Calcolato su orari reali della settimana.</p>
               </CardContent>
             </Card>
           </div>
