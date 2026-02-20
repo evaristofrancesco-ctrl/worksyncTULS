@@ -283,6 +283,22 @@ export default function AttendancePage() {
     const newCheckIn = new Date(`${baseDate}T${editingEntry.editIn}`);
     const newCheckOut = editingEntry.editOut ? new Date(`${baseDate}T${editingEntry.editOut}`) : null;
 
+    if (editingEntry.type === "ABSENCE") {
+      // Se è un'assenza simulata, aggiorniamo il documento originale della richiesta
+      const requestId = editingEntry.id.replace("sim-", "");
+      updateDocumentNonBlocking(doc(db, "employees", editingEntry.employeeId, "requests", requestId), {
+        startDate: baseDate,
+        startTime: editingEntry.editIn,
+        endTime: editingEntry.editOut || "20:20",
+        updatedAt: new Date().toISOString(),
+        adminNote: "Modificato da Admin dal Registro Presenze"
+      });
+      setIsEditOpen(false);
+      setEditingEntry(null);
+      toast({ title: "Assenza Aggiornata" });
+      return;
+    }
+
     updateDocumentNonBlocking(doc(db, "employees", editingEntry.employeeId, "timeentries", editingEntry.id), {
       checkInTime: newCheckIn.toISOString(),
       checkOutTime: newCheckOut?.toISOString() || null,
@@ -297,7 +313,6 @@ export default function AttendancePage() {
   }
 
   const openEdit = (log: any) => {
-    if (log.type === "ABSENCE") return; // Non modificabile qui
     const cin = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "09:00";
     const cout = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "";
     setEditingEntry({ ...log, editIn: cin, editOut: cout });
@@ -305,7 +320,13 @@ export default function AttendancePage() {
   }
 
   const handleDeleteEntry = (log: any) => {
-    if (log.type === "ABSENCE") return;
+    if (log.type === "ABSENCE") {
+      // Se è un'assenza simulata, eliminiamo il documento originale della richiesta
+      const requestId = log.id.replace("sim-", "");
+      deleteDocumentNonBlocking(doc(db, "employees", log.employeeId, "requests", requestId));
+      toast({ title: "Assenza / Permesso Eliminato" });
+      return;
+    }
     deleteDocumentNonBlocking(doc(db, "employees", log.employeeId, "timeentries", log.id));
     toast({ title: "Timbratura Eliminata" });
   }
@@ -584,16 +605,14 @@ export default function AttendancePage() {
                         {getSourceBadge(log.type, log.absenceType)}
                       </TableCell>
                       <TableCell className="pr-6 text-right">
-                        {!isAbsence && (
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                            <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-[#227FD8] hover:border-[#227FD8] bg-white" onClick={() => openEdit(log)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:border-rose-600 bg-white" onClick={() => handleDeleteEntry(log)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        )}
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-[#227FD8] hover:border-[#227FD8] bg-white" onClick={() => openEdit(log)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:border-rose-600 bg-white" onClick={() => handleDeleteEntry(log)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -633,11 +652,13 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Dialog Modifica Timbratura */}
+      {/* Dialog Modifica Timbratura / Assenza */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-black text-2xl uppercase tracking-tighter">Correggi Orari</DialogTitle>
+            <DialogTitle className="font-black text-2xl uppercase tracking-tighter">
+              {editingEntry?.type === 'ABSENCE' ? 'Modifica Assenza' : 'Correggi Orari'}
+            </DialogTitle>
             <DialogDescription className="font-bold text-[#227FD8]">
               {editingEntry && employeeMap[editingEntry.employeeId] ? 
                 `${employeeMap[editingEntry.employeeId].firstName} ${employeeMap[editingEntry.employeeId].lastName}` : 
@@ -647,11 +668,11 @@ export default function AttendancePage() {
           {editingEntry && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label className="font-black uppercase text-[10px] text-slate-500">Ora Ingresso Reale</Label>
+                <Label className="font-black uppercase text-[10px] text-slate-500">Ora Inizio / Ingresso</Label>
                 <Input type="time" className="h-11 text-lg font-black" value={editingEntry.editIn} onChange={e => setEditingEntry({...editingEntry, editIn: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label className="font-black uppercase text-[10px] text-slate-500">Ora Uscita Reale</Label>
+                <Label className="font-black uppercase text-[10px] text-slate-500">Ora Fine / Uscita</Label>
                 <Input type="time" className="h-11 text-lg font-black" value={editingEntry.editOut} onChange={e => setEditingEntry({...editingEntry, editOut: e.target.value})} />
               </div>
             </div>
