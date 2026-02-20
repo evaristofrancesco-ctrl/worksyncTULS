@@ -4,223 +4,70 @@ service cloud.firestore {
 
     /**
      * CORE PHILOSOPHY
-     * This ruleset enforces a multi-tenant, role-based access control (RBAC) model for the WorkSync platform.
-     * Security is centered around 'Company' boundaries and 'Employee' ownership. 
-     *
-     * DATA STRUCTURE
-     * Data is organized hierarchically under /companies/{companyId}. 
-     * Sensitive employee data (TimeEntries, LeaveRequests, Documents, AutomaticSchedules) is nested 
-     * directly under /companies/{companyId}/employees/{employeeId} to enforce strict ownership.
-     *
-     * KEY SECURITY DECISIONS
-     * 1. Authorization Independence: We rely on denormalized fields (like companyId, employeeId, and companyRole) 
-     *    on documents to make fast, atomic authorization decisions without excessive get() calls.
-     * 2. Role-Based Access: Higher-level operations (managing shifts, departments, or other employees) 
-     *    require the 'admin' or 'manager' role, which is verified against the user's own Employee document.
-     * 3. Prototyping Flexibility: We strictly enforce "WHO" can access data but allow flexibility on "WHAT" 
-     *    the data looks like (schema) to support rapid development.
-     * 4. System Admins: A top-level /system_admins collection grants global super-user privileges.
+     * Questa configurazione è ottimizzata per il prototipo TU.L.S.
+     * Consente l'accesso a tutti gli utenti autenticati (inclusi quelli anonimi)
+     * per supportare la struttura dati mista (root collections e collection groups).
      */
 
-    // --- Helper Functions ---
-
+    // Helper per verificare se l'utente è autenticato con Firebase Auth
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    // --- Regole per Collezioni Radice ---
+
+    // Dipendenti e loro sottocollezioni
+    match /employees/{employeeId} {
+      allow read, write: if isSignedIn();
+      
+      match /timeentries/{id} { allow read, write: if isSignedIn(); }
+      match /shifts/{id} { allow read, write: if isSignedIn(); }
+      match /requests/{id} { allow read, write: if isSignedIn(); }
+      match /modifications/{id} { allow read, write: if isSignedIn(); }
     }
 
-    function isExistingOwner(userId) {
-      return resource != null && isOwner(userId);
-    }
-
-    function isSystemAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/system_admins/$(request.auth.uid));
-    }
-
-    // Helper to check the authenticated user's role within a specific company.
-    // Relies on the 'companyRole' being denormalized onto the Employee document.
-    function getCompanyRole(companyId) {
-      return get(/databases/$(database)/documents/companies/$(companyId)/employees/$(request.auth.uid)).data.companyRole;
-    }
-
-    function isCompanyAdmin(companyId) {
-      return isSignedIn() && (getCompanyRole(companyId) == 'admin' || isSystemAdmin());
-    }
-
-    function isCompanyManager(companyId) {
-      return isSignedIn() && (getCompanyRole(companyId) == 'manager' || isCompanyAdmin(companyId));
-    }
-
-    function isCompanyEmployee(companyId) {
-      return isSignedIn() && exists(/databases/$(database)/documents/companies/$(companyId)/employees/$(request.auth.uid));
-    }
-
-    // --- Rules ---
-
-    /**
-     * @description System Administrators with global access.
-     * @path /system_admins/{uid}
-     * @allow (get) if authenticated as target uid.
-     * @deny (all) if uid does not match authenticated user.
-     * @principle Ownership-based access for system management.
-     */
-    match /system_admins/{uid} {
-      allow get: if isOwner(uid);
-      allow list, create, update, delete: if false;
-    }
-
-    /**
-     * @description Top-level Company details.
-     * @path /companies/{companyId}
-     * @allow (read) if user is an employee of the company.
-     * @allow (write) if user is a system admin or company owner.
-     * @principle Multi-tenant isolation; shared read for members, admin control for writes.
-     */
+    // Aziende e sedi
     match /companies/{companyId} {
-      allow get, list: if isCompanyEmployee(companyId);
-      allow create: if isSystemAdmin();
-      allow update: if resource != null && (isCompanyAdmin(companyId) || isSystemAdmin());
-      allow delete: if resource != null && isSystemAdmin();
+      allow read, write: if isSignedIn();
+      match /locations/{id} { allow read, write: if isSignedIn(); }
+      match /employees/{employeeId} { allow read, write: if isSignedIn(); }
     }
 
-    /**
-     * @description Roles, Locations, Departments, Shifts, and LeaveTypes - Company-wide configuration.
-     * @path /companies/{companyId}/(roles|locations|departments|shifts|leaveTypes)/{id}
-     * @allow (read) if user is an employee of the company.
-     * @allow (write) if user is a company admin.
-     * @principle Shared access for employees, restricted management for admins.
-     */
-    match /companies/{companyId}/roles/{roleId} {
-      allow get, list: if isCompanyEmployee(companyId);
-      allow create, update, delete: if isCompanyAdmin(companyId);
-    }
-    match /companies/{companyId}/locations/{locationId} {
-      allow get, list: if isCompanyEmployee(companyId);
-      allow create, update, delete: if isCompanyAdmin(companyId);
-    }
-    match /companies/{companyId}/departments/{departmentId} {
-      allow get, list: if isCompanyEmployee(companyId);
-      allow create, update, delete: if isCompanyAdmin(companyId);
-    }
-    match /companies/{companyId}/shifts/{shiftId} {
-      allow get, list: if isCompanyEmployee(companyId);
-      allow create, update, delete: if isCompanyAdmin(companyId);
-    }
-    match /companies/{companyId}/leaveTypes/{leaveTypeId} {
-      allow get, list: if isCompanyEmployee(companyId);
-      allow create, update, delete: if isCompanyAdmin(companyId);
+    // Notifiche di sistema
+    match /notifications/{id} {
+      allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Employee profiles within a company.
-     * @path /companies/{companyId}/employees/{employeeId}
-     * @allow (read) if user is the employee, or a company manager/admin.
-     * @allow (create) if user is self-registering or an admin.
-     * @allow (update) if user is self (limited) or an admin.
-     * @principle Ownership for personal data, role-based access for HR management.
-     */
-    match /companies/{companyId}/employees/{employeeId} {
-      allow get: if isOwner(employeeId) || isCompanyManager(companyId);
-      allow list: if isCompanyManager(companyId);
-      allow create: if isOwner(employeeId) || isCompanyAdmin(companyId);
-      allow update: if resource != null && (isOwner(employeeId) || isCompanyAdmin(companyId));
-      allow delete: if resource != null && isCompanyAdmin(companyId);
+    // Utility e bacheca
+    match /utilities/{id} {
+      allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Assigned shifts for employees.
-     * @path /companies/{companyId}/assignedShifts/{assignedShiftId}
-     * @allow (read) if user is the assigned employee or a manager.
-     * @allow (write) if user is a company manager.
-     * @principle Relational integrity via denormalized employeeId.
-     */
-    match /companies/{companyId}/assignedShifts/{assignedShiftId} {
-      allow get: if isCompanyEmployee(companyId) && (isOwner(resource.data.employeeId) || isCompanyManager(companyId));
-      allow list: if isCompanyEmployee(companyId);
-      allow create, update, delete: if isCompanyManager(companyId);
+    // Amministratori di sistema
+    match /system_admins/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
     }
 
-    /**
-     * @description Employee-specific subcollections (TimeEntries, LeaveRequests, LeaveBalances, Documents, Notifications).
-     * @path /companies/{companyId}/employees/{employeeId}/...
-     * @allow (read/write) if authenticated user matches employeeId.
-     * @allow (read/admin-write) if authenticated user is company admin.
-     * @principle Strict subcollection ownership and hierarchical access control.
-     */
-    match /companies/{companyId}/employees/{employeeId}/timeEntries/{timeEntryId} {
-      allow get, list: if isOwner(employeeId) || isCompanyManager(companyId);
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-      allow update: if isExistingOwner(employeeId) || isCompanyAdmin(companyId);
-      allow delete: if isExistingOwner(employeeId) || isCompanyAdmin(companyId);
+    // --- Regole per Collection Group (Necessarie per le query amministrative) ---
+    
+    match /{path=**}/timeentries/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /companies/{companyId}/employees/{employeeId}/leaveRequests/{leaveRequestId} {
-      allow get, list: if isOwner(employeeId) || isCompanyManager(companyId);
-      allow create: if isOwner(employeeId) && request.resource.data.employeeId == employeeId;
-      allow update: if isExistingOwner(employeeId) || isCompanyManager(companyId);
-      allow delete: if isExistingOwner(employeeId) || isCompanyAdmin(companyId);
+    
+    match /{path=**}/shifts/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /companies/{companyId}/employees/{employeeId}/leaveBalances/{leaveBalanceId} {
-      allow get, list: if isOwner(employeeId) || isCompanyManager(companyId);
-      allow create, update, delete: if isCompanyAdmin(companyId);
+    
+    match /{path=**}/requests/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /companies/{companyId}/employees/{employeeId}/documents/{documentId} {
-      allow get, list: if isOwner(employeeId) || isCompanyManager(companyId);
-      allow create: if isOwner(employeeId) || isCompanyAdmin(companyId);
-      allow update, delete: if isExistingOwner(employeeId) || isCompanyAdmin(companyId);
+    
+    match /{path=**}/modifications/{id} {
+      allow read, write: if isSignedIn();
     }
-
-    match /companies/{companyId}/employees/{employeeId}/notifications/{notificationId} {
-      allow get, list: if isOwner(employeeId);
-      allow create: if isCompanyManager(companyId);
-      allow update: if isExistingOwner(employeeId); // For marking as 'read'
-      allow delete: if isExistingOwner(employeeId);
-    }
-
-    /**
-     * @description Company-wide announcements.
-     * @path /companies/{companyId}/announcements/{announcementId}
-     * @allow (read) if any employee of the company.
-     * @allow (write) if company admin.
-     * @principle Structural segregation for broadcast messages.
-     */
-    match /companies/{companyId}/announcements/{announcementId} {
-      allow get, list: if isCompanyEmployee(companyId);
-      allow create, update, delete: if isCompanyAdmin(companyId);
-    }
-
-    /**
-     * @description Automatic Time Tracking Schedule Configuration.
-     * @path /companies/{companyId}/employees/{employeeId}/automaticTimeSchedule/config
-     * @allow (read) if owner or company manager.
-     * @allow (write) if owner or company admin.
-     * @principle Individualized configuration for automatic system behavior.
-     */
-    match /companies/{companyId}/employees/{employeeId}/automaticTimeSchedule/config {
-      allow get: if isOwner(employeeId) || isCompanyManager(companyId);
-      allow list: if isOwner(employeeId) || isCompanyManager(companyId);
-      allow create: if isOwner(employeeId) || isCompanyAdmin(companyId);
-      allow update: if resource != null && (isOwner(employeeId) || isCompanyAdmin(companyId));
-      allow delete: if resource != null && isCompanyAdmin(companyId);
-    }
-
-    /**
-     * @description Daily entries for automatic clock-in/out (e.g., Monday 09:00-18:00).
-     * @path /companies/{companyId}/employees/{employeeId}/automaticTimeSchedule/config/dailyEntries/{dailyEntryId}
-     * @allow (read) if owner or company manager.
-     * @allow (write) if owner or company admin.
-     * @principle Granular schedule management for automated presence logic.
-     */
-    match /companies/{companyId}/employees/{employeeId}/automaticTimeSchedule/config/dailyEntries/{dailyEntryId} {
-      allow get, list: if isOwner(employeeId) || isCompanyManager(companyId);
-      allow create: if isOwner(employeeId) || isCompanyAdmin(companyId);
-      allow update: if resource != null && (isOwner(employeeId) || isCompanyAdmin(companyId));
-      allow delete: if resource != null && (isOwner(employeeId) || isCompanyAdmin(companyId));
+    
+    match /{path=**}/notifications/{id} {
+      allow read, write: if isSignedIn();
     }
   }
 }
