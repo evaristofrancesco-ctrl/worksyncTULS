@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
-import { collection, query, where, orderBy, limit, doc } from "firebase/firestore"
+import { collection, query, where, limit, doc } from "firebase/firestore"
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
@@ -36,18 +36,26 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
     setCurrentEmployeeId(localStorage.getItem("employeeId"))
   }, [])
 
+  // Query semplificata per evitare indici Firestore complessi e problemi di permessi
   const notificationsQuery = useMemoFirebase(() => {
-    if (!db || !currentEmployeeId) return null;
+    if (!db || !currentEmployeeId || !role) return null;
     const recipient = role.toUpperCase() === 'ADMIN' ? 'ADMIN' : currentEmployeeId;
     return query(
       collection(db, "notifications"),
       where("recipientId", "in", [recipient, "ALL"]),
-      orderBy("createdAt", "desc"),
-      limit(10)
+      limit(20)
     );
   }, [db, currentEmployeeId, role])
 
-  const { data: notifications } = useCollection(notificationsQuery)
+  const { data: rawNotifications } = useCollection(notificationsQuery)
+
+  // Ordinamento in memoria per massimizzare la compatibilità
+  const notifications = useMemo(() => {
+    if (!rawNotifications) return [];
+    return [...rawNotifications].sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [rawNotifications]);
 
   const unreadCount = useMemo(() => {
     return notifications?.filter(n => !n.isRead).length || 0;
@@ -162,7 +170,7 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
                 </Avatar>
                 <div className="flex flex-col items-start text-xs hidden sm:flex">
                   <span className="font-black text-slate-900 leading-none">{userName}</span>
-                  <span className="text-slate-400 uppercase text-[9px] font-black tracking-widest mt-0.5">{role.toLowerCase()}</span>
+                  <span className="text-slate-400 uppercase text-[9px] font-black tracking-widest mt-0.5">{role?.toLowerCase()}</span>
                 </div>
               </Button>
             </DropdownMenuTrigger>
