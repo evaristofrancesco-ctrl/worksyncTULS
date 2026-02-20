@@ -55,7 +55,7 @@ export default function Home() {
               onClick={() => copyLink('/login')}
             >
               {copiedLogin ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copiedLogin ? "COPIATO" : "COPIA LINK ACCESSO"}
+              {copiedLogin ? "COPIATO" : "COPIA LINK LOGIN"}
             </Button>
           </div>
           <div>
@@ -63,7 +63,7 @@ export default function Home() {
             <p className="text-slate-500 font-medium">Accesso riservato al team per la gestione dei turni, timbrature e richieste personali.</p>
           </div>
           <Link href="/login" className="mt-2 flex items-center justify-between p-5 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 group-hover:border-[#227FD8] transition-colors">
-            <span className="font-black text-[#227FD8] tracking-tight">VAI AL LOGIN TEAM</span>
+            <span className="font-black text-[#227FD8] tracking-tight uppercase">VAI ALLA PAGINA DI LOGIN</span>
             <ExternalLink className="h-5 w-5 text-slate-400 group-hover:text-[#227FD8]" />
           </Link>
         </div>

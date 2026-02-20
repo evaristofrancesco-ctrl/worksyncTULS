@@ -33,7 +33,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Campi richiesti",
-        description: "Inserisci sia l'email/username che la password.",
+        description: "Inserisci sia l'email che la password.",
       })
       return
     }
@@ -79,10 +79,11 @@ export default function LoginPage() {
           description: `Bentornato, ${fullName}!`,
         })
         
+        // Reindirizzamento robusto basato sul ruolo
         if (userRole === 'admin') {
-          router.push("/admin")
+          router.replace("/admin")
         } else {
-          router.push("/employee")
+          router.replace("/employee")
         }
       } else {
         toast({
@@ -96,7 +97,7 @@ export default function LoginPage() {
       toast({
         variant: "destructive",
         title: "Errore di connessione",
-        description: "Impossibile contattare il database o errore di autenticazione.",
+        description: "Impossibile contattare il database. Riprova tra poco.",
       })
     } finally {
       setIsLoading(false)
@@ -108,57 +109,58 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-2xl border-none animate-in fade-in zoom-in duration-300">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#227FD8] text-white text-2xl font-black shadow-lg">T</div>
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#227FD8] text-white text-3xl font-black shadow-lg">T</div>
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight text-[#1e293b]">Accedi a TU.L.S.</CardTitle>
-          <CardDescription>Inserisci le tue credenziali aziendali</CardDescription>
+          <CardTitle className="text-3xl font-black tracking-tight text-[#1e293b] uppercase">Accedi a TU.L.S.</CardTitle>
+          <CardDescription className="font-bold text-slate-400">Inserisci le tue credenziali aziendali</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
-            <Alert className="bg-blue-50 border-blue-100 py-2">
-              <Info className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-xs text-blue-700">
-                Usa le credenziali associate al tuo profilo dipendente.
+          <CardContent className="space-y-6">
+            <Alert className="bg-blue-50 border-blue-100 py-3">
+              <Info className="h-5 w-5 text-blue-600" />
+              <AlertDescription className="text-xs text-blue-700 font-bold leading-relaxed uppercase tracking-tight">
+                Usa l'email associata al tuo profilo collaboratore per accedere.
               </AlertDescription>
             </Alert>
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email o Username</Label>
+              <Label htmlFor="email" className="font-black text-xs uppercase text-slate-500">Email Aziendale</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <Input 
                   id="email" 
-                  placeholder="es. mario.rossi" 
-                  className="pl-10" 
+                  type="email"
+                  placeholder="mario.rossi@tuls.it" 
+                  className="pl-10 h-12 bg-slate-50 border-slate-200" 
                   value={email || ""}
                   onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="username"
+                  autoComplete="email"
+                  required
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-              </div>
+              <Label htmlFor="password" className="font-black text-xs uppercase text-slate-500">Password</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <Input 
                   id="password" 
                   type="password" 
                   placeholder="••••••••" 
-                  className="pl-10"
+                  className="pl-10 h-12 bg-slate-50 border-slate-200"
                   value={password || ""}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
+                  required
                 />
               </div>
             </div>
           </CardContent>
-          <CardFooter>
-            <Button type="submit" className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-bold h-11" disabled={isLoading}>
+          <CardFooter className="pt-2">
+            <Button type="submit" className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-14 text-base uppercase tracking-widest shadow-lg" disabled={isLoading}>
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Loader2 className="h-5 w-5 animate-spin mr-3" />
                   Verifica in corso...
                 </>
               ) : (
