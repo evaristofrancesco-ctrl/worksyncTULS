@@ -1,6 +1,6 @@
 "use client"
 
-import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint, Info } from "lucide-react"
+import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,7 +31,9 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
+import { format, addDays, parseISO, isSunday } from "date-fns"
 
 export default function AttendancePage() {
   const db = useFirestore()
@@ -45,6 +47,7 @@ export default function AttendancePage() {
   
   const [isGenerating, setIsGenerating] = useState(false)
   const [isForceOpen, setIsForceOpen] = useState(false)
+  const [isAutoOpen, setIsAutoOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<any>(null)
 
@@ -56,11 +59,21 @@ export default function AttendancePage() {
     checkOut: "13:00"
   })
 
+  // Parametri Generazione Automatica
+  const [autoParams, setAutoParams] = useState({
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+    selectedEmployees: [] as string[],
+    selectAll: true
+  })
+
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
   }, [db])
   const { data: employees } = useCollection(employeesQuery)
+
+  const activeEmployees = useMemo(() => employees?.filter(e => e.isActive) || [], [employees]);
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -115,61 +128,61 @@ export default function AttendancePage() {
   }, [entries, employeeMap, searchQuery, filterDate, filterEmployee, filterType]);
 
   const handleAutoClockIn = async () => {
-    if (!employees || employees.length === 0) {
-      toast({ variant: "destructive", title: "Errore", description: "Nessun dipendente trovato." });
+    const targetIds = autoParams.selectAll 
+      ? activeEmployees.map(e => e.id) 
+      : autoParams.selectedEmployees;
+
+    if (targetIds.length === 0) {
+      toast({ variant: "destructive", title: "Errore", description: "Seleziona almeno un dipendente." });
       return;
     }
+
     setIsGenerating(true);
-    const now = new Date();
-    const isWorkingDay = now.getDay() >= 1 && now.getDay() <= 6;
-    if (!isWorkingDay) {
-      toast({ title: "Chiuso", description: "Oggi è domenica." });
-      setIsGenerating(false);
-      return;
-    }
     
     try {
       let count = 0;
-      for (const emp of employees) {
-        if (!emp.isActive || emp.autoClockIn === false) continue;
-        
-        const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
-        if (isFrancesco) continue;
+      const start = parseISO(autoParams.startDate);
+      const end = parseISO(autoParams.endDate);
+      
+      // Ciclo sui giorni selezionati
+      for (let d = start; d <= end; d = addDays(d, 1)) {
+        if (isSunday(d)) continue; // Salta domeniche
 
-        const dayOfWeekStr = now.getDay().toString();
-        const isRestDay = dayOfWeekStr === emp.restDay;
-        const rStart = emp.restStartTime || "00:00";
-        const rEnd = emp.restEndTime || "00:00";
-        const dateStr = now.toISOString().split('T')[0];
+        const dateStr = format(d, 'yyyy-MM-dd');
+        const dayOfWeekStr = d.getDay().toString();
 
-        if (emp.contractType === 'full-time') {
-          const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
-          if (!morningOverlaps) {
-            const idAM = `auto-${emp.id}-${dateStr}-MORNING`;
-            const checkInAM = new Date(now); checkInAM.setHours(9, 0, 0);
-            const checkOutAM = new Date(now); checkOutAM.setHours(13, 0, 0);
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "timeentries", idAM), {
-              id: idAM, employeeId: emp.id, companyId: "default", checkInTime: checkInAM.toISOString(), checkOutTime: checkOutAM.toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "MORNING"
-            }, { merge: true });
-            count++;
+        for (const empId of targetIds) {
+          const emp = employeeMap[empId];
+          if (!emp || emp.autoClockIn === false) continue;
+
+          // Esclusione specifica Francesco Evaristo
+          const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
+          if (isFrancesco) continue;
+
+          const isRestDay = dayOfWeekStr === emp.restDay;
+          const rStart = emp.restStartTime || "00:00";
+          const rEnd = emp.restEndTime || "00:00";
+
+          // Logica per Mattina (9-13)
+          if (emp.contractType === 'full-time') {
+            const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
+            if (!morningOverlaps) {
+              const idAM = `auto-${emp.id}-${dateStr}-MORNING`;
+              const checkInAM = new Date(d); checkInAM.setHours(9, 0, 0);
+              const checkOutAM = new Date(d); checkOutAM.setHours(13, 0, 0);
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "timeentries", idAM), {
+                id: idAM, employeeId: emp.id, companyId: "default", checkInTime: checkInAM.toISOString(), checkOutTime: checkOutAM.toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "MORNING"
+              }, { merge: true });
+              count++;
+            }
           }
 
+          // Logica per Pomeriggio (17-20:20)
           const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
           if (!afternoonOverlaps) {
             const idPM = `auto-${emp.id}-${dateStr}-AFTERNOON`;
-            const checkInPM = new Date(now); checkInPM.setHours(17, 0, 0);
-            const checkOutPM = new Date(now); checkOutPM.setHours(20, 20, 0);
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "timeentries", idPM), {
-              id: idPM, employeeId: emp.id, companyId: "default", checkInTime: checkInPM.toISOString(), checkOutTime: checkOutPM.toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "AFTERNOON"
-            }, { merge: true });
-            count++;
-          }
-        } else {
-          const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
-          if (!afternoonOverlaps) {
-            const idPM = `auto-${emp.id}-${dateStr}-AFTERNOON`;
-            const checkInPM = new Date(now); checkInPM.setHours(17, 0, 0);
-            const checkOutPM = new Date(now); checkOutPM.setHours(20, 20, 0);
+            const checkInPM = new Date(d); checkInPM.setHours(17, 0, 0);
+            const checkOutPM = new Date(d); checkOutPM.setHours(20, 20, 0);
             setDocumentNonBlocking(doc(db, "employees", emp.id, "timeentries", idPM), {
               id: idPM, employeeId: emp.id, companyId: "default", checkInTime: checkInPM.toISOString(), checkOutTime: checkOutPM.toISOString(), status: "PRESENT", isApproved: true, type: "AUTO", slot: "AFTERNOON"
             }, { merge: true });
@@ -177,10 +190,37 @@ export default function AttendancePage() {
           }
         }
       }
-      toast({ title: "Completato", description: `Generate ${count} timbrature.` });
+      
+      toast({ title: "Completato", description: `Generate ${count} timbrature per il periodo selezionato.` });
+      setIsAutoOpen(false);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Errore", description: "Si è verificato un problema durante la generazione." });
     } finally {
       setIsGenerating(false);
     }
+  }
+
+  const toggleEmployeeSelection = (id: string) => {
+    setAutoParams(prev => {
+      const isSelected = prev.selectedEmployees.includes(id);
+      const newSelection = isSelected 
+        ? prev.selectedEmployees.filter(sid => sid !== id)
+        : [...prev.selectedEmployees, id];
+      
+      return { 
+        ...prev, 
+        selectedEmployees: newSelection,
+        selectAll: newSelection.length === activeEmployees.length
+      };
+    });
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    setAutoParams(prev => ({
+      ...prev,
+      selectAll: checked,
+      selectedEmployees: checked ? activeEmployees.map(e => e.id) : []
+    }));
   }
 
   const handleForceEntry = () => {
@@ -277,7 +317,7 @@ export default function AttendancePage() {
                   <Select value={newEntry.employeeId} onValueChange={(v) => setNewEntry({...newEntry, employeeId: v})}>
                     <SelectTrigger className="h-11"><SelectValue placeholder="Scegli..." /></SelectTrigger>
                     <SelectContent>
-                      {employees?.filter(e => e.isActive).map(e => (
+                      {activeEmployees.map(e => (
                         <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>
                       ))}
                     </SelectContent>
@@ -305,9 +345,91 @@ export default function AttendancePage() {
             </DialogContent>
           </Dialog>
 
-          <Button onClick={handleAutoClockIn} disabled={isGenerating || isLoading} className="bg-amber-500 hover:bg-amber-600 font-black h-11 px-6 shadow-md">
-            {isGenerating ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Zap className="h-5 w-5 mr-2 fill-current" />} Genera Automatico
-          </Button>
+          <Dialog open={isAutoOpen} onOpenChange={setIsAutoOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-amber-500 hover:bg-amber-600 font-black h-11 px-6 shadow-md">
+                <Zap className="h-5 w-5 mr-2 fill-current" /> Genera Automatico
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-xl">
+              <DialogHeader>
+                <DialogTitle className="font-black text-2xl uppercase flex items-center gap-2">
+                  <Zap className="h-6 w-6 text-amber-500 fill-current" /> Configura Generazione
+                </DialogTitle>
+                <DialogDescription>Genera timbrature basate su contratti e riposi per il team selezionato.</DialogDescription>
+              </DialogHeader>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="font-black uppercase text-xs text-slate-500">Intervallo Date</Label>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-slate-400">DALLA DATA</Label>
+                        <Input type="date" value={autoParams.startDate} onChange={e => setAutoParams({...autoParams, startDate: e.target.value})} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-bold text-slate-400">ALLA DATA</Label>
+                        <Input type="date" value={autoParams.endDate} onChange={e => setAutoParams({...autoParams, endDate: e.target.value})} />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed">
+                      <Info className="h-3 w-3 inline mr-1" /> Nota: Verranno ignorate le domeniche e i giorni di riposo specifici di ogni dipendente.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="font-black uppercase text-xs text-slate-500">Dipendenti Coinvolti</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-400">TUTTI</span>
+                      <Checkbox checked={autoParams.selectAll} onCheckedChange={handleSelectAll} />
+                    </div>
+                  </div>
+                  <div className="max-h-[200px] overflow-y-auto border rounded-lg p-2 space-y-1 bg-slate-50/50">
+                    {activeEmployees.map(e => (
+                      <div 
+                        key={e.id} 
+                        className={cn(
+                          "flex items-center justify-between p-2 rounded-md transition-colors cursor-pointer",
+                          autoParams.selectedEmployees.includes(e.id) ? "bg-white shadow-sm ring-1 ring-amber-500/20" : "hover:bg-slate-100"
+                        )}
+                        onClick={() => toggleEmployeeSelection(e.id)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={e.photoUrl} />
+                            <AvatarFallback className="text-[10px] font-bold">{e.firstName?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-xs font-bold text-slate-700">{e.firstName} {e.lastName}</span>
+                        </div>
+                        <Checkbox 
+                          checked={autoParams.selectedEmployees.includes(e.id)} 
+                          onCheckedChange={() => toggleEmployeeSelection(e.id)} 
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsAutoOpen(false)} className="font-bold">Annulla</Button>
+                <Button 
+                  onClick={handleAutoClockIn} 
+                  disabled={isGenerating}
+                  className="bg-amber-500 hover:bg-amber-600 font-black px-10 h-11 shadow-lg gap-2"
+                >
+                  {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
+                  AVVIA GENERAZIONE
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
