@@ -19,15 +19,16 @@ export function ClockInOut() {
   const [elapsed, setElapsed] = useState("00:00:00")
   const [isProcessing, setIsProcessing] = useState(false)
   const [employeeId, setEmployeeId] = useState<string | null>(null)
+  const [userName, setUserName] = useState<string | null>(null)
 
   useEffect(() => {
     setEmployeeId(localStorage.getItem("employeeId"))
+    setUserName(localStorage.getItem("userName"))
     setTime(new Date())
     const timer = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
 
-  // Recupera l'ultimo log di oggi per questo utente
   const entriesQuery = useMemoFirebase(() => {
     if (!db || !employeeId) return null;
     return query(
@@ -62,36 +63,97 @@ export function ClockInOut() {
     if (!employeeId || !db) return;
     
     setIsProcessing(true)
+    const now = new Date();
+    const day = now.getDay();
+    const isWeekday = day >= 1 && day <= 5; // Lun-Ven
+    
+    let effectiveTime = now.toISOString();
+    let isAnomaly = false;
+
+    // Logica di arrotondamento e Alert (solo Lun-Ven)
+    if (isWeekday) {
+      const getPrecise = (h: number, m: number) => {
+        const d = new Date(now);
+        d.setHours(h, m, 0, 0);
+        return d;
+      };
+
+      const slots = isClockedIn 
+        ? [getPrecise(13, 0), getPrecise(20, 20)] // Check-out target
+        : [getPrecise(9, 0), getPrecise(17, 0)];  // Check-in target
+
+      let minDiff = Infinity;
+      let targetPrecise: Date | null = null;
+
+      slots.forEach(s => {
+        const diff = Math.abs(now.getTime() - s.getTime()) / 60000;
+        if (diff < minDiff) {
+          minDiff = diff;
+          targetPrecise = s;
+        }
+      });
+
+      if (minDiff <= 15 && targetPrecise) {
+        effectiveTime = (targetPrecise as Date).toISOString();
+      } else {
+        isAnomaly = true;
+      }
+    }
+
     try {
       if (isClockedIn && currentEntry) {
         // USCITA
         const entryRef = doc(db, "employees", employeeId, "timeentries", currentEntry.id)
         updateDocumentNonBlocking(entryRef, {
-          checkOutTime: new Date().toISOString(),
-          isApproved: true
+          checkOutTime: effectiveTime,
+          isApproved: true,
+          isAnomaly: isAnomaly
         })
-        toast({ title: "Uscita registrata", description: "Buon riposo!" })
+        
+        if (isAnomaly) {
+          sendAdminAlert("Uscita Fuori Orario", `${userName || 'Un dipendente'} ha timbrato l'uscita alle ${now.toLocaleTimeString('it-IT')}.`);
+        }
+        
+        toast({ title: "Uscita registrata", description: isAnomaly ? "Orario registrato con segnalazione." : "Buon riposo!" })
       } else {
         // ENTRATA
         const entryId = `entry-${Date.now()}`
         const entryRef = doc(db, "employees", employeeId, "timeentries", entryId)
-        const newEntry = {
+        setDocumentNonBlocking(entryRef, {
           id: entryId,
           employeeId: employeeId,
           companyId: "default",
-          checkInTime: new Date().toISOString(),
+          checkInTime: effectiveTime,
           isApproved: true,
           status: "PRESENT",
-          type: "MANUAL"
+          type: "MANUAL",
+          isAnomaly: isAnomaly
+        }, { merge: true })
+
+        if (isAnomaly) {
+          sendAdminAlert("Ingresso Fuori Orario", `${userName || 'Un dipendente'} ha timbrato l'ingresso alle ${now.toLocaleTimeString('it-IT')}.`);
         }
-        setDocumentNonBlocking(entryRef, newEntry, { merge: true })
-        toast({ title: "Entrata registrata", description: "Buon lavoro!" })
+
+        toast({ title: "Entrata registrata", description: isAnomaly ? "Orario registrato con segnalazione." : "Buon lavoro!" })
       }
     } catch (e) {
       console.error(e)
     } finally {
       setTimeout(() => setIsProcessing(false), 1000)
     }
+  }
+
+  const sendAdminAlert = (title: string, message: string) => {
+    const notifId = `alert-${Date.now()}`;
+    setDocumentNonBlocking(doc(db, "notifications", notifId), {
+      id: notifId,
+      recipientId: "ADMIN",
+      title: `⚠️ ${title}`,
+      message: message,
+      type: "ATTENDANCE_ALERT",
+      createdAt: new Date().toISOString(),
+      isRead: false
+    }, { merge: true });
   }
 
   return (
@@ -143,7 +205,7 @@ export function ClockInOut() {
         
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground italic">
           <MapPin className="h-3 w-3" />
-          <span>Sede Centrale - Localizzazione attiva</span>
+          <span>Sede Centrale - Arrotondamento 15m attivo</span>
         </div>
       </CardContent>
     </Card>
