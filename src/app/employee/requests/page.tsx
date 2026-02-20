@@ -28,6 +28,7 @@ export default function MyRequestsPage() {
   const db = useFirestore()
   const { toast } = useToast()
   const [employeeId, setEmployeeId] = useState<string | null>(null)
+  const [displayName, setDisplayName] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   
   const [newRequest, setNewRequest] = useState({
@@ -42,9 +43,9 @@ export default function MyRequestsPage() {
 
   useEffect(() => {
     setEmployeeId(localStorage.getItem("employeeId"))
+    setDisplayName(localStorage.getItem("userName") || "Un dipendente")
   }, [])
 
-  // Recupera tutti i dipendenti per il cambio riposo
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
@@ -91,6 +92,20 @@ export default function MyRequestsPage() {
       submittedAt: new Date().toISOString()
     }, { merge: true })
 
+    // Notifica per gli Admin
+    const notifId = `notif-newreq-${Date.now()}`;
+    const typeLabel = newRequest.type === 'VACATION' ? 'Ferie' : 'un Permesso';
+    
+    setDocumentNonBlocking(doc(db, "notifications", notifId), {
+      id: notifId,
+      recipientId: "ADMIN",
+      title: "Nuova Richiesta",
+      message: `${displayName} ha richiesto ${typeLabel} per il ${newRequest.startDate}.`,
+      type: "NEW_REQUEST",
+      createdAt: new Date().toISOString(),
+      isRead: false
+    }, { merge: true });
+
     setIsDialogOpen(false)
     setNewRequest({ 
       type: "VACATION", 
@@ -101,7 +116,7 @@ export default function MyRequestsPage() {
       targetEmployeeId: "", 
       reason: "" 
     })
-    toast({ title: "Richiesta Inviata", description: "La tua richiesta è stata inoltrata all'amministrazione." })
+    toast({ title: "Richiesta Inviata", description: "L'amministrazione è stata notificata." })
   }
 
   const getTypeIcon = (type: string) => {
@@ -259,7 +274,6 @@ export default function MyRequestsPage() {
           requests.map((req) => {
             const isApproved = req.status === 'Approvato' || req.status === 'APPROVED';
             const isRejected = req.status === 'Rifiutato' || req.status === 'REJECTED';
-            const isPending = req.status === 'In Attesa' || req.status === 'PENDING';
             
             return (
               <Card key={req.id} className={`border-none shadow-sm transition-all overflow-hidden ${isRejected ? 'bg-rose-50/50' : 'bg-white'}`}>
@@ -288,12 +302,6 @@ export default function MyRequestsPage() {
                               <p className="text-xs font-black text-[#227FD8] flex items-center gap-2">
                                 <Clock className="h-3.5 w-3.5" />
                                 {req.startTime} - {req.endTime}
-                              </p>
-                            )}
-                            {req.type === 'REST_SWAP' && req.targetEmployeeId && (
-                              <p className="text-xs font-black text-amber-600 flex items-center gap-2">
-                                <RefreshCw className="h-3.5 w-3.5" />
-                                Scambio con: {employeeMap[req.targetEmployeeId]?.firstName} {employeeMap[req.targetEmployeeId]?.lastName}
                               </p>
                             )}
                           </div>

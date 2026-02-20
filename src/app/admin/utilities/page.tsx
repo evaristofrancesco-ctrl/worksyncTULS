@@ -51,6 +51,18 @@ export default function AdminUtilitiesPage() {
       id, 
       createdAt: new Date().toISOString() 
     }, { merge: true })
+
+    // Notifica globale a tutti i dipendenti
+    const notifId = `notif-util-${Date.now()}`;
+    setDocumentNonBlocking(doc(db, "notifications", notifId), {
+      id: notifId,
+      recipientId: "ALL",
+      title: "Nuova Utility",
+      message: `È stata pubblicata una nuova informazione: "${formData.title}".`,
+      type: "NEW_UTILITY",
+      createdAt: new Date().toISOString(),
+      isRead: false
+    }, { merge: true });
     
     setIsAddOpen(false)
     setFormData({ title: "", description: "", category: "" })
@@ -181,7 +193,6 @@ export default function AdminUtilitiesPage() {
         )}
       </div>
 
-      {/* Dialog Modifica */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>

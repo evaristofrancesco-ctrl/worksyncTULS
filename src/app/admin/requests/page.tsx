@@ -17,7 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc } from "firebase/firestore"
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { useMemo, useState } from "react"
 
@@ -28,14 +28,12 @@ export default function RequestsPage() {
   const [rejectingRequest, setRejectingRequest] = useState<any>(null)
   const [adminNote, setAdminNote] = useState("")
 
-  // Recupera tutti i dipendenti per mappare i nomi
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
   }, [db])
   const { data: employees } = useCollection(employeesQuery)
 
-  // Recupera tutte le richieste dai sotto-collezioni dei dipendenti
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collectionGroup(db, "requests");
@@ -71,6 +69,21 @@ export default function RequestsPage() {
       updatedAt: new Date().toISOString()
     })
 
+    // Crea notifica per il dipendente
+    const notifId = `notif-req-${Date.now()}`;
+    const statusText = newStatus.toUpperCase();
+    const typeLabel = request.type === 'VACATION' ? 'Ferie' : 'Permesso';
+    
+    setDocumentNonBlocking(doc(db, "notifications", notifId), {
+      id: notifId,
+      recipientId: request.employeeId,
+      title: `Richiesta ${statusText}`,
+      message: `La tua richiesta di ${typeLabel} per il ${request.startDate} è stata ${newStatus.toLowerCase()}.`,
+      type: "REQUEST_STATUS",
+      createdAt: new Date().toISOString(),
+      isRead: false
+    }, { merge: true });
+
     toast({
       title: newStatus === "Approvato" ? "Richiesta Approvata" : "Richiesta Rifiutata",
       description: `La richiesta di ${employeeMap[request.employeeId]?.firstName} è stata aggiornata.`,
@@ -98,7 +111,6 @@ export default function RequestsPage() {
             const emp = employeeMap[request.employeeId];
             const isPending = request.status === "In Attesa" || request.status === "PENDING";
             const isApproved = request.status === "Approvato" || request.status === "APPROVED";
-            const isRejected = request.status === "Rifiutato" || request.status === "REJECTED";
             
             return (
               <Card key={request.id} className="overflow-hidden border-none shadow-sm bg-white/80 backdrop-blur-sm">
@@ -190,7 +202,6 @@ export default function RequestsPage() {
         )}
       </div>
 
-      {/* Dialog per il rifiuto con nota */}
       <Dialog open={!!rejectingRequest} onOpenChange={() => setRejectingRequest(null)}>
         <DialogContent>
           <DialogHeader>
