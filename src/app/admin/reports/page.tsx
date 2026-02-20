@@ -86,15 +86,21 @@ export default function ReportsPage() {
   }, [db])
   const { data: allRequests, isLoading: requestsLoading } = useCollection(requestsQuery)
 
-  // Funzione helper per formattare ore decimali in stringa HHh MMm
+  // Funzione helper per formattare ore decimali in stringa HHh MMm (gestisce negativi)
   const formatTime = (decimalHours: number) => {
-    const totalMinutes = Math.round(decimalHours * 60);
+    const isNegative = decimalHours < 0;
+    const absHours = Math.abs(decimalHours);
+    const totalMinutes = Math.round(absHours * 60);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
     
     if (hours === 0 && minutes === 0) return "0h";
-    if (minutes === 0) return `${hours}h`;
-    return `${hours}h ${minutes}m`;
+    
+    let formatted = "";
+    if (minutes === 0) formatted = `${hours}h`;
+    else formatted = `${hours}h ${minutes}m`;
+    
+    return isNegative ? `-${formatted}` : formatted;
   };
 
   const reportData = useMemo(() => {
@@ -121,13 +127,12 @@ export default function ReportsPage() {
       const daysInThisMonth = getDaysInMonth(targetDate);
       const monthlyExpectedHours = (weeklyTarget / 7) * daysInThisMonth;
 
-      // 2. Calcolo ORE NETTE (timbrature reali fino ad oggi/fine mese)
+      // 2. Calcolo ORE Lavorate (timbrature reali)
       const empEntries = allEntries.filter(entry => {
         if (entry.employeeId !== emp.id) return false;
         if (entry.companyId !== "default") return false;
         try {
           const checkIn = new Date(entry.checkInTime);
-          // Filtriamo solo quelle nel range del mese e fino al limite temporale (oggi o fine mese)
           return checkIn >= monthStart && checkIn <= actualLimitDate;
         } catch (e) { return false; }
       });
@@ -185,6 +190,11 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
+      // 4. Calcolo Ore Nette (Worked - Absences)
+      const absenceTotal = vacationHours + sickHours + permitHours;
+      const netTotalHours = actualWorkHours - absenceTotal;
+      const isSubtracted = absenceTotal > 0;
+
       return {
         id: emp.id,
         name: `${emp.firstName} ${emp.lastName}`,
@@ -195,7 +205,8 @@ export default function ReportsPage() {
         vacationHoursFormatted: formatTime(vacationHours),
         sickHoursFormatted: formatTime(sickHours),
         permitHoursFormatted: formatTime(permitHours),
-        totalHoursFormatted: formatTime(actualWorkHours)
+        totalHoursFormatted: formatTime(netTotalHours),
+        isSubtracted: isSubtracted
       }
     });
   }, [employees, allEntries, allRequests, selectedMonth, selectedYear]);
@@ -214,7 +225,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Ore previste totali vs <b>ore nette</b> timbrate fino ad oggi.</p>
+          <p className="text-slate-500 font-medium">Ore previste totali vs <b>ore nette</b> (timbrate meno assenze).</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
@@ -309,7 +320,12 @@ export default function ReportsPage() {
                     <span className="text-sm font-bold text-cyan-600">{row.permitHoursFormatted}</span>
                   </TableCell>
                   <TableCell className="text-right pr-8">
-                    <span className="text-lg font-black text-[#227FD8]">{row.totalHoursFormatted}</span>
+                    <span className={cn(
+                      "text-lg font-black transition-colors", 
+                      row.isSubtracted ? "text-rose-600" : "text-[#227FD8]"
+                    )}>
+                      {row.totalHoursFormatted}
+                    </span>
                   </TableCell>
                 </TableRow>
               )) : (
