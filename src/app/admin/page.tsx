@@ -216,7 +216,7 @@ export default function AdminDashboard() {
                 <span className="text-xl font-black text-muted-foreground">{Math.round(progress)}%</span>
               </div>
               <Progress value={progress} className="h-4 rounded-full bg-slate-100" />
-              <p className="text-xs text-muted-foreground italic font-bold uppercase tracking-tight text-center">Progresso basato sulle timbrature correnti.</p>
+              <p className="text-xs text-muted-foreground italic font-bold uppercase tracking-tight text-center">cosa calcola?</p>
             </CardContent>
           </Card>
 
