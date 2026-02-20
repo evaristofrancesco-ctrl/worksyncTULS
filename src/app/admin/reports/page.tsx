@@ -35,7 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval, getDaysInMonth, isSameMonth } from "date-fns"
 import { cn } from "@/lib/utils"
 
 const MONTHS = [
@@ -92,25 +92,35 @@ export default function ReportsPage() {
     const targetDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 1);
     const monthStart = startOfMonth(targetDate);
     const monthEnd = endOfMonth(targetDate);
+    const now = new Date();
+    
+    // Per il calcolo "fino al giorno attuale"
+    const isCurrentMonth = isSameMonth(targetDate, now);
+    const actualLimitDate = isCurrentMonth ? now : monthEnd;
 
-    // Esclusione Francesco Evaristo (richiesta specifica precedente)
+    // Esclusione Francesco Evaristo
     const targetEmployees = employees.filter(emp => {
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
     });
 
     return targetEmployees.map(emp => {
-      // Filtra le timbrature del dipendente per il mese selezionato
+      // 1. Calcolo ORE PREVISTE AL MESE (basate sul contratto settimanale)
+      const weeklyTarget = emp.weeklyHours || 40;
+      const daysInThisMonth = getDaysInMonth(targetDate);
+      const monthlyExpectedHours = (weeklyTarget / 7) * daysInThisMonth;
+
+      // 2. Calcolo ORE NETTE (timbrature reali fino ad oggi/fine mese)
       const empEntries = allEntries.filter(entry => {
         if (entry.employeeId !== emp.id) return false;
         if (entry.companyId !== "default") return false;
         try {
           const checkIn = new Date(entry.checkInTime);
-          return checkIn >= monthStart && checkIn <= monthEnd;
+          // Filtriamo solo quelle nel range del mese e fino al limite temporale (oggi o fine mese)
+          return checkIn >= monthStart && checkIn <= actualLimitDate;
         } catch (e) { return false; }
       });
 
-      // Calcolo totale ore timbrate nel mese (differenza reale check-out - check-in)
       let actualWorkHours = 0;
       empEntries.forEach(entry => {
         if (entry.checkInTime && entry.checkOutTime) {
@@ -121,7 +131,7 @@ export default function ReportsPage() {
         }
       });
 
-      // Calcolo assenze approvate
+      // 3. Calcolo assenze approvate
       const empRequests = allRequests.filter(req => {
         if (req.employeeId !== emp.id) return false;
         const status = (req.status || "").toUpperCase();
@@ -169,11 +179,12 @@ export default function ReportsPage() {
         name: `${emp.firstName} ${emp.lastName}`,
         photoUrl: emp.photoUrl,
         jobTitle: emp.jobTitle,
+        expectedHours: monthlyExpectedHours.toFixed(1),
         workedHours: actualWorkHours.toFixed(1),
         vacationHours: vacationHours.toFixed(1),
         sickHours: sickHours.toFixed(1),
         permitHours: permitHours.toFixed(1),
-        totalHours: actualWorkHours.toFixed(1) // Ore nette basate su timbrature reali
+        totalHours: actualWorkHours.toFixed(1)
       }
     });
   }, [employees, allEntries, allRequests, selectedMonth, selectedYear]);
@@ -192,7 +203,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Calcolo basato sulle <b>timbrature reali</b> dei collaboratori.</p>
+          <p className="text-slate-500 font-medium">Ore previste totali vs <b>ore nette</b> timbrate fino ad oggi.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
@@ -233,7 +244,7 @@ export default function ReportsPage() {
         <CardHeader className="border-b bg-slate-50/50">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-              <Users className="h-4 w-4" /> Analisi Presenze Effettive
+              <Users className="h-4 w-4" /> Analisi Presenze e Contratto
             </CardTitle>
             <Button variant="outline" size="sm" className="h-8 text-xs font-bold gap-2">
               <Download className="h-3.5 w-3.5" /> Esporta Report
@@ -245,11 +256,11 @@ export default function ReportsPage() {
             <TableHeader className="bg-slate-50/50">
               <TableRow className="h-12">
                 <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Timbrate (h)</TableHead>
+                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Previste (h/mese)</TableHead>
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
-                <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette</TableHead>
+                <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette (Oggi)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -257,7 +268,7 @@ export default function ReportsPage() {
                 <TableRow>
                   <TableCell colSpan={6} className="h-64 text-center">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" />
-                    <p className="text-sm font-bold text-slate-400 mt-4">Analisi presenze in corso...</p>
+                    <p className="text-sm font-bold text-slate-400 mt-4">Analisi dati in corso...</p>
                   </TableCell>
                 </TableRow>
               ) : reportData.length > 0 ? reportData.map((row) => (
@@ -275,7 +286,7 @@ export default function ReportsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="text-sm font-bold text-slate-600">{row.workedHours}</span>
+                    <span className="text-sm font-bold text-slate-400">{row.expectedHours}</span>
                   </TableCell>
                   <TableCell className="text-center">
                     <span className="text-sm font-bold text-amber-600">{row.vacationHours}</span>
