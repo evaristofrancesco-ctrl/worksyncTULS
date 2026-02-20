@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X } from "lucide-react"
+import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X, Umbrella, Activity, Timer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -80,7 +80,13 @@ export default function AttendancePage() {
     if (!db) return null;
     return collectionGroup(db, "timeentries");
   }, [db])
-  const { data: entries, isLoading: isLoading } = useCollection(timeEntriesQuery)
+  const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
+
+  const requestsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collectionGroup(db, "requests");
+  }, [db])
+  const { data: allRequests, isLoading: isLoadingRequests } = useCollection(requestsQuery)
 
   const employeeMap = useMemo(() => {
     if (!employees) return {};
@@ -90,11 +96,37 @@ export default function AttendancePage() {
     }, {} as any);
   }, [employees]);
 
+  const unifiedEntries = useMemo(() => {
+    const realEntries = entries || [];
+    
+    // Mappa le richieste approvate come timbrature simulate
+    const mappedRequests = (allRequests || [])
+      .filter(req => {
+        const status = (req.status || "").toUpperCase();
+        return status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
+      })
+      .map(req => {
+        const start = req.startDate + (req.startTime ? `T${req.startTime}` : "T09:00");
+        const end = (req.endDate || req.startDate) + (req.endTime ? `T${req.endTime}` : "T20:20");
+        return {
+          ...req,
+          id: `sim-${req.id}`,
+          checkInTime: new Date(start).toISOString(),
+          checkOutTime: new Date(end).toISOString(),
+          type: "ABSENCE",
+          absenceType: req.type
+        };
+      });
+
+    return [...realEntries, ...mappedRequests];
+  }, [entries, allRequests]);
+
   const filteredEntries = useMemo(() => {
-    if (!entries) return [];
-    return entries
+    return unifiedEntries
       .filter(entry => {
-        if (entry.companyId !== "default") return false;
+        // Se è una timbratura reale, controlla l'azienda
+        if (entry.type !== "ABSENCE" && entry.companyId !== "default") return false;
+        
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
 
@@ -111,12 +143,13 @@ export default function AttendancePage() {
           if (entryDate !== filterDate) return false;
         }
 
-        // Filtro Tipo (User, Auto, Admin)
+        // Filtro Tipo (User, Auto, Admin, Absence)
         if (filterType !== "all") {
           const type = entry.type || "MANUAL";
           if (filterType === "USER" && type !== "MANUAL") return false;
           if (filterType === "AUTO" && type !== "AUTO") return false;
           if (filterType === "ADMIN" && type !== "ADMIN") return false;
+          if (filterType === "ABSENCE" && type !== "ABSENCE") return false;
         }
 
         return true;
@@ -126,7 +159,7 @@ export default function AttendancePage() {
         const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
         return dateB - dateA;
       });
-  }, [entries, employeeMap, searchQuery, filterDate, filterEmployee, filterType]);
+  }, [unifiedEntries, employeeMap, searchQuery, filterDate, filterEmployee, filterType]);
 
   const handleAutoClockIn = async () => {
     const targetIds = autoParams.selectAll 
@@ -145,9 +178,8 @@ export default function AttendancePage() {
       const start = parseISO(autoParams.startDate);
       const end = parseISO(autoParams.endDate);
       
-      // Ciclo sui giorni selezionati
       for (let d = start; d <= end; d = addDays(d, 1)) {
-        if (isSunday(d)) continue; // Salta domeniche
+        if (isSunday(d)) continue;
 
         const dateStr = format(d, 'yyyy-MM-dd');
         const dayOfWeekStr = d.getDay().toString();
@@ -160,7 +192,6 @@ export default function AttendancePage() {
           const rStart = emp.restStartTime || "00:00";
           const rEnd = emp.restEndTime || "00:00";
 
-          // Logica per Mattina (9-13)
           if (emp.contractType === 'full-time') {
             const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
             if (!morningOverlaps) {
@@ -174,7 +205,6 @@ export default function AttendancePage() {
             }
           }
 
-          // Logica per Pomeriggio (17-20:20)
           const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
           if (!afternoonOverlaps) {
             const idPM = `auto-${emp.id}-${dateStr}-AFTERNOON`;
@@ -267,6 +297,7 @@ export default function AttendancePage() {
   }
 
   const openEdit = (log: any) => {
+    if (log.type === "ABSENCE") return; // Non modificabile qui
     const cin = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "09:00";
     const cout = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "";
     setEditingEntry({ ...log, editIn: cin, editOut: cout });
@@ -274,16 +305,20 @@ export default function AttendancePage() {
   }
 
   const handleDeleteEntry = (log: any) => {
+    if (log.type === "ABSENCE") return;
     deleteDocumentNonBlocking(doc(db, "employees", log.employeeId, "timeentries", log.id));
     toast({ title: "Timbratura Eliminata" });
   }
 
-  const getSourceBadge = (type: string) => {
+  const getSourceBadge = (type: string, absenceType?: string) => {
     switch (type) {
       case 'ADMIN':
         return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none font-black text-[10px] gap-1"><ShieldCheck className="h-3 w-3" /> ADMIN</Badge>
       case 'AUTO':
         return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none font-black text-[10px] gap-1"><Zap className="h-3 w-3" /> AUTO</Badge>
+      case 'ABSENCE':
+        const Icon = absenceType === 'SICK' ? Activity : absenceType === 'VACATION' ? Umbrella : Timer;
+        return <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-none font-black text-[10px] gap-1"><Icon className="h-3 w-3" /> ASSENZA</Badge>
       default:
         return <Badge className="bg-blue-100 text-[#227FD8] hover:bg-blue-100 border-none font-black text-[10px] gap-1"><Fingerprint className="h-3 w-3" /> UTENTE</Badge>
     }
@@ -430,7 +465,6 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      {/* Barra dei Filtri */}
       <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -456,6 +490,7 @@ export default function AttendancePage() {
                   <SelectItem value="USER">Inserite da Utente</SelectItem>
                   <SelectItem value="AUTO">Generate Automaticamente</SelectItem>
                   <SelectItem value="ADMIN">Forzate da Admin</SelectItem>
+                  <SelectItem value="ABSENCE">Assenze / Permessi</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -490,15 +525,19 @@ export default function AttendancePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isLoadingEntries || isLoadingRequests ? (
                   <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                 ) : filteredEntries.length > 0 ? filteredEntries.map((log) => {
                   const emp = employeeMap[log.employeeId];
                   const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
                   const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
+                  const isAbsence = log.type === "ABSENCE";
                   
                   return (
-                    <TableRow key={log.id} className="h-16 hover:bg-slate-50/50 group border-b last:border-0">
+                    <TableRow key={log.id} className={cn(
+                      "h-16 hover:bg-slate-50/50 group border-b last:border-0",
+                      isAbsence ? "bg-rose-50/20" : ""
+                    )}>
                       <TableCell className="pl-6">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
@@ -521,9 +560,11 @@ export default function AttendancePage() {
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-[#227FD8]">{cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className={cn("text-sm font-black", isAbsence ? "text-rose-600" : "text-[#227FD8]")}>
+                              {cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                             <span className="text-slate-300">→</span>
-                            <span className={cn("text-sm font-black", cOut ? "text-slate-700" : "text-slate-300 italic")}>
+                            <span className={cn("text-sm font-black", cOut ? (isAbsence ? "text-rose-600" : "text-slate-700") : "text-slate-300 italic")}>
                               {cOut ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}
                             </span>
                           </div>
@@ -532,20 +573,27 @@ export default function AttendancePage() {
                               <AlertTriangle className="h-2.5 w-2.5" /> Anomalia Oraria
                             </div>
                           )}
+                          {isAbsence && (
+                            <div className="text-[9px] font-black text-rose-500 uppercase">
+                              {log.absenceType === 'VACATION' ? 'Ferie Approvate' : log.absenceType === 'SICK' ? 'Malattia' : 'Permesso'}
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        {getSourceBadge(log.type)}
+                        {getSourceBadge(log.type, log.absenceType)}
                       </TableCell>
                       <TableCell className="pr-6 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-[#227FD8] hover:border-[#227FD8] bg-white" onClick={() => openEdit(log)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:border-rose-600 bg-white" onClick={() => handleDeleteEntry(log)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        {!isAbsence && (
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-[#227FD8] hover:border-[#227FD8] bg-white" onClick={() => openEdit(log)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:border-rose-600 bg-white" onClick={() => handleDeleteEntry(log)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   )
@@ -574,11 +622,11 @@ export default function AttendancePage() {
             </CardHeader>
             <CardContent className="p-5 pt-0 space-y-4 relative z-10">
               <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                Le timbrature con l'etichetta <span className="text-amber-400 font-bold">AUTO</span> sono generate basandosi sugli orari contrattuali e sui riposi settimanali impostati nell'anagrafica.
+                Le timbrature <span className="text-rose-400 font-bold">ASSENZA</span> sono simulate automaticamente basandosi sulle richieste di ferie/permessi approvate.
               </p>
               <div className="h-px bg-slate-800" />
               <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                Ogni modifica effettuata manualmente da un Admin sovrascriverà l'origine in <span className="text-purple-400 font-bold">ADMIN</span> per una corretta tracciabilità.
+                Le timbrature con l'etichetta <span className="text-amber-400 font-bold">AUTO</span> sono generate basandosi sugli orari contrattuali e sui riposi settimanali impostati nell'anagrafica.
               </p>
             </CardContent>
           </Card>
