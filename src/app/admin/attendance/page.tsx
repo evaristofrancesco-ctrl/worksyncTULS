@@ -1,7 +1,6 @@
-
 "use client"
 
-import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint } from "lucide-react"
+import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
