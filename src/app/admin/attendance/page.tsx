@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save } from "lucide-react"
+import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Calendar as CalendarIcon, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,14 +32,19 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 
 export default function AttendancePage() {
   const db = useFirestore()
   const { toast } = useToast()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isGenerating, setIsGenerating] = useState(false)
   
-  // Stati per i Dialog
+  // Stati per i Filtri
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterDate, setFilterDate] = useState("")
+  const [filterEmployee, setFilterEmployee] = useState("all")
+  const [filterType, setFilterType] = useState("all")
+  
+  const [isGenerating, setIsGenerating] = useState(false)
   const [isForceOpen, setIsForceOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<any>(null)
@@ -79,15 +84,36 @@ export default function AttendancePage() {
         if (entry.companyId !== "default") return false;
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
+
+        // Filtro Nome
         const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
-        return fullName.includes(searchQuery.toLowerCase());
+        if (searchQuery && !fullName.includes(searchQuery.toLowerCase())) return false;
+
+        // Filtro Dipendente specifico
+        if (filterEmployee !== "all" && entry.employeeId !== filterEmployee) return false;
+
+        // Filtro Data
+        if (filterDate && entry.checkInTime) {
+          const entryDate = new Date(entry.checkInTime).toISOString().split('T')[0];
+          if (entryDate !== filterDate) return false;
+        }
+
+        // Filtro Tipo (User, Auto, Admin)
+        if (filterType !== "all") {
+          const type = entry.type || "MANUAL";
+          if (filterType === "USER" && type !== "MANUAL") return false;
+          if (filterType === "AUTO" && type !== "AUTO") return false;
+          if (filterType === "ADMIN" && type !== "ADMIN") return false;
+        }
+
+        return true;
       })
       .sort((a, b) => {
         const dateA = a.checkInTime ? new Date(a.checkInTime).getTime() : 0;
         const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
         return dateB - dateA;
       });
-  }, [entries, employeeMap, searchQuery]);
+  }, [entries, employeeMap, searchQuery, filterDate, filterEmployee, filterType]);
 
   const handleAutoClockIn = async () => {
     if (!employees || employees.length === 0) {
@@ -108,7 +134,6 @@ export default function AttendancePage() {
       for (const emp of employees) {
         if (!emp.isActive || emp.autoClockIn === false) continue;
         
-        // Esclusione specifica Francesco Evaristo
         const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
         if (isFrancesco) continue;
 
@@ -153,7 +178,7 @@ export default function AttendancePage() {
           }
         }
       }
-      toast({ title: "Completato", description: `Generate ${count} timbrature rispettando i riposi.` });
+      toast({ title: "Completato", description: `Generate ${count} timbrature.` });
     } finally {
       setIsGenerating(false);
     }
@@ -177,12 +202,12 @@ export default function AttendancePage() {
       checkOutTime: checkOutDateTime?.toISOString() || null,
       status: "PRESENT",
       isApproved: true,
-      type: "MANUAL",
+      type: "ADMIN",
       slot: checkInDateTime.getHours() < 14 ? "MORNING" : "AFTERNOON"
     }, { merge: true });
 
     setIsForceOpen(false);
-    toast({ title: "Timbratura Inserita" });
+    toast({ title: "Timbratura Inserita da Admin" });
   }
 
   const handleUpdateEntry = () => {
@@ -195,6 +220,7 @@ export default function AttendancePage() {
     updateDocumentNonBlocking(doc(db, "employees", editingEntry.employeeId, "timeentries", editingEntry.id), {
       checkInTime: newCheckIn.toISOString(),
       checkOutTime: newCheckOut?.toISOString() || null,
+      type: "ADMIN", // Diventa di tipo admin se modificata
       updatedBy: "ADMIN",
       updatedAt: new Date().toISOString()
     });
@@ -216,30 +242,41 @@ export default function AttendancePage() {
     toast({ title: "Timbratura Eliminata" });
   }
 
+  const getSourceBadge = (type: string) => {
+    switch (type) {
+      case 'ADMIN':
+        return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none font-black text-[10px] gap-1"><ShieldCheck className="h-3 w-3" /> ADMIN</Badge>
+      case 'AUTO':
+        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none font-black text-[10px] gap-1"><Zap className="h-3 w-3" /> AUTO</Badge>
+      default:
+        return <Badge className="bg-blue-100 text-[#227FD8] hover:bg-blue-100 border-none font-black text-[10px] gap-1"><Fingerprint className="h-3 w-3" /> UTENTE</Badge>
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-[#1e293b]">Registro Presenze</h1>
-          <p className="text-sm text-muted-foreground">Monitoraggio e correzione timbrature del team.</p>
+          <h1 className="text-3xl font-black text-[#1e293b] tracking-tight">Registro Presenze</h1>
+          <p className="text-sm text-muted-foreground font-medium">Archivio storico e gestione manuale delle timbrature.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Dialog open={isForceOpen} onOpenChange={setIsForceOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-9">
-                <Plus className="h-4 w-4 mr-1" /> Forza Inserimento
+              <Button variant="outline" className="font-black border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-11 px-6 shadow-sm">
+                <Plus className="h-5 w-5 mr-2" /> Inserimento Forzato
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle className="font-black text-xl uppercase">Timbratura Forzata</DialogTitle>
-                <DialogDescription>Inserisci manualmente un ingresso/uscita per un dipendente.</DialogDescription>
+                <DialogTitle className="font-black text-2xl uppercase">Timbratura Admin</DialogTitle>
+                <DialogDescription>Inserisci manualmente un record di presenza nel sistema.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label className="font-bold uppercase text-xs text-slate-500">Dipendente</Label>
+                  <Label className="font-bold uppercase text-xs text-slate-500">Seleziona Dipendente</Label>
                   <Select value={newEntry.employeeId} onValueChange={(v) => setNewEntry({...newEntry, employeeId: v})}>
-                    <SelectTrigger><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                    <SelectTrigger className="h-11"><SelectValue placeholder="Scegli..." /></SelectTrigger>
                     <SelectContent>
                       {employees?.filter(e => e.isActive).map(e => (
                         <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>
@@ -248,92 +285,154 @@ export default function AttendancePage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="font-bold uppercase text-xs text-slate-500">Data</Label>
-                  <Input type="date" value={newEntry.date} onChange={e => setNewEntry({...newEntry, date: e.target.value})} />
+                  <Label className="font-bold uppercase text-xs text-slate-500">Giorno</Label>
+                  <Input type="date" className="h-11" value={newEntry.date} onChange={e => setNewEntry({...newEntry, date: e.target.value})} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="font-bold uppercase text-xs text-slate-500">Ora Entrata</Label>
-                    <Input type="time" value={newEntry.checkIn} onChange={e => setNewEntry({...newEntry, checkIn: e.target.value})} />
+                    <Label className="font-bold uppercase text-xs text-slate-500">Ora Ingresso</Label>
+                    <Input type="time" className="h-11" value={newEntry.checkIn} onChange={e => setNewEntry({...newEntry, checkIn: e.target.value})} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="font-bold uppercase text-xs text-slate-500">Ora Uscita (opzionale)</Label>
-                    <Input type="time" value={newEntry.checkOut} onChange={e => setNewEntry({...newEntry, checkOut: e.target.value})} />
+                    <Label className="font-bold uppercase text-xs text-slate-500">Ora Uscita</Label>
+                    <Input type="time" className="h-11" value={newEntry.checkOut} onChange={e => setNewEntry({...newEntry, checkOut: e.target.value})} />
                   </div>
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setIsForceOpen(false)} className="font-bold">Annulla</Button>
-                <Button onClick={handleForceEntry} className="bg-[#227FD8] font-black px-8">SALVA</Button>
+                <Button onClick={handleForceEntry} className="bg-[#227FD8] font-black px-10 h-11 shadow-lg">CONFERMA E SALVA</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Button onClick={handleAutoClockIn} disabled={isGenerating || isLoading} size="sm" className="bg-amber-500 hover:bg-amber-600 font-bold h-9">
-            {isGenerating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Zap className="h-3 w-3 mr-1 fill-current" />} Timbratura Automatica
+          <Button onClick={handleAutoClockIn} disabled={isGenerating || isLoading} className="bg-amber-500 hover:bg-amber-600 font-black h-11 px-6 shadow-md">
+            {isGenerating ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Zap className="h-5 w-5 mr-2 fill-current" />} Genera Automatico
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <Card className="lg:col-span-8 border-none shadow-sm bg-white/80">
-          <CardHeader className="p-4 border-b flex flex-row items-center justify-between gap-4">
-            <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center gap-2">
-              <Clock className="h-4 w-4 text-[#227FD8]" /> Storico Team
-            </CardTitle>
-            <div className="relative w-full max-w-[240px]">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Cerca collaboratore..." className="pl-8 bg-muted/30 border-none h-8 text-sm" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+      {/* Barra dei Filtri */}
+      <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200">
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Cerca Collaboratore</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Input placeholder="Nome o cognome..." className="pl-9 h-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              </div>
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Filtra per Data</Label>
+              <Input type="date" className="h-10" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Origine Dato</Label>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Tutte le fonti" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte le fonti</SelectItem>
+                  <SelectItem value="USER">Inserite da Utente</SelectItem>
+                  <SelectItem value="AUTO">Generate Automaticamente</SelectItem>
+                  <SelectItem value="ADMIN">Forzate da Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end gap-2">
+              <Button variant="ghost" size="sm" className="h-10 font-bold text-slate-500" onClick={() => {
+                setSearchQuery(""); setFilterDate(""); setFilterEmployee("all"); setFilterType("all");
+              }}>Reset</Button>
+              <div className="flex-1 text-right self-center pr-2">
+                <span className="text-xs font-black text-[#227FD8] uppercase bg-blue-50 px-3 py-1.5 rounded-full">{filteredEntries.length} Risultati</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-12">
+        <Card className="lg:col-span-8 border-none shadow-sm bg-white/80 backdrop-blur-sm overflow-hidden ring-1 ring-slate-200">
+          <CardHeader className="p-4 border-b bg-slate-50/50">
+            <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-500">
+              <Clock className="h-4 w-4 text-[#227FD8]" /> Elenco Movimenti
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow className="h-10">
-                  <TableHead className="text-sm font-black uppercase py-0 pl-4">Dipendente</TableHead>
-                  <TableHead className="text-sm font-black uppercase py-0">Data</TableHead>
-                  <TableHead className="text-sm font-black uppercase py-0">Entrata</TableHead>
-                  <TableHead className="text-sm font-black uppercase py-0">Uscita</TableHead>
-                  <TableHead className="text-right text-sm font-black uppercase py-0 pr-4">Azioni</TableHead>
+              <TableHeader className="bg-slate-50/80">
+                <TableRow className="h-12 border-none">
+                  <TableHead className="text-[11px] font-black uppercase pl-6">Collaboratore</TableHead>
+                  <TableHead className="text-[11px] font-black uppercase">Data</TableHead>
+                  <TableHead className="text-[11px] font-black uppercase">Orario</TableHead>
+                  <TableHead className="text-[11px] font-black uppercase">Origine</TableHead>
+                  <TableHead className="text-right text-[11px] font-black uppercase pr-6">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={5} className="py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
                 ) : filteredEntries.length > 0 ? filteredEntries.map((log) => {
                   const emp = employeeMap[log.employeeId];
                   const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
                   const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
+                  
                   return (
-                    <TableRow key={log.id} className="h-12 hover:bg-muted/10 group">
-                      <TableCell className="pl-4">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-7 w-7 border">
+                    <TableRow key={log.id} className="h-16 hover:bg-slate-50/50 group border-b last:border-0">
+                      <TableCell className="pl-6">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
                             <AvatarImage src={emp?.photoUrl} />
-                            <AvatarFallback className="text-sm font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                            <AvatarFallback className="text-xs font-bold bg-slate-100">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
                           </Avatar>
-                          <span className="font-bold text-sm text-[#1e293b] truncate">
-                            {emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="font-black text-sm text-[#1e293b] leading-none">
+                              {emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-tighter">
+                              {emp?.jobTitle || "Collaboratore"}
+                            </span>
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm">{cIn?.toLocaleDateString('it-IT')}</TableCell>
-                      <TableCell className="text-sm font-bold text-[#227FD8]">{cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                      <TableCell className="text-sm font-bold text-slate-500">{cOut?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) || "--:--"}</TableCell>
-                      <TableCell className="pr-4 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => openEdit(log)}>
-                            <Edit className="h-3.5 w-3.5" />
+                      <TableCell className="text-xs font-bold text-slate-600">
+                        {cIn?.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-black text-[#227FD8]">{cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <span className="text-slate-300">→</span>
+                            <span className={cn("text-sm font-black", cOut ? "text-slate-700" : "text-slate-300 italic")}>
+                              {cOut ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}
+                            </span>
+                          </div>
+                          {log.isAnomaly && (
+                            <div className="flex items-center gap-1 text-[9px] font-black text-rose-600 uppercase">
+                              <AlertTriangle className="h-2.5 w-2.5" /> Anomalia Oraria
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {getSourceBadge(log.type)}
+                      </TableCell>
+                      <TableCell className="pr-6 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-[#227FD8] hover:border-[#227FD8] bg-white" onClick={() => openEdit(log)}>
+                            <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400 hover:text-rose-600" onClick={() => handleDeleteEntry(log)}>
-                            <Trash2 className="h-3.5 w-3.5" />
+                          <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:border-rose-600 bg-white" onClick={() => handleDeleteEntry(log)}>
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
                   )
                 }) : (
-                  <TableRow><TableCell colSpan={5} className="py-12 text-center text-sm text-muted-foreground">Nessun log trovato.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="py-20 text-center text-sm font-bold text-slate-400 uppercase italic">Nessun movimento trovato per questi filtri.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -341,11 +440,29 @@ export default function AttendancePage() {
         </Card>
 
         <div className="lg:col-span-4 space-y-6">
-          <Card className="border-none shadow-sm bg-white/80">
+          <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200">
             <CardHeader className="p-4 pb-0">
-              <CardTitle className="text-sm font-black flex items-center gap-2"><UserCheck className="h-4 w-4 text-amber-500" /> Mia Timbratura</CardTitle>
+              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-amber-600">
+                <UserCheck className="h-4 w-4" /> La Tua Sessione
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-2 pt-0"><ClockInOut /></CardContent>
+            <CardContent className="p-4"><ClockInOut /></CardContent>
+          </Card>
+          
+          <Card className="border-none shadow-sm bg-slate-900 text-white overflow-hidden relative">
+            <div className="absolute top-0 right-0 p-4 opacity-10"><Info className="h-20 w-20" /></div>
+            <CardHeader className="p-5">
+              <CardTitle className="text-sm font-black uppercase tracking-[0.2em]">Info Rapide</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-0 space-y-4 relative z-10">
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                Le timbrature con l'etichetta <span className="text-amber-400 font-bold">AUTO</span> sono generate basandosi sugli orari contrattuali e sui riposi settimanali impostati nell'anagrafica.
+              </p>
+              <div className="h-px bg-slate-800" />
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                Ogni modifica effettuata manualmente da un Admin sovrascriverà l'origine in <span className="text-purple-400 font-bold">ADMIN</span> per una corretta tracciabilità.
+              </p>
+            </CardContent>
           </Card>
         </div>
       </div>
@@ -354,29 +471,29 @@ export default function AttendancePage() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-black text-xl uppercase">Modifica Orari</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="font-black text-2xl uppercase tracking-tighter">Correggi Orari</DialogTitle>
+            <DialogDescription className="font-bold text-[#227FD8]">
               {editingEntry && employeeMap[editingEntry.employeeId] ? 
                 `${employeeMap[editingEntry.employeeId].firstName} ${employeeMap[editingEntry.employeeId].lastName}` : 
-                "Modifica timbratura"}
+                "Modifica"}
             </DialogDescription>
           </DialogHeader>
           {editingEntry && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label className="font-bold uppercase text-xs text-slate-500">Ora Entrata</Label>
-                <Input type="time" value={editingEntry.editIn} onChange={e => setEditingEntry({...editingEntry, editIn: e.target.value})} />
+                <Label className="font-black uppercase text-[10px] text-slate-500">Ora Ingresso Reale</Label>
+                <Input type="time" className="h-11 text-lg font-black" value={editingEntry.editIn} onChange={e => setEditingEntry({...editingEntry, editIn: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label className="font-bold uppercase text-xs text-slate-500">Ora Uscita</Label>
-                <Input type="time" value={editingEntry.editOut} onChange={e => setEditingEntry({...editingEntry, editOut: e.target.value})} />
+                <Label className="font-black uppercase text-[10px] text-slate-500">Ora Uscita Reale</Label>
+                <Input type="time" className="h-11 text-lg font-black" value={editingEntry.editOut} onChange={e => setEditingEntry({...editingEntry, editOut: e.target.value})} />
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="font-bold">Annulla</Button>
-            <Button onClick={handleUpdateEntry} className="bg-[#227FD8] font-black gap-2">
-              <Save className="h-4 w-4" /> AGGIORNA
+            <Button onClick={handleUpdateEntry} className="bg-[#227FD8] font-black h-11 px-8 gap-2 shadow-lg">
+              <Save className="h-4 w-4" /> AGGIORNA E VALIDA
             </Button>
           </DialogFooter>
         </DialogContent>
