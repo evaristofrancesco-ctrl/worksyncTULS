@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList } from "lucide-react"
+import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList, AlertTriangle, BellRing } from "lucide-react"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { 
@@ -20,9 +20,11 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup } from "firebase/firestore"
+import { collection, collectionGroup, doc } from "firebase/firestore"
+import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import Link from "next/link"
 import { useMemo, useState, useEffect } from "react"
+import { format, isAfter, addMinutes, parseISO } from "date-fns"
 
 const weeklyStats = [
   { name: 'Lun', ore: 145 },
@@ -75,6 +77,64 @@ export default function AdminDashboard() {
     }, {} as any);
   }, [employees]);
 
+  // Logica Anomalie: Chi dovrebbe essere al lavoro ma non ha timbrato
+  const missingClockIns = useMemo(() => {
+    if (!allShifts || !allEntries || !employees) return [];
+    
+    const todayStr = new Date().toISOString().split('T')[0];
+    const now = new Date();
+
+    return allShifts.filter(shift => {
+      if (shift.date !== todayStr) return false;
+      
+      const emp = employeeMap[shift.employeeId];
+      if (!emp) return false;
+
+      // Verifica se esiste una timbratura per questo slot
+      const hasEntry = allEntries.some(entry => {
+        if (entry.employeeId !== shift.employeeId) return false;
+        const entryDate = new Date(entry.checkInTime).toISOString().split('T')[0];
+        if (entryDate !== todayStr) return false;
+        
+        // Se è un turno mattina (prima delle 14) o pomeriggio
+        const entryHour = new Date(entry.checkInTime).getHours();
+        const shiftHour = new Date(shift.startTime).getHours();
+        return Math.abs(entryHour - shiftHour) <= 3;
+      });
+
+      if (hasEntry) return false;
+
+      // Se sono passati più di 15 minuti dall'inizio previsto
+      const startTime = new Date(shift.startTime);
+      const limitTime = addMinutes(startTime, 15);
+      
+      return isAfter(now, limitTime);
+    }).map(s => ({
+      ...s,
+      employee: employeeMap[s.employeeId]
+    }));
+  }, [allShifts, allEntries, employees, employeeMap]);
+
+  // Invio automatico notifiche per chi manca (deduplicato)
+  useEffect(() => {
+    if (missingClockIns.length > 0 && db) {
+      missingClockIns.forEach(anomaly => {
+        const notifId = `alert-missing-${anomaly.employeeId}-${anomaly.date}-${new Date(anomaly.startTime).getHours()}`;
+        const startTimeStr = new Date(anomaly.startTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        
+        setDocumentNonBlocking(doc(db, "notifications", notifId), {
+          id: notifId,
+          recipientId: "ADMIN",
+          title: "⚠️ Mancata Timbratura",
+          message: `${anomaly.employee?.firstName} ${anomaly.employee?.lastName} doveva iniziare alle ${startTimeStr} ma non ha ancora timbrato.`,
+          type: "ATTENDANCE_ALERT",
+          createdAt: new Date().toISOString(),
+          isRead: false
+        }, { merge: true });
+      });
+    }
+  }, [missingClockIns, db]);
+
   const recentEntries = useMemo(() => {
     if (!allEntries) return [];
     const todayStr = new Date().toISOString().split('T')[0];
@@ -117,7 +177,6 @@ export default function AdminDashboard() {
   const myWeeklyHours = useMemo(() => {
     if (!allEntries || !employeeId) return 0;
     
-    // Ottieni l'inizio della settimana corrente (Lunedì)
     const now = new Date();
     const day = now.getDay();
     const diff = now.getDate() - day + (day === 0 ? -6 : 1);
@@ -144,9 +203,23 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-10">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-5xl font-black tracking-tight text-[#1e293b]">Pannello di Controllo</h1>
-        <p className="text-lg text-muted-foreground font-semibold uppercase tracking-widest">Benvenuto, {(user?.displayName || "Amministratore").split(' ')[0]}. Gestisci il tuo team oggi.</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-5xl font-black tracking-tight text-[#1e293b]">Pannello di Controllo</h1>
+          <p className="text-lg text-muted-foreground font-semibold uppercase tracking-widest">Benvenuto, {(user?.displayName || "Amministratore").split(' ')[0]}. Gestisci il tuo team oggi.</p>
+        </div>
+        
+        {missingClockIns.length > 0 && (
+          <div className="bg-rose-50 border-2 border-rose-200 p-4 rounded-3xl flex items-center gap-4 animate-bounce">
+            <div className="bg-rose-500 p-3 rounded-2xl text-white shadow-lg shadow-rose-200">
+              <BellRing className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-rose-700 font-black text-xs uppercase tracking-widest">Allerta Presenze</p>
+              <p className="text-rose-900 font-bold text-sm">{missingClockIns.length} collaboratori in ritardo.</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-8 lg:grid-cols-12">
@@ -165,6 +238,34 @@ export default function AdminDashboard() {
               <StatCard title="Turni" value={allShifts?.filter(s => s.date === new Date().toISOString().split('T')[0]).length || 0} description="Oggi" icon={Calendar} />
             </Link>
           </div>
+
+          {missingClockIns.length > 0 && (
+            <Card className="border-none shadow-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-8 opacity-10"><AlertTriangle className="h-32 w-32" /></div>
+              <CardHeader className="p-6">
+                <CardTitle className="font-black text-xl uppercase tracking-widest flex items-center gap-2">
+                  <AlertTriangle className="h-6 w-6" /> Dipendenti in Ritardo
+                </CardTitle>
+                <CardDescription className="text-rose-100 font-bold uppercase text-xs">Azione richiesta: verifica la presenza del personale.</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 pt-0">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {missingClockIns.map(anomaly => (
+                    <div key={anomaly.id} className="bg-white/10 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4">
+                      <Avatar className="h-12 w-12 border-2 border-white/20">
+                        <AvatarImage src={anomaly.employee?.photoUrl} />
+                        <AvatarFallback className="font-black text-rose-700 bg-white">{anomaly.employee?.firstName?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-black text-sm">{anomaly.employee?.firstName} {anomaly.employee?.lastName}</p>
+                        <p className="text-[10px] font-bold uppercase opacity-80">Inizio previsto: {new Date(anomaly.startTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid gap-8 md:grid-cols-2">
             <Card className="border-none shadow-md bg-white/80">
