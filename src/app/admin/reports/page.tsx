@@ -112,18 +112,28 @@ export default function ReportsPage() {
     const isCurrentMonth = isSameMonth(targetDate, now);
     const actualLimitDate = isCurrentMonth ? now : monthEnd;
 
-    const targetEmployees = employees.filter(emp => {
+    // OTTIMIZZAZIONE: Raggruppa timbrature e richieste per dipendente una volta sola
+    const entriesMap = allEntries.reduce((acc, entry) => {
+      if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
+      acc[entry.employeeId].push(entry);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    const requestsMap = allRequests.reduce((acc, req) => {
+      if (!acc[req.employeeId]) acc[req.employeeId] = [];
+      acc[req.employeeId].push(req);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    return employees.filter(emp => {
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
-    });
-
-    return targetEmployees.map(emp => {
+    }).map(emp => {
       const weeklyTarget = emp.weeklyHours || 40;
       const daysInThisMonth = getDaysInMonth(targetDate);
       const monthlyExpectedHours = (weeklyTarget / 7) * daysInThisMonth;
 
-      const empEntries = allEntries.filter(entry => {
-        if (entry.employeeId !== emp.id) return false;
+      const empEntries = (entriesMap[emp.id] || []).filter(entry => {
         if (entry.companyId !== "default") return false;
         try {
           const checkIn = new Date(entry.checkInTime);
@@ -141,8 +151,7 @@ export default function ReportsPage() {
         }
       });
 
-      const empRequests = allRequests.filter(req => {
-        if (req.employeeId !== emp.id) return false;
+      const empRequests = (requestsMap[emp.id] || []).filter(req => {
         const status = (req.status || "").toUpperCase();
         if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return false;
         try {

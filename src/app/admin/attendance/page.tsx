@@ -93,7 +93,7 @@ export default function AttendancePage() {
     return employees.reduce((acc, emp) => {
       acc[emp.id] = emp;
       return acc;
-    }, {} as any);
+    }, {} as Record<string, any>);
   }, [employees]);
 
   const unifiedEntries = useMemo(() => {
