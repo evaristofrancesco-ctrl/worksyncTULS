@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Save, Filter, User, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X, Umbrella, Activity, Timer } from "lucide-react"
+import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Save, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X, Umbrella, Activity, Timer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -284,7 +284,6 @@ export default function AttendancePage() {
     const newCheckOut = editingEntry.editOut ? new Date(`${baseDate}T${editingEntry.editOut}`) : null;
 
     if (editingEntry.type === "ABSENCE") {
-      // Se è un'assenza simulata, aggiorniamo il documento originale della richiesta
       const requestId = editingEntry.id.replace("sim-", "");
       updateDocumentNonBlocking(doc(db, "employees", editingEntry.employeeId, "requests", requestId), {
         startDate: baseDate,
@@ -321,7 +320,6 @@ export default function AttendancePage() {
 
   const handleDeleteEntry = (log: any) => {
     if (log.type === "ABSENCE") {
-      // Se è un'assenza simulata, eliminiamo il documento originale della richiesta
       const requestId = log.id.replace("sim-", "");
       deleteDocumentNonBlocking(doc(db, "employees", log.employeeId, "requests", requestId));
       toast({ title: "Assenza / Permesso Eliminato" });
@@ -338,8 +336,8 @@ export default function AttendancePage() {
       case 'AUTO':
         return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none font-black text-[10px] gap-1"><Zap className="h-3 w-3" /> AUTO</Badge>
       case 'ABSENCE':
-        const Icon = absenceType === 'SICK' ? Activity : absenceType === 'VACATION' ? Umbrella : Timer;
-        return <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-none font-black text-[10px] gap-1"><Icon className="h-3 w-3" /> ASSENZA</Badge>
+        const AbsIcon = absenceType === 'SICK' ? Activity : absenceType === 'VACATION' ? Umbrella : Timer;
+        return <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-none font-black text-[10px] gap-1"><AbsIcon className="h-3 w-3" /> ASSENZA</Badge>
       default:
         return <Badge className="bg-blue-100 text-[#227FD8] hover:bg-blue-100 border-none font-black text-[10px] gap-1"><Fingerprint className="h-3 w-3" /> UTENTE</Badge>
     }

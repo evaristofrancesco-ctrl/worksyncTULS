@@ -15,7 +15,7 @@ import {
   RefreshCw
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
   Table, 
   TableBody, 
@@ -32,7 +32,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
 import { startOfMonth, endOfMonth, eachDayOfInterval, getDaysInMonth, isSameMonth } from "date-fns"
@@ -86,7 +85,6 @@ export default function ReportsPage() {
   }, [db])
   const { data: allRequests, isLoading: requestsLoading } = useCollection(requestsQuery)
 
-  // Funzione helper per formattare ore decimali in stringa HHh MMm (gestisce negativi)
   const formatTime = (decimalHours: number) => {
     const isNegative = decimalHours < 0;
     const absHours = Math.abs(decimalHours);
@@ -111,23 +109,19 @@ export default function ReportsPage() {
     const monthEnd = endOfMonth(targetDate);
     const now = new Date();
     
-    // Per il calcolo "fino al giorno attuale"
     const isCurrentMonth = isSameMonth(targetDate, now);
     const actualLimitDate = isCurrentMonth ? now : monthEnd;
 
-    // Esclusione Francesco Evaristo
     const targetEmployees = employees.filter(emp => {
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
     });
 
     return targetEmployees.map(emp => {
-      // 1. Calcolo ORE PREVISTE AL MESE (basate sul contratto settimanale)
       const weeklyTarget = emp.weeklyHours || 40;
       const daysInThisMonth = getDaysInMonth(targetDate);
       const monthlyExpectedHours = (weeklyTarget / 7) * daysInThisMonth;
 
-      // 2. Calcolo ORE Lavorate (timbrature reali)
       const empEntries = allEntries.filter(entry => {
         if (entry.employeeId !== emp.id) return false;
         if (entry.companyId !== "default") return false;
@@ -147,7 +141,6 @@ export default function ReportsPage() {
         }
       });
 
-      // 3. Calcolo assenze approvate
       const empRequests = allRequests.filter(req => {
         if (req.employeeId !== emp.id) return false;
         const status = (req.status || "").toUpperCase();
@@ -190,7 +183,6 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
-      // 4. Calcolo Ore Nette (Worked - Absences)
       const absenceTotal = vacationHours + sickHours + permitHours;
       const netTotalHours = actualWorkHours - absenceTotal;
       const isSubtracted = absenceTotal > 0;
