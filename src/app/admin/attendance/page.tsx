@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Save, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X, Umbrella, Activity, Timer } from "lucide-react"
+import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Save, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X, Umbrella, Activity, Timer, CalendarDays, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc } from "firebase/firestore"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import {
@@ -34,7 +34,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
-import { format, addDays, parseISO, isSunday } from "date-fns"
+import { format, addDays, parseISO, isSunday, subDays, startOfDay } from "date-fns"
+import { it } from "date-fns/locale"
 
 export default function AttendancePage() {
   const db = useFirestore()
@@ -43,9 +44,11 @@ export default function AttendancePage() {
   // Stati per i Filtri
   const [searchQuery, setSearchQuery] = useState("")
   const [filterDate, setFilterDate] = useState("")
-  const [filterEmployee, setFilterEmployee] = useState("all")
   const [filterType, setFilterType] = useState("all")
   
+  // Per default mostriamo solo l'ultima settimana per pulizia visiva
+  const [showAllHistory, setShowAllHistory] = useState(false)
+
   const [isGenerating, setIsGenerating] = useState(false)
   const [isForceOpen, setIsForceOpen] = useState(false)
   const [isAutoOpen, setIsAutoOpen] = useState(false)
@@ -99,7 +102,6 @@ export default function AttendancePage() {
   const unifiedEntries = useMemo(() => {
     const realEntries = entries || [];
     
-    // Mappa le richieste approvate come timbrature simulate
     const mappedRequests = (allRequests || [])
       .filter(req => {
         const status = (req.status || "").toUpperCase();
@@ -122,20 +124,23 @@ export default function AttendancePage() {
   }, [entries, allRequests]);
 
   const filteredEntries = useMemo(() => {
+    const horizon = subDays(new Date(), 7);
+
     return unifiedEntries
       .filter(entry => {
-        // Se è una timbratura reale, controlla l'azienda
         if (entry.type !== "ABSENCE" && entry.companyId !== "default") return false;
         
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
 
+        // Limite temporale per pulizia (se non richiesto diversamente)
+        if (!showAllHistory && !filterDate && entry.checkInTime) {
+          if (new Date(entry.checkInTime) < horizon) return false;
+        }
+
         // Filtro Nome
         const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
         if (searchQuery && !fullName.includes(searchQuery.toLowerCase())) return false;
-
-        // Filtro Dipendente specifico
-        if (filterEmployee !== "all" && entry.employeeId !== filterEmployee) return false;
 
         // Filtro Data
         if (filterDate && entry.checkInTime) {
@@ -143,7 +148,7 @@ export default function AttendancePage() {
           if (entryDate !== filterDate) return false;
         }
 
-        // Filtro Tipo (User, Auto, Admin, Absence)
+        // Filtro Tipo
         if (filterType !== "all") {
           const type = entry.type || "MANUAL";
           if (filterType === "USER" && type !== "MANUAL") return false;
@@ -159,7 +164,18 @@ export default function AttendancePage() {
         const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
         return dateB - dateA;
       });
-  }, [unifiedEntries, employeeMap, searchQuery, filterDate, filterEmployee, filterType]);
+  }, [unifiedEntries, employeeMap, searchQuery, filterDate, filterType, showAllHistory]);
+
+  // Raggruppamento per data per migliorare la leggibilità
+  const groupedEntries = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    filteredEntries.forEach(entry => {
+      const dateKey = entry.checkInTime ? new Date(entry.checkInTime).toISOString().split('T')[0] : "no-date";
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(entry);
+    });
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [filteredEntries]);
 
   const handleAutoClockIn = async () => {
     const targetIds = autoParams.selectAll 
@@ -218,41 +234,18 @@ export default function AttendancePage() {
         }
       }
       
-      toast({ title: "Completato", description: `Generate ${count} timbrature per il periodo selezionato.` });
+      toast({ title: "Completato", description: `Generate ${count} timbrature.` });
       setIsAutoOpen(false);
     } catch (err) {
-      toast({ variant: "destructive", title: "Errore", description: "Si è verificato un problema durante la generazione." });
+      toast({ variant: "destructive", title: "Errore", description: "Problema durante la generazione." });
     } finally {
       setIsGenerating(false);
     }
   }
 
-  const toggleEmployeeSelection = (id: string) => {
-    setAutoParams(prev => {
-      const isSelected = prev.selectedEmployees.includes(id);
-      const newSelection = isSelected 
-        ? prev.selectedEmployees.filter(sid => sid !== id)
-        : [...prev.selectedEmployees, id];
-      
-      return { 
-        ...prev, 
-        selectedEmployees: newSelection,
-        selectAll: newSelection.length === activeEmployees.length
-      };
-    });
-  }
-
-  const handleSelectAll = (checked: boolean) => {
-    setAutoParams(prev => ({
-      ...prev,
-      selectAll: checked,
-      selectedEmployees: checked ? activeEmployees.map(e => e.id) : []
-    }));
-  }
-
   const handleForceEntry = () => {
     if (!newEntry.employeeId || !newEntry.date || !newEntry.checkIn) {
-      toast({ variant: "destructive", title: "Errore", description: "Dipendente, data e ora entrata obbligatori." });
+      toast({ variant: "destructive", title: "Errore", description: "Campi obbligatori mancanti." });
       return;
     }
 
@@ -273,7 +266,7 @@ export default function AttendancePage() {
     }, { merge: true });
 
     setIsForceOpen(false);
-    toast({ title: "Timbratura Inserita da Admin" });
+    toast({ title: "Timbratura Inserita" });
   }
 
   const handleUpdateEntry = () => {
@@ -289,57 +282,38 @@ export default function AttendancePage() {
         startDate: baseDate,
         startTime: editingEntry.editIn,
         endTime: editingEntry.editOut || "20:20",
-        updatedAt: new Date().toISOString(),
-        adminNote: "Modificato da Admin dal Registro Presenze"
+        updatedAt: new Date().toISOString()
       });
-      setIsEditOpen(false);
-      setEditingEntry(null);
-      toast({ title: "Assenza Aggiornata" });
-      return;
+    } else {
+      updateDocumentNonBlocking(doc(db, "employees", editingEntry.employeeId, "timeentries", editingEntry.id), {
+        checkInTime: newCheckIn.toISOString(),
+        checkOutTime: newCheckOut?.toISOString() || null,
+        type: "ADMIN",
+        updatedAt: new Date().toISOString()
+      });
     }
-
-    updateDocumentNonBlocking(doc(db, "employees", editingEntry.employeeId, "timeentries", editingEntry.id), {
-      checkInTime: newCheckIn.toISOString(),
-      checkOutTime: newCheckOut?.toISOString() || null,
-      type: "ADMIN",
-      updatedBy: "ADMIN",
-      updatedAt: new Date().toISOString()
-    });
 
     setIsEditOpen(false);
     setEditingEntry(null);
-    toast({ title: "Timbratura Aggiornata" });
-  }
-
-  const openEdit = (log: any) => {
-    const cin = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "09:00";
-    const cout = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "";
-    setEditingEntry({ ...log, editIn: cin, editOut: cout });
-    setIsEditOpen(true);
+    toast({ title: "Aggiornato" });
   }
 
   const handleDeleteEntry = (log: any) => {
     if (log.type === "ABSENCE") {
       const requestId = log.id.replace("sim-", "");
       deleteDocumentNonBlocking(doc(db, "employees", log.employeeId, "requests", requestId));
-      toast({ title: "Assenza / Permesso Eliminato" });
-      return;
+    } else {
+      deleteDocumentNonBlocking(doc(db, "employees", log.employeeId, "timeentries", log.id));
     }
-    deleteDocumentNonBlocking(doc(db, "employees", log.employeeId, "timeentries", log.id));
-    toast({ title: "Timbratura Eliminata" });
+    toast({ title: "Eliminato" });
   }
 
   const getSourceBadge = (type: string, absenceType?: string) => {
     switch (type) {
-      case 'ADMIN':
-        return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none font-black text-[10px] gap-1"><ShieldCheck className="h-3 w-3" /> ADMIN</Badge>
-      case 'AUTO':
-        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none font-black text-[10px] gap-1"><Zap className="h-3 w-3" /> AUTO</Badge>
-      case 'ABSENCE':
-        const AbsIcon = absenceType === 'SICK' ? Activity : absenceType === 'VACATION' ? Umbrella : Timer;
-        return <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-none font-black text-[10px] gap-1"><AbsIcon className="h-3 w-3" /> ASSENZA</Badge>
-      default:
-        return <Badge className="bg-blue-100 text-[#227FD8] hover:bg-blue-100 border-none font-black text-[10px] gap-1"><Fingerprint className="h-3 w-3" /> UTENTE</Badge>
+      case 'ADMIN': return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none font-bold text-[10px] gap-1"><ShieldCheck className="h-3 w-3" /> ADMIN</Badge>
+      case 'AUTO': return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none font-bold text-[10px] gap-1"><Zap className="h-3 w-3" /> AUTO</Badge>
+      case 'ABSENCE': return <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100 border-none font-bold text-[10px] gap-1"><Umbrella className="h-3 w-3" /> ASSENZA</Badge>
+      default: return <Badge className="bg-blue-100 text-[#227FD8] hover:bg-blue-100 border-none font-bold text-[10px] gap-1"><Fingerprint className="h-3 w-3" /> UTENTE</Badge>
     }
   }
 
@@ -348,23 +322,25 @@ export default function AttendancePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-[#1e293b] tracking-tight">Registro Presenze</h1>
-          <p className="text-sm text-muted-foreground font-medium">Archivio storico e gestione manuale delle timbrature.</p>
+          <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+            <History className="h-4 w-4" /> Archivio movimenti e gestione timbrature.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Dialog open={isForceOpen} onOpenChange={setIsForceOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" className="font-black border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-11 px-6 shadow-sm">
-                <Plus className="h-5 w-5 mr-2" /> Inserimento Forzato
+              <Button variant="outline" className="font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-10 shadow-sm">
+                <Plus className="h-4 w-4 mr-2" /> Inserimento Manuale
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle className="font-black text-2xl uppercase">Timbratura Admin</DialogTitle>
-                <DialogDescription>Inserisci manualmente un record di presenza nel sistema.</DialogDescription>
+                <DialogTitle className="font-black text-2xl uppercase">Timbratura Forzata</DialogTitle>
+                <DialogDescription>Inserisci manualmente un record nel sistema.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label className="font-bold uppercase text-xs text-slate-500">Seleziona Dipendente</Label>
+                  <Label className="font-bold uppercase text-xs text-slate-500">Dipendente</Label>
                   <Select value={newEntry.employeeId} onValueChange={(v) => setNewEntry({...newEntry, employeeId: v})}>
                     <SelectTrigger className="h-11"><SelectValue placeholder="Scegli..." /></SelectTrigger>
                     <SelectContent>
@@ -391,93 +367,47 @@ export default function AttendancePage() {
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setIsForceOpen(false)} className="font-bold">Annulla</Button>
-                <Button onClick={handleForceEntry} className="bg-[#227FD8] font-black px-10 h-11 shadow-lg">CONFERMA E SALVA</Button>
+                <Button onClick={handleForceEntry} className="bg-[#227FD8] font-black px-10">SALVA</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
           <Dialog open={isAutoOpen} onOpenChange={setIsAutoOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-amber-500 hover:bg-amber-600 font-black h-11 px-6 shadow-md">
-                <Zap className="h-5 w-5 mr-2 fill-current" /> Genera Automatico
+              <Button className="bg-amber-500 hover:bg-amber-600 font-black h-10 shadow-md">
+                <Zap className="h-4 w-4 mr-2" /> Genera Automatico
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-xl">
-              <DialogHeader>
-                <DialogTitle className="font-black text-2xl uppercase flex items-center gap-2">
-                  <Zap className="h-6 w-6 text-amber-500 fill-current" /> Configura Generazione
-                </DialogTitle>
-                <DialogDescription>Genera timbrature basate su contratti e riposi per il team selezionato.</DialogDescription>
-              </DialogHeader>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+              <DialogHeader><DialogTitle className="font-black text-2xl uppercase">Configura Generazione</DialogTitle></DialogHeader>
+              <div className="grid md:grid-cols-2 gap-6 py-4">
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="font-black uppercase text-xs text-slate-500">Intervallo Date</Label>
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-bold text-slate-400">DALLA DATA</Label>
-                        <Input type="date" value={autoParams.startDate} onChange={e => setAutoParams({...autoParams, startDate: e.target.value})} />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-bold text-slate-400">ALLA DATA</Label>
-                        <Input type="date" value={autoParams.endDate} onChange={e => setAutoParams({...autoParams, endDate: e.target.value})} />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed">
-                      <Info className="h-3 w-3 inline mr-1" /> Nota: Verranno ignorate le domeniche e i giorni di riposo specifici di ogni dipendente.
-                    </p>
+                  <Label className="font-black uppercase text-xs text-slate-500">Intervallo</Label>
+                  <div className="space-y-3">
+                    <Input type="date" value={autoParams.startDate} onChange={e => setAutoParams({...autoParams, startDate: e.target.value})} />
+                    <Input type="date" value={autoParams.endDate} onChange={e => setAutoParams({...autoParams, endDate: e.target.value})} />
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <div className="flex items-center justify-between mb-2">
-                    <Label className="font-black uppercase text-xs text-slate-500">Dipendenti Coinvolti</Label>
+                    <Label className="font-black uppercase text-xs text-slate-500">Team</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-400">TUTTI</span>
-                      <Checkbox checked={autoParams.selectAll} onCheckedChange={handleSelectAll} />
+                      <span className="text-[10px] font-bold">TUTTI</span>
+                      <Checkbox checked={autoParams.selectAll} onCheckedChange={(v) => setAutoParams({...autoParams, selectAll: !!v, selectedEmployees: !!v ? activeEmployees.map(e => e.id) : []})} />
                     </div>
                   </div>
-                  <div className="max-h-[200px] overflow-y-auto border rounded-lg p-2 space-y-1 bg-slate-50/50">
+                  <div className="max-h-[150px] overflow-y-auto border rounded-lg p-2 bg-slate-50/50">
                     {activeEmployees.map(e => (
-                      <div 
-                        key={e.id} 
-                        className={cn(
-                          "flex items-center justify-between p-2 rounded-md transition-colors cursor-pointer",
-                          autoParams.selectedEmployees.includes(e.id) ? "bg-white shadow-sm ring-1 ring-amber-500/20" : "hover:bg-slate-100"
-                        )}
-                        onClick={() => toggleEmployeeSelection(e.id)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={e.photoUrl} />
-                            <AvatarFallback className="text-[10px] font-bold">{e.firstName?.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <span className="text-xs font-bold text-slate-700">{e.firstName} {e.lastName}</span>
-                        </div>
-                        <Checkbox 
-                          checked={autoParams.selectedEmployees.includes(e.id)} 
-                          onCheckedChange={() => toggleEmployeeSelection(e.id)} 
-                        />
+                      <div key={e.id} className="flex items-center justify-between p-1">
+                        <span className="text-xs font-bold">{e.firstName} {e.lastName}</span>
+                        <Checkbox checked={autoParams.selectedEmployees.includes(e.id)} onCheckedChange={(v) => setAutoParams(p => ({...p, selectedEmployees: !!v ? [...p.selectedEmployees, e.id] : p.selectedEmployees.filter(i => i !== e.id), selectAll: false}))} />
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-
               <DialogFooter>
-                <Button variant="ghost" onClick={() => setIsAutoOpen(false)} className="font-bold">Annulla</Button>
-                <Button 
-                  onClick={handleAutoClockIn} 
-                  disabled={isGenerating}
-                  className="bg-amber-500 hover:bg-amber-600 font-black px-10 h-11 shadow-lg gap-2"
-                >
-                  {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Check className="h-5 w-5" />}
-                  AVVIA GENERAZIONE
-                </Button>
+                <Button onClick={handleAutoClockIn} disabled={isGenerating} className="bg-amber-500 font-black px-10">AVVIA GENERAZIONE</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -487,145 +417,114 @@ export default function AttendancePage() {
       <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Cerca Collaboratore</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <Input placeholder="Nome o cognome..." className="pl-9 h-10" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-              </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <Input placeholder="Cerca collaboratore..." className="pl-9 h-10 border-none bg-slate-50" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Filtra per Data</Label>
-              <Input type="date" className="h-10" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Origine Dato</Label>
-              <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Tutte le fonti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutte le fonti</SelectItem>
-                  <SelectItem value="USER">Inserite da Utente</SelectItem>
-                  <SelectItem value="AUTO">Generate Automaticamente</SelectItem>
-                  <SelectItem value="ADMIN">Forzate da Admin</SelectItem>
-                  <SelectItem value="ABSENCE">Assenze / Permessi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end gap-2">
-              <Button variant="ghost" size="sm" className="h-10 font-bold text-slate-500" onClick={() => {
-                setSearchQuery(""); setFilterDate(""); setFilterEmployee("all"); setFilterType("all");
-              }}>Reset</Button>
-              <div className="flex-1 text-right self-center pr-2">
-                <span className="text-xs font-black text-[#227FD8] uppercase bg-blue-50 px-3 py-1.5 rounded-full">{filteredEntries.length} Risultati</span>
-              </div>
+            <Input type="date" className="h-10 border-none bg-slate-50" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="h-10 border-none bg-slate-50"><SelectValue placeholder="Fonte" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le fonti</SelectItem>
+                <SelectItem value="USER">Utente</SelectItem>
+                <SelectItem value="AUTO">Automatiche</SelectItem>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="ABSENCE">Assenze</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-10 font-bold" onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}>Reset</Button>
+              {!showAllHistory && !filterDate && (
+                <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase tracking-tighter" onClick={() => setShowAllHistory(true)}>Mostra tutto lo storico</Button>
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-12">
-        <Card className="lg:col-span-8 border-none shadow-sm bg-white/80 backdrop-blur-sm overflow-hidden ring-1 ring-slate-200">
-          <CardHeader className="p-4 border-b bg-slate-50/50">
-            <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-500">
-              <Clock className="h-4 w-4 text-[#227FD8]" /> Elenco Movimenti
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-slate-50/80">
-                <TableRow className="h-12 border-none">
-                  <TableHead className="text-[11px] font-black uppercase pl-6">Collaboratore</TableHead>
-                  <TableHead className="text-[11px] font-black uppercase">Data</TableHead>
-                  <TableHead className="text-[11px] font-black uppercase">Orario</TableHead>
-                  <TableHead className="text-[11px] font-black uppercase">Origine</TableHead>
-                  <TableHead className="text-right text-[11px] font-black uppercase pr-6">Azioni</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoadingEntries || isLoadingRequests ? (
-                  <TableRow><TableCell colSpan={5} className="py-20 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
-                ) : filteredEntries.length > 0 ? filteredEntries.map((log) => {
-                  const emp = employeeMap[log.employeeId];
-                  const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
-                  const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
-                  const isAbsence = log.type === "ABSENCE";
-                  
-                  return (
-                    <TableRow key={log.id} className={cn(
-                      "h-16 hover:bg-slate-50/50 group border-b last:border-0",
-                      isAbsence ? "bg-rose-50/20" : ""
-                    )}>
-                      <TableCell className="pl-6">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
-                            <AvatarImage src={emp?.photoUrl} />
-                            <AvatarFallback className="text-xs font-bold bg-slate-100">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex flex-col">
-                            <span className="font-black text-sm text-[#1e293b] leading-none">
-                              {emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-tighter">
-                              {emp?.jobTitle || "Collaboratore"}
-                            </span>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-bold text-slate-600">
-                        {cIn?.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className={cn("text-sm font-black", isAbsence ? "text-rose-600" : "text-[#227FD8]")}>
-                              {cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                            <span className="text-slate-300">→</span>
-                            <span className={cn("text-sm font-black", cOut ? (isAbsence ? "text-rose-600" : "text-slate-700") : "text-slate-300 italic")}>
-                              {cOut ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}
-                            </span>
-                          </div>
-                          {log.isAnomaly && (
-                            <div className="flex items-center gap-1 text-[9px] font-black text-rose-600 uppercase">
-                              <AlertTriangle className="h-2.5 w-2.5" /> Anomalia Oraria
+        <div className="lg:col-span-8 space-y-6">
+          {isLoadingEntries || isLoadingRequests ? (
+            <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
+          ) : groupedEntries.length > 0 ? groupedEntries.map(([date, dayEntries]) => (
+            <Card key={date} className="border-none shadow-sm bg-white overflow-hidden ring-1 ring-slate-200">
+              <CardHeader className="p-4 border-b bg-slate-50/50 flex flex-row items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white p-2 rounded-xl shadow-sm border">
+                    <CalendarDays className="h-5 w-5 text-[#227FD8]" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-black uppercase text-[#1e293b]">
+                      {format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}
+                    </CardTitle>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti registrati</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableBody>
+                    {dayEntries.map((log) => {
+                      const emp = employeeMap[log.employeeId];
+                      const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
+                      const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
+                      const isAbsence = log.type === "ABSENCE";
+                      
+                      return (
+                        <TableRow key={log.id} className={cn("h-14 border-b last:border-0 hover:bg-slate-50/30 group", isAbsence && "bg-rose-50/10")}>
+                          <TableCell className="pl-6 w-[250px]">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={emp?.photoUrl} />
+                                <AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-xs text-[#1e293b] truncate w-32">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</span>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase truncate w-32">{emp?.jobTitle || "Collaboratore"}</span>
+                              </div>
                             </div>
-                          )}
-                          {isAbsence && (
-                            <div className="text-[9px] font-black text-rose-500 uppercase">
-                              {log.absenceType === 'VACATION' ? 'Ferie Approvate' : log.absenceType === 'SICK' ? 'Malattia' : 'Permesso'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className={cn("text-xs font-black", isAbsence ? "text-rose-600" : "text-[#227FD8]")}>
+                                {cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <span className="text-slate-300 text-[10px]">→</span>
+                              <span className={cn("text-xs font-black", cOut ? (isAbsence ? "text-rose-600" : "text-slate-700") : "text-slate-300 italic")}>
+                                {cOut ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {getSourceBadge(log.type, log.absenceType)}
-                      </TableCell>
-                      <TableCell className="pr-6 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                          <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-[#227FD8] hover:border-[#227FD8] bg-white" onClick={() => openEdit(log)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="icon" className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:border-rose-600 bg-white" onClick={() => handleDeleteEntry(log)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                }) : (
-                  <TableRow><TableCell colSpan={5} className="py-20 text-center text-sm font-bold text-slate-400 uppercase italic">Nessun movimento trovato per questi filtri.</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                          </TableCell>
+                          <TableCell>
+                            {getSourceBadge(log.type, log.absenceType)}
+                          </TableCell>
+                          <TableCell className="pr-6 text-right">
+                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                                const cin = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "09:00";
+                                const cout = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "";
+                                setEditingEntry({ ...log, editIn: cin, editOut: cout });
+                                setIsEditOpen(true);
+                              }}><Edit className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500" onClick={() => handleDeleteEntry(log)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )) : (
+            <Card className="py-20 text-center border-dashed"><p className="text-slate-400 font-bold italic">Nessun movimento trovato.</p></Card>
+          )}
+        </div>
 
         <div className="lg:col-span-4 space-y-6">
           <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200">
             <CardHeader className="p-4 pb-0">
-              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-amber-600">
+              <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-[#227FD8]">
                 <UserCheck className="h-4 w-4" /> La Tua Sessione
               </CardTitle>
             </CardHeader>
@@ -635,51 +534,41 @@ export default function AttendancePage() {
           <Card className="border-none shadow-sm bg-slate-900 text-white overflow-hidden relative">
             <div className="absolute top-0 right-0 p-4 opacity-10"><Info className="h-20 w-20" /></div>
             <CardHeader className="p-5">
-              <CardTitle className="text-sm font-black uppercase tracking-[0.2em]">Info Rapide</CardTitle>
+              <CardTitle className="text-sm font-black uppercase tracking-widest">Info Legenda</CardTitle>
             </CardHeader>
-            <CardContent className="p-5 pt-0 space-y-4 relative z-10">
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                Le timbrature <span className="text-rose-400 font-bold">ASSENZA</span> sono simulate automaticamente basandosi sulle richieste di ferie/permessi approvate.
-              </p>
-              <div className="h-px bg-slate-800" />
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">
-                Le timbrature con l'etichetta <span className="text-amber-400 font-bold">AUTO</span> sono generate basandosi sugli orari contrattuali e sui riposi settimanali impostati nell'anagrafica.
-              </p>
+            <CardContent className="p-5 pt-0 space-y-4 text-[11px] font-medium text-slate-400 relative z-10 leading-relaxed">
+              <p>Il registro mostra di default gli ultimi <b>7 giorni</b> per mantenere l'interfaccia scattante.</p>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 rounded-full bg-blue-500" /> <span><b>UTENTE</b>: Timbratura manuale da app.</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 rounded-full bg-amber-500" /> <span><b>AUTO</b>: Log generato da sistema.</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 rounded-full bg-rose-500" /> <span><b>ASSENZA</b>: Copertura da ferie/permessi.</span>
+              </div>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Dialog Modifica Timbratura / Assenza */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-black text-2xl uppercase tracking-tighter">
-              {editingEntry?.type === 'ABSENCE' ? 'Modifica Assenza' : 'Correggi Orari'}
-            </DialogTitle>
-            <DialogDescription className="font-bold text-[#227FD8]">
-              {editingEntry && employeeMap[editingEntry.employeeId] ? 
-                `${employeeMap[editingEntry.employeeId].firstName} ${employeeMap[editingEntry.employeeId].lastName}` : 
-                "Modifica"}
-            </DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="font-black text-xl uppercase">Modifica Orari</DialogTitle></DialogHeader>
           {editingEntry && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label className="font-black uppercase text-[10px] text-slate-500">Ora Inizio / Ingresso</Label>
+                <Label className="font-bold text-[10px] text-slate-500 uppercase">Inizio</Label>
                 <Input type="time" className="h-11 text-lg font-black" value={editingEntry.editIn} onChange={e => setEditingEntry({...editingEntry, editIn: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label className="font-black uppercase text-[10px] text-slate-500">Ora Fine / Uscita</Label>
+                <Label className="font-bold text-[10px] text-slate-500 uppercase">Fine</Label>
                 <Input type="time" className="h-11 text-lg font-black" value={editingEntry.editOut} onChange={e => setEditingEntry({...editingEntry, editOut: e.target.value})} />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="font-bold">Annulla</Button>
-            <Button onClick={handleUpdateEntry} className="bg-[#227FD8] font-black h-11 px-8 gap-2 shadow-lg">
-              <Save className="h-4 w-4" /> AGGIORNA E VALIDA
-            </Button>
+            <Button onClick={handleUpdateEntry} className="bg-[#227FD8] font-black w-full h-11">AGGIORNA</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
