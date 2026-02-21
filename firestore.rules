@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -6,7 +7,7 @@ service cloud.firestore {
      * CORE PHILOSOPHY
      * Questa configurazione è ottimizzata per il prototipo TU.L.S.
      * Consente l'accesso a tutti gli utenti autenticati (inclusi quelli anonimi)
-     * per supportare la struttura dati mista (root collections e collection groups).
+     * per supportare la struttura dati mista e l'accesso da dispositivi mobili.
      */
 
     // Helper per verificare se l'utente è autenticato con Firebase Auth
@@ -16,9 +17,11 @@ service cloud.firestore {
 
     // --- Regole per Collezioni Radice ---
 
-    // Dipendenti e loro sottocollezioni
+    // Dipendenti: Accesso in lettura consentito a tutti gli utenti autenticati (anche anonimi)
+    // per permettere il controllo delle credenziali durante il login.
     match /employees/{employeeId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
       
       match /timeentries/{id} { allow read, write: if isSignedIn(); }
       match /shifts/{id} { allow read, write: if isSignedIn(); }

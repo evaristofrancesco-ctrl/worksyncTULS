@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Lock, Mail, Loader2, Info } from "lucide-react"
+import { Lock, Mail, Loader2, Info, Smartphone, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
@@ -12,7 +12,7 @@ import { useAuth, useFirestore } from "@/firebase"
 import { signInAnonymously, updateProfile } from "firebase/auth"
 import { collection, query, where, getDocs, limit } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -41,7 +41,11 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
-      // Ricerca dell'utente nel database Firestore
+      // 1. Autenticazione anonima immediata per sbloccare i permessi del database (Firestore Rules)
+      // Questo permette a qualsiasi dispositivo (anche cellulare) di interrogare la collezione dipendenti
+      await signInAnonymously(auth)
+
+      // 2. Ricerca del profilo collaboratore nel database Firestore
       const employeesRef = collection(db, "employees")
       const q = query(employeesRef, where("email", "==", cleanEmail), limit(1))
       const querySnapshot = await getDocs(q)
@@ -50,25 +54,23 @@ export default function LoginPage() {
 
       if (!querySnapshot.empty) {
         const docData = querySnapshot.docs[0].data()
-        // Verifica della password
+        // Verifica della password impostata nell'anagrafica
         if (docData.password === cleanPassword) {
           userData = docData
         }
       }
 
       if (userData) {
-        // Autenticazione anonima per i permessi Firestore
-        await signInAnonymously(auth)
-        
         const fullName = `${userData.firstName} ${userData.lastName}`
         
+        // Aggiorniamo il profilo Firebase Auth con il nome reale per le notifiche
         if (auth.currentUser) {
           await updateProfile(auth.currentUser, {
             displayName: fullName
           });
         }
 
-        // Memorizziamo il ruolo, il nome e l'ID REALE del dipendente
+        // Memorizziamo i dati della sessione nel browser
         const userRole = (userData.role || "").toLowerCase();
         localStorage.setItem("userRole", userRole)
         localStorage.setItem("userName", fullName)
@@ -79,7 +81,7 @@ export default function LoginPage() {
           description: `Bentornato, ${fullName}!`,
         })
         
-        // Reindirizzamento robusto basato sul ruolo
+        // Reindirizzamento in base al ruolo
         if (userRole === 'admin') {
           router.replace("/admin")
         } else {
@@ -96,8 +98,8 @@ export default function LoginPage() {
       console.error("Login Error:", error)
       toast({
         variant: "destructive",
-        title: "Errore di connessione",
-        description: "Impossibile contattare il database. Riprova tra poco.",
+        title: "Errore di sistema",
+        description: "Impossibile stabilire una connessione sicura con il server.",
       })
     } finally {
       setIsLoading(false)
@@ -106,32 +108,36 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#F4F8FA] flex items-center justify-center p-6">
-      <Card className="w-full max-w-md shadow-2xl border-none animate-in fade-in zoom-in duration-300">
-        <CardHeader className="space-y-1 text-center">
+      <Card className="w-full max-w-md shadow-2xl border-none animate-in fade-in zoom-in duration-300 overflow-hidden">
+        <div className="bg-[#227FD8] h-2 w-full" />
+        <CardHeader className="space-y-1 text-center pt-8">
           <div className="flex justify-center mb-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#227FD8] text-white text-3xl font-black shadow-lg">T</div>
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#227FD8] text-white text-4xl font-black shadow-lg">T</div>
           </div>
-          <CardTitle className="text-3xl font-black tracking-tight text-[#1e293b] uppercase">Accedi a TU.L.S.</CardTitle>
-          <CardDescription className="font-bold text-slate-400">Inserisci le tue credenziali aziendali</CardDescription>
+          <CardTitle className="text-3xl font-black tracking-tight text-[#1e293b] uppercase">TU.L.S. Cloud</CardTitle>
+          <CardTitle className="text-sm font-bold text-slate-400">Portale Gestione Personale</CardTitle>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-6">
-            <Alert className="bg-blue-50 border-blue-100 py-3">
-              <Info className="h-5 w-5 text-blue-600" />
-              <AlertDescription className="text-xs text-blue-700 font-bold leading-relaxed uppercase tracking-tight">
-                Usa l'email associata al tuo profilo collaboratore per accedere.
-              </AlertDescription>
+            <Alert className="bg-blue-50 border-blue-100 py-4">
+              <Globe className="h-5 w-5 text-blue-600" />
+              <div className="ml-2">
+                <AlertTitle className="text-blue-800 font-bold text-xs uppercase">Accesso Multidispositivo</AlertTitle>
+                <AlertDescription className="text-[11px] text-blue-700 font-medium leading-relaxed">
+                  L'app utilizza un sistema di login interno. Non è necessario un account Google: usa l'email e la password del tuo profilo collaboratore.
+                </AlertDescription>
+              </div>
             </Alert>
             
             <div className="space-y-2">
-              <Label htmlFor="email" className="font-black text-xs uppercase text-slate-500">Email Aziendale</Label>
+              <Label htmlFor="email" className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Email Aziendale</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <Input 
                   id="email" 
                   type="email"
                   placeholder="mario.rossi@tuls.it" 
-                  className="pl-10 h-12 bg-slate-50 border-slate-200" 
+                  className="pl-10 h-12 bg-slate-50 border-slate-200 focus:ring-[#227FD8]" 
                   value={email || ""}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
@@ -140,14 +146,14 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="font-black text-xs uppercase text-slate-500">Password</Label>
+              <Label htmlFor="password" className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Password Personale</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <Input 
                   id="password" 
                   type="password" 
                   placeholder="••••••••" 
-                  className="pl-10 h-12 bg-slate-50 border-slate-200"
+                  className="pl-10 h-12 bg-slate-50 border-slate-200 focus:ring-[#227FD8]"
                   value={password || ""}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
@@ -156,17 +162,22 @@ export default function LoginPage() {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="pt-2">
-            <Button type="submit" className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-14 text-base uppercase tracking-widest shadow-lg" disabled={isLoading}>
+          <CardFooter className="flex flex-col gap-4 pb-8">
+            <Button type="submit" className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-14 text-base uppercase tracking-widest shadow-lg transition-all active:scale-95" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin mr-3" />
-                  Verifica in corso...
+                  Connessione...
                 </>
               ) : (
-                "Accedi al Portale"
+                "Entra nel Portale"
               )}
             </Button>
+            
+            <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+              <Smartphone className="h-3 w-3" />
+              Ottimizzato per dispositivi mobili
+            </div>
           </CardFooter>
         </form>
       </Card>
