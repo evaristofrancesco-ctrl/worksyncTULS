@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from "react"
@@ -100,7 +99,7 @@ export default function ShiftsPage() {
   }, [db])
   const { data: employees, isLoading: isEmployeesLoading } = useCollection(employeesQuery)
 
-  // Filtro specifico solo per Francesco Evaristo
+  // Filtro specifico solo per Francesco Evaristo (escluso momentaneamente dai turni)
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
     return employees.filter(emp => {

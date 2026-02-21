@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList, AlertTriangle, BellRing } from "lucide-react"
@@ -89,6 +88,10 @@ export default function AdminDashboard() {
       
       const emp = employeeMap[shift.employeeId];
       if (!emp) return false;
+
+      // ESCLUSIONE FRANCESCO EVARISTO DAGLI ALERT TURNI
+      const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
+      if (isFrancesco) return false;
 
       // Verifica se esiste una timbratura per questo slot
       const hasEntry = allEntries.some(entry => {

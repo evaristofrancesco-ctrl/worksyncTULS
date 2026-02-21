@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from "react"
@@ -126,6 +125,7 @@ export default function ReportsPage() {
     }, {} as Record<string, any[]>);
 
     return employees.filter(emp => {
+      // ESCLUSIONE FRANCESCO EVARISTO DAI REPORT OPERATIVI
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
     }).map(emp => {
@@ -192,6 +192,7 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
+      // FORMULA RICHIESTA: Ore Lavorate - (Ferie + Malattia + Permessi)
       const absenceTotal = vacationHours + sickHours + permitHours;
       const netTotalHours = actualWorkHours - absenceTotal;
       const isSubtracted = absenceTotal > 0;
