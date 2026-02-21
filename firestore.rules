@@ -4,72 +4,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CORE PHILOSOPHY
-     * Questa configurazione è ottimizzata per il prototipo TU.L.S.
-     * Consente l'accesso a tutti gli utenti autenticati (inclusi quelli anonimi)
-     * per supportare la struttura dati mista e l'accesso da dispositivi mobili.
+     * CONFIGURAZIONE OTTIMIZZATA TU.L.S. (PROTOTIPO)
+     * Consente l'accesso completo a tutti gli utenti autenticati.
+     * Questo è necessario per supportare le query di ricerca (login) 
+     * e i report globali (collectionGroup) su qualsiasi dispositivo.
      */
 
-    // Helper per verificare se l'utente è autenticato con Firebase Auth
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // --- Regole per Collezioni Radice ---
-
-    // Dipendenti: Accesso in lettura consentito a tutti gli utenti autenticati (anche anonimi)
-    // per permettere il controllo delle credenziali durante il login.
-    match /employees/{employeeId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
-      
-      match /timeentries/{id} { allow read, write: if isSignedIn(); }
-      match /shifts/{id} { allow read, write: if isSignedIn(); }
-      match /requests/{id} { allow read, write: if isSignedIn(); }
-      match /modifications/{id} { allow read, write: if isSignedIn(); }
-    }
-
-    // Aziende e sedi
-    match /companies/{companyId} {
-      allow read, write: if isSignedIn();
-      match /locations/{id} { allow read, write: if isSignedIn(); }
-      match /employees/{employeeId} { allow read, write: if isSignedIn(); }
-    }
-
-    // Notifiche di sistema
-    match /notifications/{id} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Utility e bacheca
-    match /utilities/{id} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Amministratori di sistema
-    match /system_admins/{uid} {
-      allow read: if isSignedIn() && request.auth.uid == uid;
-    }
-
-    // --- Regole per Collection Group (Necessarie per le query amministrative) ---
-    
-    match /{path=**}/timeentries/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /{path=**}/shifts/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /{path=**}/requests/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /{path=**}/modifications/{id} {
-      allow read, write: if isSignedIn();
-    }
-    
-    match /{path=**}/notifications/{id} {
+    // Permettiamo lettura e scrittura su tutti i documenti se l'utente è autenticato
+    // (L'autenticazione anonima viene attivata automaticamente nella pagina di login)
+    match /{document=**} {
       allow read, write: if isSignedIn();
     }
   }

@@ -3,10 +3,10 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Lock, Mail, Loader2, Info, Smartphone, Globe } from "lucide-react"
+import { Lock, Mail, Loader2, Smartphone, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { useAuth, useFirestore } from "@/firebase"
 import { signInAnonymously, updateProfile } from "firebase/auth"
@@ -41,11 +41,13 @@ export default function LoginPage() {
     setIsLoading(true)
     
     try {
-      // 1. Autenticazione anonima immediata per sbloccare i permessi del database (Firestore Rules)
-      // Questo permette a qualsiasi dispositivo (anche cellulare) di interrogare la collezione dipendenti
-      await signInAnonymously(auth)
+      // 1. Garantiamo l'autenticazione anonima prima di interrogare il DB
+      // Se l'utente non è loggato, effettuiamo il login anonimo
+      if (!auth.currentUser) {
+        await signInAnonymously(auth)
+      }
 
-      // 2. Ricerca del profilo collaboratore nel database Firestore
+      // 2. Cerchiamo il dipendente nel database
       const employeesRef = collection(db, "employees")
       const q = query(employeesRef, where("email", "==", cleanEmail), limit(1))
       const querySnapshot = await getDocs(q)
@@ -54,7 +56,7 @@ export default function LoginPage() {
 
       if (!querySnapshot.empty) {
         const docData = querySnapshot.docs[0].data()
-        // Verifica della password impostata nell'anagrafica
+        // Verifica password semplice per prototipo
         if (docData.password === cleanPassword) {
           userData = docData
         }
@@ -63,15 +65,15 @@ export default function LoginPage() {
       if (userData) {
         const fullName = `${userData.firstName} ${userData.lastName}`
         
-        // Aggiorniamo il profilo Firebase Auth con il nome reale per le notifiche
+        // Aggiorniamo il profilo per le notifiche di sistema
         if (auth.currentUser) {
           await updateProfile(auth.currentUser, {
             displayName: fullName
           });
         }
 
-        // Memorizziamo i dati della sessione nel browser
-        const userRole = (userData.role || "").toLowerCase();
+        // Salviamo la sessione locale
+        const userRole = (userData.role || "employee").toLowerCase();
         localStorage.setItem("userRole", userRole)
         localStorage.setItem("userName", fullName)
         localStorage.setItem("employeeId", userData.id)
@@ -81,7 +83,7 @@ export default function LoginPage() {
           description: `Bentornato, ${fullName}!`,
         })
         
-        // Reindirizzamento in base al ruolo
+        // Redirect in base al ruolo
         if (userRole === 'admin') {
           router.replace("/admin")
         } else {
@@ -91,15 +93,15 @@ export default function LoginPage() {
         toast({
           variant: "destructive",
           title: "Credenziali errate",
-          description: "L'email o la password inserite non sono corrette.",
+          description: "L'email o la password non corrispondono a nessun profilo.",
         })
       }
     } catch (error: any) {
       console.error("Login Error:", error)
       toast({
         variant: "destructive",
-        title: "Errore di sistema",
-        description: "Impossibile stabilire una connessione sicura con il server.",
+        title: "Errore di connessione",
+        description: "Controlla la tua connessione internet e riprova.",
       })
     } finally {
       setIsLoading(false)
@@ -115,16 +117,16 @@ export default function LoginPage() {
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#227FD8] text-white text-4xl font-black shadow-lg">T</div>
           </div>
           <CardTitle className="text-3xl font-black tracking-tight text-[#1e293b] uppercase">TU.L.S. Cloud</CardTitle>
-          <CardTitle className="text-sm font-bold text-slate-400">Portale Gestione Personale</CardTitle>
+          <CardTitle className="text-sm font-bold text-slate-400">Accedi per gestire il tuo lavoro</CardTitle>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-6">
             <Alert className="bg-blue-50 border-blue-100 py-4">
               <Globe className="h-5 w-5 text-blue-600" />
               <div className="ml-2">
-                <AlertTitle className="text-blue-800 font-bold text-xs uppercase">Accesso Multidispositivo</AlertTitle>
+                <AlertTitle className="text-blue-800 font-bold text-xs uppercase">Accesso Dipendenti</AlertTitle>
                 <AlertDescription className="text-[11px] text-blue-700 font-medium leading-relaxed">
-                  L'app utilizza un sistema di login interno. Non è necessario un account Google: usa l'email e la password del tuo profilo collaboratore.
+                  Usa l'email e la password fornite dall'amministrazione. Non è necessario un account Google.
                 </AlertDescription>
               </div>
             </Alert>
@@ -137,46 +139,41 @@ export default function LoginPage() {
                   id="email" 
                   type="email"
                   placeholder="mario.rossi@tuls.it" 
-                  className="pl-10 h-12 bg-slate-50 border-slate-200 focus:ring-[#227FD8]" 
-                  value={email || ""}
+                  className="pl-10 h-12 bg-slate-50 border-slate-200" 
+                  value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
                   required
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Password Personale</Label>
+              <Label htmlFor="password" className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                 <Input 
                   id="password" 
                   type="password" 
                   placeholder="••••••••" 
-                  className="pl-10 h-12 bg-slate-50 border-slate-200 focus:ring-[#227FD8]"
-                  value={password || ""}
+                  className="pl-10 h-12 bg-slate-50 border-slate-200"
+                  value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
                   required
                 />
               </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4 pb-8">
-            <Button type="submit" className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-14 text-base uppercase tracking-widest shadow-lg transition-all active:scale-95" disabled={isLoading}>
+            <Button type="submit" className="w-full bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-14 text-base uppercase tracking-widest shadow-lg" disabled={isLoading}>
               {isLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 animate-spin mr-3" />
-                  Connessione...
-                </>
+                <><Loader2 className="h-5 w-5 animate-spin mr-3" /> Entrata in corso...</>
               ) : (
-                "Entra nel Portale"
+                "Accedi al Portale"
               )}
             </Button>
             
             <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
               <Smartphone className="h-3 w-3" />
-              Ottimizzato per dispositivi mobili
+              Ottimizzato per Mobile e Tablet
             </div>
           </CardFooter>
         </form>
