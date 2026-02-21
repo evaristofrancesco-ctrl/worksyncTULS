@@ -111,7 +111,6 @@ export default function ReportsPage() {
     const isCurrentMonth = isSameMonth(targetDate, now);
     const actualLimitDate = isCurrentMonth ? now : monthEnd;
 
-    // OTTIMIZZAZIONE: Raggruppa timbrature e richieste per dipendente una volta sola
     const entriesMap = allEntries.reduce((acc, entry) => {
       if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
       acc[entry.employeeId].push(entry);
@@ -125,7 +124,6 @@ export default function ReportsPage() {
     }, {} as Record<string, any[]>);
 
     return employees.filter(emp => {
-      // ESCLUSIONE FRANCESCO EVARISTO DAI REPORT OPERATIVI
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
     }).map(emp => {
@@ -192,7 +190,6 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
-      // FORMULA RICHIESTA: Ore Lavorate - (Ferie + Malattia + Permessi)
       const absenceTotal = vacationHours + sickHours + permitHours;
       const netTotalHours = actualWorkHours - absenceTotal;
       const isSubtracted = absenceTotal > 0;
@@ -217,6 +214,39 @@ export default function ReportsPage() {
     setIsRefreshing(true)
     setTimeout(() => setIsRefreshing(false), 800)
   }
+
+  const handleExport = () => {
+    if (!reportData.length) return;
+
+    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Ore Nette"];
+    const rows = reportData.map(row => [
+      row.name,
+      row.jobTitle,
+      row.expectedHoursFormatted,
+      row.workedHoursFormatted,
+      row.vacationHoursFormatted,
+      row.sickHoursFormatted,
+      row.permitHoursFormatted,
+      row.totalHoursFormatted
+    ]);
+
+    const csvContent = [
+      headers.join(";"),
+      ...rows.map(r => r.map(cell => `"${cell}"`).join(";"))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label || "report";
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", `report_presenze_${monthLabel}_${selectedYear}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const isLoading = employeesLoading || entriesLoading || requestsLoading || isRefreshing;
 
@@ -270,7 +300,13 @@ export default function ReportsPage() {
             <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
               <Users className="h-4 w-4" /> Analisi Presenze e Contratto
             </CardTitle>
-            <Button variant="outline" size="sm" className="h-8 text-xs font-bold gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-8 text-xs font-bold gap-2"
+              onClick={handleExport}
+              disabled={isLoading || reportData.length === 0}
+            >
               <Download className="h-3.5 w-3.5" /> Esporta Report
             </Button>
           </div>
