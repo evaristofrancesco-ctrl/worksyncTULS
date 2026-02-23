@@ -149,12 +149,45 @@ export default function AdminDashboard() {
         .map(s => s.employeeId)
     ));
 
-    // 2. Per ognuno recupera le timbrature di oggi
+    // 2. Per ognuno recupera le timbrature di oggi e verifica la correttezza
     return employeeIdsScheduledToday.map(id => {
       const emp = employeeMap[id];
+      const empShifts = allShifts.filter(s => s.employeeId === id && s.date === todayStr);
+      
       const empEntries = allEntries
         .filter(e => e.employeeId === id && new Date(e.checkInTime).toISOString().split('T')[0] === todayStr)
-        .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
+        .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime())
+        .map(entry => {
+          const entryIn = new Date(entry.checkInTime);
+          
+          // Trova il turno corrispondente (entro 4 ore dall'inizio)
+          const matchedShift = empShifts.find(s => {
+            const shiftIn = new Date(s.startTime);
+            return Math.abs(entryIn.getTime() - shiftIn.getTime()) < 4 * 60 * 60 * 1000;
+          });
+
+          let isWrong = false;
+          if (matchedShift) {
+            const shiftIn = new Date(matchedShift.startTime);
+            const shiftOut = new Date(matchedShift.endTime);
+            
+            // Verifica Ingresso (tolleranza 15m)
+            const inDiff = Math.abs(entryIn.getTime() - shiftIn.getTime()) / 60000;
+            if (inDiff > 15) isWrong = true;
+
+            // Verifica Uscita (tolleranza 15m)
+            if (entry.checkOutTime) {
+              const entryOut = new Date(entry.checkOutTime);
+              const outDiff = Math.abs(entryOut.getTime() - shiftOut.getTime()) / 60000;
+              if (outDiff > 15) isWrong = true;
+            }
+          } else {
+            // Timbratura senza turno previsto
+            isWrong = true;
+          }
+
+          return { ...entry, isWrong };
+        });
 
       return {
         employee: emp,
@@ -301,7 +334,16 @@ export default function AdminDashboard() {
                           <div className="flex flex-wrap gap-2 mt-1">
                             {item.entries.length > 0 ? item.entries.map((e, idx) => (
                               <div key={e.id} className="flex items-center gap-1.5">
-                                <Badge variant="outline" className={`h-6 text-[10px] font-bold ${!e.checkOutTime ? "bg-green-50 text-green-700 border-green-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`h-6 text-[10px] font-bold transition-colors ${
+                                    e.isWrong 
+                                      ? "bg-rose-50 text-rose-700 border-rose-200" 
+                                      : !e.checkOutTime 
+                                        ? "bg-green-50 text-green-700 border-green-200" 
+                                        : "bg-slate-50 text-slate-500 border-slate-200"
+                                  }`}
+                                >
                                   {new Date(e.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                                   <ArrowRight className="h-2.5 w-2.5 mx-1" />
                                   {e.checkOutTime ? new Date(e.checkOutTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "..."}
