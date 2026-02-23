@@ -34,7 +34,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, getDaysInMonth, isSameMonth } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval, getDaysInMonth, isSameMonth, format } from "date-fns"
+import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
 const MONTHS = [
@@ -88,7 +89,6 @@ export default function ReportsPage() {
   const formatTime = (decimalHours: number) => {
     const isNegative = decimalHours < 0;
     const absHours = Math.abs(decimalHours);
-    // Usiamo il rounding per evitare problemi di precisione float (es. 0.999999 -> 1)
     const totalMinutes = Math.round(absHours * 60);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
@@ -128,7 +128,6 @@ export default function ReportsPage() {
       return acc;
     }, {} as Record<string, any[]>);
 
-    // Costanti di tempo esatte (3h 20m = 3 + 20/60 = 3.3333333333333335)
     const AFTERNOON_HOURS = 3 + (20 / 60);
 
     return employees.filter(emp => {
@@ -140,7 +139,7 @@ export default function ReportsPage() {
       
       daysInMonth.forEach(day => {
         const dayOfWeekStr = day.getDay().toString();
-        if (dayOfWeekStr === "0") return; // Domenica esclusa
+        if (dayOfWeekStr === "0") return;
 
         const isRestDay = dayOfWeekStr === emp.restDay;
         const rStart = emp.restStartTime || "00:00";
@@ -150,15 +149,12 @@ export default function ReportsPage() {
 
         if (isSavino) {
           const dayIdx = day.getDay();
-          // Mattina Savino
           let amHours = 1;
-          if (dayIdx === 4) amHours = 4; // Gio 9-13
-          else if (dayIdx === 6) amHours = 2; // Sab 9-11
-          // Pomeriggio Savino
-          let pmHours = AFTERNOON_HOURS; // 17-20:20 (3h 20m) esatto
+          if (dayIdx === 4) amHours = 4;
+          else if (dayIdx === 6) amHours = 2;
+          let pmHours = AFTERNOON_HOURS;
           monthlyExpectedHours += (amHours + pmHours);
         } else {
-          // Standard: Mattina 4h (9-13), Pomeriggio 3h 20m (17-20:20)
           if (emp.contractType === 'full-time') {
             const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
             if (!morningOverlaps) monthlyExpectedHours += 4;
@@ -166,7 +162,6 @@ export default function ReportsPage() {
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
             if (!afternoonOverlaps) monthlyExpectedHours += AFTERNOON_HOURS;
           } else {
-            // Part-time standard solo pomeriggio
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
             if (!afternoonOverlaps) monthlyExpectedHours += AFTERNOON_HOURS;
           }
@@ -204,6 +199,7 @@ export default function ReportsPage() {
       let vacationHours = 0;
       let sickHours = 0;
       let permitHours = 0;
+      let absenceDetails: string[] = [];
 
       empRequests.forEach(req => {
         try {
@@ -217,6 +213,13 @@ export default function ReportsPage() {
 
           const daysInInterval = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
           const count = daysInInterval.length;
+
+          const typeLabel = req.type === 'VACATION' ? 'Ferie' : req.type === 'SICK' ? 'Malattia' : req.type === 'HOURLY_PERMIT' ? 'Permesso Orario' : 'Permesso';
+          const timeInfo = req.type === 'HOURLY_PERMIT' ? ` (${req.startTime}-${req.endTime})` : '';
+
+          daysInInterval.forEach(d => {
+            absenceDetails.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo}`);
+          });
 
           if (req.type === "VACATION") vacationHours += count * 8;
           else if (req.type === "SICK") sickHours += count * 8;
@@ -247,7 +250,8 @@ export default function ReportsPage() {
         sickHoursFormatted: formatTime(sickHours),
         permitHoursFormatted: formatTime(permitHours),
         totalHoursFormatted: formatTime(netTotalHours),
-        isSubtracted: isSubtracted
+        isSubtracted: isSubtracted,
+        absenceDetailStr: absenceDetails.join(" | ")
       }
     });
   }, [employees, allEntries, allRequests, selectedMonth, selectedYear]);
@@ -260,7 +264,7 @@ export default function ReportsPage() {
   const handleExport = () => {
     if (!reportData.length) return;
 
-    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Ore Nette"];
+    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Ore Nette", "Dettaglio Assenze"];
     const rows = reportData.map(row => [
       row.name,
       row.jobTitle,
@@ -269,7 +273,8 @@ export default function ReportsPage() {
       row.vacationHoursFormatted,
       row.sickHoursFormatted,
       row.permitHoursFormatted,
-      row.totalHoursFormatted
+      row.totalHoursFormatted,
+      row.absenceDetailStr
     ]);
 
     const csvContent = [
