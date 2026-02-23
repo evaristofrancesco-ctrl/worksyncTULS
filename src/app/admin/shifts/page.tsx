@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -158,6 +159,9 @@ export default function ShiftsPage() {
       return;
     }
     setIsGenerating(true);
+
+    const bisceglieLoc = locations?.find(l => l.name?.toLowerCase().includes('bisceglie'))?.id;
+
     try {
       if (weekShifts.length > 0) {
         for (const shift of weekShifts) {
@@ -169,6 +173,9 @@ export default function ShiftsPage() {
       
       for (const emp of displayEmployees) {
         if (!emp.isActive) continue;
+
+        const isSavino = emp.firstName?.toLowerCase().includes('savino') || emp.lastName?.toLowerCase().includes('savino');
+
         for (let i = 0; i < 6; i++) { 
           const targetDay = addDays(weekStart, i);
           const dayOfWeekStr = targetDay.getDay().toString();
@@ -182,6 +189,60 @@ export default function ShiftsPage() {
             abs.employeeId === emp.id && dateStr >= abs.startDate && dateStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT'
           );
           if (isAbsent) continue;
+
+          if (isSavino) {
+            // REGOLE SPECIALI SAVINO (30H)
+            
+            // MATTINA
+            let amEndHour = 10;
+            let amEndMin = 0;
+            if (i === 3) amEndHour = 13; // Giovedì
+            else if (i === 5) amEndHour = 11; // Sabato
+
+            const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
+            const hasManualAM = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() < 14);
+            
+            if (!hasManualAM) {
+              const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
+              const endAM = new Date(targetDay); endAM.setHours(amEndHour, amEndMin, 0);
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
+                id: idAM, 
+                employeeId: emp.id, 
+                title: "Turno Mattina", 
+                date: dateStr, 
+                startTime: startAM.toISOString(), 
+                endTime: endAM.toISOString(), 
+                status: "SCHEDULED", 
+                companyId: "default", 
+                slot: "MORNING", 
+                type: "AUTO",
+                locationId: bisceglieLoc || emp.locationId || "default"
+              }, { merge: true });
+            }
+
+            // POMERIGGIO
+            const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
+            const hasManualPM = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() >= 14);
+            
+            if (!hasManualPM) {
+              const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
+              const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
+                id: idPM, 
+                employeeId: emp.id, 
+                title: "Turno Pomeriggio", 
+                date: dateStr, 
+                startTime: startPM.toISOString(), 
+                endTime: endPM.toISOString(), 
+                status: "SCHEDULED", 
+                companyId: "default", 
+                slot: "AFTERNOON", 
+                type: "AUTO",
+                locationId: emp.locationId || "default"
+              }, { merge: true });
+            }
+            continue;
+          }
 
           if (emp.contractType === "full-time") {
             const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
@@ -233,7 +294,7 @@ export default function ShiftsPage() {
 
   const handleSaveAbsence = () => {
     if (!newAbsence.employeeId || !newAbsence.startDate) {
-      toast({ variant: "destructive", title: "Errore", description: "Campi obbligatori mancanti." });
+      toast({ variant: "destructive", title: "Errore", description: "La data è obbligatoria." });
       return;
     }
     const id = `abs-${Date.now()}`;
