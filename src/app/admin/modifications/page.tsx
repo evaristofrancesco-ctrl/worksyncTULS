@@ -13,7 +13,8 @@ import {
   ArrowUpRight,
   History,
   Calendar,
-  MapPin
+  MapPin,
+  Barcode
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -142,9 +143,15 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
               <span>{req.locationName || "Sede N.D."}</span>
             </div>
           </div>
-          <div className="flex items-center gap-6 text-[10px] font-black uppercase">
-            <span className="text-green-700 bg-green-50 px-2 py-1 rounded">IN: {req.entra.name} ({req.entra.pieces})</span>
-            <span className="text-rose-700 bg-rose-50 px-2 py-1 rounded">OUT: {req.esce.name} (-{req.esce.pieces})</span>
+          <div className="flex items-center gap-4 text-[10px] font-black uppercase">
+            <div className="flex flex-col items-end">
+              <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded mb-0.5">IN: {req.entra.name} ({req.entra.pieces})</span>
+              <code className="text-[9px] font-mono text-slate-500">{req.entra.barcode}</code>
+            </div>
+            <div className="flex flex-col items-end border-l pl-4">
+              <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded mb-0.5">OUT: {req.esce.name} (-{req.esce.pieces})</span>
+              <code className="text-[9px] font-mono text-slate-500">{req.esce.barcode}</code>
+            </div>
           </div>
           <Badge className={`h-6 text-[10px] font-black uppercase tracking-tight ${isApproved ? "bg-green-100 text-green-800" : "bg-rose-100 text-rose-800"}`}>
             {req.status === 'APPROVED' ? 'Approvata' : 'Rifiutata'}
@@ -184,9 +191,12 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
               <ArrowDownLeft className="h-4 w-4" />
               <span className="text-xs font-black uppercase tracking-widest">ENTRA</span>
             </div>
-            <p className="text-sm font-black text-[#1e293b] truncate mb-1">{req.entra.name}</p>
-            <div className="flex justify-between items-center">
-              <code className="text-[10px] bg-white px-1.5 py-0.5 rounded border font-mono text-muted-foreground">{req.entra.barcode}</code>
+            <p className="text-sm font-black text-[#1e293b] truncate mb-2">{req.entra.name}</p>
+            <div className="flex justify-between items-center bg-white p-2 rounded-lg border shadow-sm">
+              <div className="flex items-center gap-2">
+                <Barcode className="h-4 w-4 text-slate-400" />
+                <code className="text-sm font-black font-mono text-[#1e293b] tracking-wider">{req.entra.barcode}</code>
+              </div>
               <span className="text-sm font-black text-green-700">Qta: {req.entra.pieces}</span>
             </div>
           </div>
@@ -195,9 +205,12 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
               <ArrowUpRight className="h-4 w-4" />
               <span className="text-xs font-black uppercase tracking-widest">ESCE</span>
             </div>
-            <p className="text-sm font-black text-[#1e293b] truncate mb-1">{req.esce.name}</p>
-            <div className="flex justify-between items-center">
-              <code className="text-[10px] bg-white px-1.5 py-0.5 rounded border font-mono text-muted-foreground">{req.esce.barcode}</code>
+            <p className="text-sm font-black text-[#1e293b] truncate mb-2">{req.esce.name}</p>
+            <div className="flex justify-between items-center bg-white p-2 rounded-lg border shadow-sm">
+              <div className="flex items-center gap-2">
+                <Barcode className="h-4 w-4 text-slate-400" />
+                <code className="text-sm font-black font-mono text-[#1e293b] tracking-wider">{req.esce.barcode}</code>
+              </div>
               <span className="text-sm font-black text-rose-700">Qta: -{req.esce.pieces}</span>
             </div>
           </div>

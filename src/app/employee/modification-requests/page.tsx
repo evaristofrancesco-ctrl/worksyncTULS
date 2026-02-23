@@ -186,7 +186,7 @@ export default function ModificationRequestsPage() {
                       <Label className="text-[10px] font-black uppercase text-muted-foreground">Codice a Barre</Label>
                       <Input 
                         placeholder="Scannerizza o digita..." 
-                        className="h-10 text-sm"
+                        className="h-10 text-sm font-mono font-bold border-[#227FD8]/30"
                         value={form.entra.barcode}
                         onChange={(e) => setForm({...form, entra: {...form.entra, barcode: e.target.value}})}
                       />
@@ -225,7 +225,7 @@ export default function ModificationRequestsPage() {
                       <Label className="text-[10px] font-black uppercase text-muted-foreground">Codice a Barre</Label>
                       <Input 
                         placeholder="Scannerizza o digita..." 
-                        className="h-10 text-sm"
+                        className="h-10 text-sm font-mono font-bold border-[#227FD8]/30"
                         value={form.esce.barcode}
                         onChange={(e) => setForm({...form, esce: {...form.esce, barcode: e.target.value}})}
                       />
@@ -304,16 +304,16 @@ export default function ModificationRequestsPage() {
                       <div className="pr-4">
                         <p className="text-[10px] font-black uppercase text-green-600 mb-1">Entra</p>
                         <p className="text-sm font-bold text-[#1e293b] truncate mb-1">{req.entra.name}</p>
-                        <div className="flex justify-between items-center mt-2">
-                          <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono text-muted-foreground">{req.entra.barcode}</code>
+                        <div className="flex justify-between items-center mt-2 bg-slate-50 p-1.5 rounded border border-slate-100">
+                          <code className="text-xs bg-slate-900 text-white px-2 py-0.5 rounded font-mono font-bold shadow-sm">{req.entra.barcode}</code>
                           <span className="text-xs font-black">x{req.entra.pieces}</span>
                         </div>
                       </div>
                       <div className="pl-4">
                         <p className="text-[10px] font-black uppercase text-rose-600 mb-1">Esce</p>
                         <p className="text-sm font-bold text-[#1e293b] truncate mb-1">{req.esce.name}</p>
-                        <div className="flex justify-between items-center mt-2">
-                          <code className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono text-muted-foreground">{req.esce.barcode}</code>
+                        <div className="flex justify-between items-center mt-2 bg-slate-50 p-1.5 rounded border border-slate-100">
+                          <code className="text-xs bg-slate-900 text-white px-2 py-0.5 rounded font-mono font-bold shadow-sm">{req.esce.barcode}</code>
                           <span className="text-xs font-black">x{req.esce.pieces}</span>
                         </div>
                       </div>
