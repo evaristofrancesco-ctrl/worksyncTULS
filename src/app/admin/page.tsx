@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList, AlertTriangle, BellRing } from "lucide-react"
+import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList, AlertTriangle, BellRing, ArrowRight } from "lucide-react"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { 
@@ -136,26 +136,33 @@ export default function AdminDashboard() {
     }
   }, [missingClockIns, db]);
 
-  const recentEntries = useMemo(() => {
-    if (!allEntries) return [];
+  // Logica Presenze Recenti: Solo dipendenti in turno oggi con le loro timbrature raggruppate
+  const todayAttendance = useMemo(() => {
+    if (!allShifts || !allEntries || !employees) return [];
+    
     const todayStr = now.toISOString().split('T')[0];
-    return [...allEntries]
-      .filter(e => {
-        if (e.companyId !== "default" || !e.checkInTime) return false;
-        try {
-          const entryDate = new Date(e.checkInTime).toISOString().split('T')[0];
-          return entryDate === todayStr;
-        } catch (err) {
-          return false;
-        }
-      })
-      .sort((a, b) => {
-        const dateA = new Date(a.checkInTime).getTime();
-        const dateB = new Date(b.checkInTime).getTime();
-        return dateB - dateA;
-      })
-      .slice(0, 5);
-  }, [allEntries, now]);
+    
+    // 1. Identifica chi ha un turno oggi
+    const employeeIdsScheduledToday = Array.from(new Set(
+      allShifts
+        .filter(s => s.date === todayStr)
+        .map(s => s.employeeId)
+    ));
+
+    // 2. Per ognuno recupera le timbrature di oggi
+    return employeeIdsScheduledToday.map(id => {
+      const emp = employeeMap[id];
+      const empEntries = allEntries
+        .filter(e => e.employeeId === id && new Date(e.checkInTime).toISOString().split('T')[0] === todayStr)
+        .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime());
+
+      return {
+        employee: emp,
+        entries: empEntries,
+        isCurrentlyIn: empEntries.some(e => !e.checkOutTime)
+      };
+    }).filter(item => item.employee); // Rimuove eventuali null
+  }, [allShifts, allEntries, employees, employeeMap, now]);
 
   const myGoal = useMemo(() => {
     const me = employees?.find(e => e.id === employeeId);
@@ -215,7 +222,7 @@ export default function AdminDashboard() {
               <StatCard title="Team" value={employees?.length || 0} description="Totali" icon={Users} />
             </Link>
             <Link href="/admin/attendance" className="block transition-all hover:scale-[1.03] active:scale-[0.97]">
-              <StatCard title="Attivi" value={recentEntries.filter(e => !e.checkOutTime).length} description="In servizio" icon={Clock} />
+              <StatCard title="Attivi" value={allEntries?.filter(e => !e.checkOutTime).length || 0} description="In servizio" icon={Clock} />
             </Link>
             <Link href="/admin/requests" className="block transition-all hover:scale-[1.03] active:scale-[0.97]">
               <StatCard title="Richieste" value={allRequests?.filter(r => (r.status || "").toUpperCase() === "PENDING").length || 0} description="Da gestire" icon={FileText} />
@@ -275,31 +282,43 @@ export default function AdminDashboard() {
             <Card className="border-none shadow-md bg-white/80">
               <CardHeader className="p-6 pb-4">
                 <CardTitle className="font-black text-xl uppercase tracking-widest text-[#1e293b]">Presenze Recenti</CardTitle>
-                <CardDescription className="text-sm font-bold uppercase text-slate-400">Movimenti registrati oggi.</CardDescription>
+                <CardDescription className="text-sm font-bold uppercase text-slate-400">Collaboratori in turno oggi.</CardDescription>
               </CardHeader>
               <CardContent className="p-6 pt-2">
                 <div className="space-y-6">
                   {isEntriesLoading ? (
                     <div className="flex justify-center py-12"><Loader2 className="animate-spin h-10 w-10 text-[#227FD8]" /></div>
-                  ) : recentEntries.length > 0 ? recentEntries.map((log) => {
-                    const emp = employeeMap[log.employeeId];
+                  ) : todayAttendance.length > 0 ? todayAttendance.map((item) => {
+                    const emp = item.employee;
                     return (
-                      <div key={log.id} className="flex items-center gap-5">
-                        <Avatar className="h-14 w-14 border-2 border-white shadow-md">
+                      <div key={emp.id} className="flex items-center gap-4">
+                        <Avatar className="h-12 w-12 border shadow-sm">
                           <AvatarImage src={emp?.photoUrl} />
-                          <AvatarFallback className="text-lg font-black bg-slate-100">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                          <AvatarFallback className="font-black">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <p className="text-lg font-black text-[#1e293b] truncate leading-tight">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</p>
-                          <p className="text-xs text-muted-foreground uppercase font-black tracking-widest">{emp?.jobTitle || "Collaboratore"}</p>
+                          <p className="text-sm font-black text-[#1e293b] truncate">{emp.firstName} {emp.lastName}</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {item.entries.length > 0 ? item.entries.map((e, idx) => (
+                              <div key={e.id} className="flex items-center gap-1.5">
+                                <Badge variant="outline" className={`h-6 text-[10px] font-bold ${!e.checkOutTime ? "bg-green-50 text-green-700 border-green-200" : "bg-slate-50 text-slate-500 border-slate-200"}`}>
+                                  {new Date(e.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                                  <ArrowRight className="h-2.5 w-2.5 mx-1" />
+                                  {e.checkOutTime ? new Date(e.checkOutTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "..."}
+                                </Badge>
+                              </div>
+                            )) : (
+                              <span className="text-[10px] text-slate-400 font-bold uppercase italic">Non ancora entrato</span>
+                            )}
+                          </div>
                         </div>
-                        <Badge variant={!log.checkOutTime ? "default" : "secondary"} className={`h-8 px-4 text-xs font-black tracking-widest ${!log.checkOutTime ? "bg-green-500 hover:bg-green-600 shadow-sm" : ""}`}>
-                          {new Date(log.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                        </Badge>
+                        {item.isCurrentlyIn && (
+                          <Badge className="bg-green-500 text-[9px] font-black uppercase tracking-widest animate-pulse">In Servizio</Badge>
+                        )}
                       </div>
                     )
                   }) : (
-                    <p className="text-base text-center text-muted-foreground py-14 italic font-bold uppercase tracking-widest opacity-40">Nessun movimento oggi.</p>
+                    <p className="text-base text-center text-muted-foreground py-14 italic font-bold uppercase tracking-widest opacity-40">Nessun collaboratore in turno.</p>
                   )}
                 </div>
                 <Link href="/admin/attendance" className="block mt-8">
