@@ -7,19 +7,29 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
-import { useUser, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit } from "firebase/firestore"
+import { useUser, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
+import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { useMemo, useState, useEffect } from "react"
+import { startOfWeek } from "date-fns"
 import Link from "next/link"
 
 export default function EmployeeDashboard() {
   const { user } = useUser()
   const db = useFirestore()
   const [employeeId, setEmployeeId] = useState<string | null>(null)
+  const [now, setNow] = useState(new Date())
 
   useEffect(() => {
     setEmployeeId(localStorage.getItem("employeeId"))
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
   }, [])
+
+  const employeeRef = useMemoFirebase(() => {
+    if (!db || !employeeId) return null;
+    return doc(db, "employees", employeeId);
+  }, [db, employeeId])
+  const { data: employeeDoc } = useDoc(employeeRef);
 
   const shiftsQuery = useMemoFirebase(() => {
     if (!db || !employeeId) return null;
@@ -40,17 +50,16 @@ export default function EmployeeDashboard() {
 
   const todayShift = useMemo(() => {
     if (!shifts) return null;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = now.toISOString().split('T')[0];
     return shifts.find(s => s.date === todayStr);
-  }, [shifts]);
+  }, [shifts, now]);
+
+  const myGoal = useMemo(() => employeeDoc?.weeklyHours || 40, [employeeDoc]);
 
   const myWeeklyHours = useMemo(() => {
     if (!allEntries || !employeeId) return 0;
     
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(now.setDate(diff));
+    const monday = startOfWeek(now, { weekStartsOn: 1 });
     monday.setHours(0, 0, 0, 0);
 
     const weeklyEntries = allEntries.filter(e => {
@@ -59,16 +68,17 @@ export default function EmployeeDashboard() {
     });
 
     const totalMs = weeklyEntries.reduce((acc, entry) => {
-      if (!entry.checkInTime || !entry.checkOutTime) return acc;
+      if (!entry.checkInTime) return acc;
       const start = new Date(entry.checkInTime).getTime();
-      const end = new Date(entry.checkOutTime).getTime();
-      return acc + (end - start);
+      const end = entry.checkOutTime ? new Date(entry.checkOutTime).getTime() : now.getTime();
+      const diff = end - start;
+      return acc + (diff > 0 ? diff : 0);
     }, 0);
 
     return Math.round((totalMs / 3600000) * 10) / 10;
-  }, [allEntries, employeeId]);
+  }, [allEntries, employeeId, now]);
 
-  const progress = Math.min(100, (myWeeklyHours / 40) * 100);
+  const progress = Math.min(100, (myWeeklyHours / myGoal) * 100);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
@@ -105,7 +115,7 @@ export default function EmployeeDashboard() {
 
             <Card className="border-none shadow-sm bg-white/80">
               <CardHeader className="p-4 pb-2">
-                <CardDescription className="text-amber-600 font-black uppercase text-[9px] tracking-widest">Progressi {myWeeklyHours}h / 40h</CardDescription>
+                <CardDescription className="text-amber-600 font-black uppercase text-[9px] tracking-widest">Progressi {myWeeklyHours}h / {myGoal}h</CardDescription>
                 <CardTitle className="text-lg font-black text-[#1e293b]">{Math.round(progress)}%</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-2">

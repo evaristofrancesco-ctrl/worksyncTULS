@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList, AlertTriangle, BellRing } from "lucide-react"
@@ -23,7 +24,7 @@ import { collection, collectionGroup, doc } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import Link from "next/link"
 import { useMemo, useState, useEffect } from "react"
-import { format, isAfter, addMinutes, parseISO } from "date-fns"
+import { format, isAfter, addMinutes, parseISO, startOfWeek } from "date-fns"
 
 const weeklyStats = [
   { name: 'Lun', ore: 145 },
@@ -39,9 +40,12 @@ export default function AdminDashboard() {
   const db = useFirestore()
   const { user } = useUser()
   const [employeeId, setEmployeeId] = useState<string | null>(null)
+  const [now, setNow] = useState(new Date())
 
   useEffect(() => {
     setEmployeeId(localStorage.getItem("employeeId"))
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(timer)
   }, [])
 
   const employeesQuery = useMemoFirebase(() => {
@@ -76,12 +80,11 @@ export default function AdminDashboard() {
     }, {} as any);
   }, [employees]);
 
-  // Logica Anomalie: Chi dovrebbe essere al lavoro ma non ha timbrato
+  // Logica Anomalie
   const missingClockIns = useMemo(() => {
     if (!allShifts || !allEntries || !employees) return [];
     
-    const todayStr = new Date().toISOString().split('T')[0];
-    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
 
     return allShifts.filter(shift => {
       if (shift.date !== todayStr) return false;
@@ -89,17 +92,14 @@ export default function AdminDashboard() {
       const emp = employeeMap[shift.employeeId];
       if (!emp) return false;
 
-      // ESCLUSIONE FRANCESCO EVARISTO DAGLI ALERT TURNI
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       if (isFrancesco) return false;
 
-      // Verifica se esiste una timbratura per questo slot
       const hasEntry = allEntries.some(entry => {
         if (entry.employeeId !== shift.employeeId) return false;
         const entryDate = new Date(entry.checkInTime).toISOString().split('T')[0];
         if (entryDate !== todayStr) return false;
         
-        // Se è un turno mattina (prima delle 14) o pomeriggio
         const entryHour = new Date(entry.checkInTime).getHours();
         const shiftHour = new Date(shift.startTime).getHours();
         return Math.abs(entryHour - shiftHour) <= 3;
@@ -107,7 +107,6 @@ export default function AdminDashboard() {
 
       if (hasEntry) return false;
 
-      // Se sono passati più di 15 minuti dall'inizio previsto
       const startTime = new Date(shift.startTime);
       const limitTime = addMinutes(startTime, 15);
       
@@ -116,9 +115,8 @@ export default function AdminDashboard() {
       ...s,
       employee: employeeMap[s.employeeId]
     }));
-  }, [allShifts, allEntries, employees, employeeMap]);
+  }, [allShifts, allEntries, employees, employeeMap, now]);
 
-  // Invio automatico notifiche per chi manca (deduplicato)
   useEffect(() => {
     if (missingClockIns.length > 0 && db) {
       missingClockIns.forEach(anomaly => {
@@ -140,7 +138,7 @@ export default function AdminDashboard() {
 
   const recentEntries = useMemo(() => {
     if (!allEntries) return [];
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = now.toISOString().split('T')[0];
     return [...allEntries]
       .filter(e => {
         if (e.companyId !== "default" || !e.checkInTime) return false;
@@ -157,33 +155,17 @@ export default function AdminDashboard() {
         return dateB - dateA;
       })
       .slice(0, 5);
-  }, [allEntries]);
+  }, [allEntries, now]);
 
-  const activeEmployeesCount = useMemo(() => {
-    if (!allEntries) return 0;
-    const todayStr = new Date().toISOString().split('T')[0];
-    return allEntries.filter(e => {
-      const checkIn = e.checkInTime ? new Date(e.checkInTime) : null;
-      if (!checkIn || isNaN(checkIn.getTime())) return false;
-      return checkIn.toISOString().split('T')[0] === todayStr && !e.checkOutTime;
-    }).length;
-  }, [allEntries]);
-
-  const pendingRequestsCount = useMemo(() => {
-    if (!allRequests) return 0;
-    return allRequests.filter(r => {
-      const s = (r.status || "").toUpperCase();
-      return s === "PENDING" || s === "IN ATTESA";
-    }).length;
-  }, [allRequests]);
+  const myGoal = useMemo(() => {
+    const me = employees?.find(e => e.id === employeeId);
+    return me?.weeklyHours || 40;
+  }, [employees, employeeId]);
 
   const myWeeklyHours = useMemo(() => {
     if (!allEntries || !employeeId) return 0;
     
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(now.setDate(diff));
+    const monday = startOfWeek(now, { weekStartsOn: 1 });
     monday.setHours(0, 0, 0, 0);
 
     const personalEntries = allEntries.filter(e => {
@@ -193,16 +175,17 @@ export default function AdminDashboard() {
     });
 
     const totalMs = personalEntries.reduce((acc, entry) => {
-      if (!entry.checkInTime || !entry.checkOutTime) return acc;
+      if (!entry.checkInTime) return acc;
       const start = new Date(entry.checkInTime).getTime();
-      const end = new Date(entry.checkOutTime).getTime();
-      return acc + (end - start);
+      const end = entry.checkOutTime ? new Date(entry.checkOutTime).getTime() : now.getTime();
+      const diff = end - start;
+      return acc + (diff > 0 ? diff : 0);
     }, 0);
 
     return Math.round((totalMs / 3600000) * 10) / 10;
-  }, [allEntries, employeeId]);
+  }, [allEntries, employeeId, now]);
 
-  const progress = Math.min(100, (myWeeklyHours / 40) * 100);
+  const progress = Math.min(100, (myWeeklyHours / myGoal) * 100);
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-10">
@@ -232,13 +215,13 @@ export default function AdminDashboard() {
               <StatCard title="Team" value={employees?.length || 0} description="Totali" icon={Users} />
             </Link>
             <Link href="/admin/attendance" className="block transition-all hover:scale-[1.03] active:scale-[0.97]">
-              <StatCard title="Attivi" value={activeEmployeesCount} description="In servizio" icon={Clock} />
+              <StatCard title="Attivi" value={recentEntries.filter(e => !e.checkOutTime).length} description="In servizio" icon={Clock} />
             </Link>
             <Link href="/admin/requests" className="block transition-all hover:scale-[1.03] active:scale-[0.97]">
-              <StatCard title="Richieste" value={pendingRequestsCount} description="Da gestire" icon={FileText} />
+              <StatCard title="Richieste" value={allRequests?.filter(r => (r.status || "").toUpperCase() === "PENDING").length || 0} description="Da gestire" icon={FileText} />
             </Link>
             <Link href="/admin/shifts" className="block transition-all hover:scale-[1.03] active:scale-[0.97]">
-              <StatCard title="Turni" value={allShifts?.filter(s => s.date === new Date().toISOString().split('T')[0]).length || 0} description="Oggi" icon={Calendar} />
+              <StatCard title="Turni" value={allShifts?.filter(s => s.date === now.toISOString().split('T')[0]).length || 0} description="Oggi" icon={Calendar} />
             </Link>
           </div>
 
@@ -332,7 +315,7 @@ export default function AdminDashboard() {
 
           <Card className="border-none shadow-md bg-white/80">
             <CardHeader className="p-6 pb-4">
-              <CardTitle className="text-sm font-black uppercase tracking-[0.2em] text-[#227FD8]">Obiettivo 40h Settimanali</CardTitle>
+              <CardTitle className="text-sm font-black uppercase tracking-[0.2em] text-[#227FD8]">Obiettivo {myGoal}h Settimanali</CardTitle>
             </CardHeader>
             <CardContent className="p-6 pt-0 space-y-6">
               <div className="flex justify-between items-end">
