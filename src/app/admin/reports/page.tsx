@@ -88,6 +88,7 @@ export default function ReportsPage() {
   const formatTime = (decimalHours: number) => {
     const isNegative = decimalHours < 0;
     const absHours = Math.abs(decimalHours);
+    // Usiamo il rounding per evitare problemi di precisione float (es. 0.999999 -> 1)
     const totalMinutes = Math.round(absHours * 60);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
@@ -127,17 +128,19 @@ export default function ReportsPage() {
       return acc;
     }, {} as Record<string, any[]>);
 
+    // Costanti di tempo esatte (3h 20m = 3 + 20/60 = 3.3333333333333335)
+    const AFTERNOON_HOURS = 3 + (20 / 60);
+
     return employees.filter(emp => {
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
     }).map(emp => {
-      // CALCOLO ORE PREVISTE GIORNO PER GIORNO (BASATO SU REGOLE TURNI REALI)
       let monthlyExpectedHours = 0;
       const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
       
       daysInMonth.forEach(day => {
         const dayOfWeekStr = day.getDay().toString();
-        if (dayOfWeekStr === "0") return; // Domenica sempre esclusa
+        if (dayOfWeekStr === "0") return; // Domenica esclusa
 
         const isRestDay = dayOfWeekStr === emp.restDay;
         const rStart = emp.restStartTime || "00:00";
@@ -152,23 +155,20 @@ export default function ReportsPage() {
           if (dayIdx === 4) amHours = 4; // Gio 9-13
           else if (dayIdx === 6) amHours = 2; // Sab 9-11
           // Pomeriggio Savino
-          let pmHours = 3.333; // 17-20:20 (3h 20m)
+          let pmHours = AFTERNOON_HOURS; // 17-20:20 (3h 20m) esatto
           monthlyExpectedHours += (amHours + pmHours);
         } else {
-          // Standard Full-time / Part-time
-          // Mattina standard: 09:00 - 13:00 (4h)
-          // Pomeriggio standard: 17:00 - 20:20 (3.333h)
-          
+          // Standard: Mattina 4h (9-13), Pomeriggio 3h 20m (17-20:20)
           if (emp.contractType === 'full-time') {
             const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
             if (!morningOverlaps) monthlyExpectedHours += 4;
             
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
-            if (!afternoonOverlaps) monthlyExpectedHours += 3.333;
+            if (!afternoonOverlaps) monthlyExpectedHours += AFTERNOON_HOURS;
           } else {
             // Part-time standard solo pomeriggio
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
-            if (!afternoonOverlaps) monthlyExpectedHours += 3.333;
+            if (!afternoonOverlaps) monthlyExpectedHours += AFTERNOON_HOURS;
           }
         }
       });
