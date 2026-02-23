@@ -32,6 +32,7 @@ export default function ModificationRequestsPage() {
   const db = useFirestore()
   const { toast } = useToast()
   const [employeeId, setEmployeeId] = useState<string | null>(null)
+  const [displayName, setDisplayName] = useState<string>("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [form, setForm] = useState({
@@ -41,6 +42,7 @@ export default function ModificationRequestsPage() {
 
   useEffect(() => {
     setEmployeeId(localStorage.getItem("employeeId"))
+    setDisplayName(localStorage.getItem("userName") || "Un dipendente")
   }, [])
 
   const modificationsQuery = useMemoFirebase(() => {
@@ -84,6 +86,7 @@ export default function ModificationRequestsPage() {
     const requestId = `mod-${Date.now()}`
     const requestRef = doc(db, "employees", employeeId, "modifications", requestId)
 
+    // Salva la richiesta
     setDocumentNonBlocking(requestRef, {
       id: requestId,
       employeeId,
@@ -100,6 +103,18 @@ export default function ModificationRequestsPage() {
         pieces: Number(form.esce.pieces)
       }
     }, { merge: true })
+
+    // Manda notifica agli ADMIN
+    const notifId = `notif-mod-${Date.now()}`;
+    setDocumentNonBlocking(doc(db, "notifications", notifId), {
+      id: notifId,
+      recipientId: "ADMIN",
+      title: "Nuova Richiesta Entra/Esce",
+      message: `${displayName} ha inviato una nuova movimentazione: ${form.entra.name} <-> ${form.esce.name}.`,
+      type: "MODIFICATION_REQUEST",
+      createdAt: new Date().toISOString(),
+      isRead: false
+    }, { merge: true });
 
     setForm({
       entra: { barcode: "", name: "", pieces: "" },
