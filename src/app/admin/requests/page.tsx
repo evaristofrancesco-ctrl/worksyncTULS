@@ -63,14 +63,19 @@ export default function RequestsPage() {
     }, {} as any);
   }, [employees]);
 
-  // Logica di Auto-pulizia: Rimuovi record più vecchi di 7 giorni
+  // Logica di Auto-pulizia Selettiva: 
+  // Rimuovi record RIFIUTATI o PENDENTI più vecchi di 7 giorni.
+  // Le richieste APPROVATE non vengono mai cancellate automaticamente.
   useEffect(() => {
     if (!requests || !db) return;
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
     requests.forEach(req => {
-      if (req.submittedAt && new Date(req.submittedAt) < oneWeekAgo) {
+      const status = (req.status || "").toUpperCase();
+      const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
+      
+      if (req.submittedAt && new Date(req.submittedAt) < oneWeekAgo && !isApproved) {
         deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "requests", req.id));
       }
     });
@@ -148,7 +153,7 @@ export default function RequestsPage() {
           <p className="text-sm text-muted-foreground font-medium">Monitora ferie, permessi e assenze del team.</p>
         </div>
         <Badge variant="outline" className="h-8 gap-2 bg-blue-50 text-blue-700 border-blue-100 text-xs font-bold px-4">
-          <Clock className="h-4 w-4" /> Auto-pulizia: 7 giorni
+          <Clock className="h-4 w-4" /> Conservazione: Approvate Sempre
         </Badge>
       </div>
 
@@ -158,7 +163,7 @@ export default function RequestsPage() {
             Pendenti ({pendingRequests.length})
           </TabsTrigger>
           <TabsTrigger value="history" className="text-xs font-black uppercase px-6 h-9 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
-            <History className="h-4 w-4 mr-2" /> Storico ({historyRequests.length})
+            Storico ({historyRequests.length})
           </TabsTrigger>
         </TabsList>
 
@@ -230,15 +235,16 @@ export default function RequestsPage() {
 }
 
 function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typeIcon }: { request: any, emp: any, onApprove?: any, onReject?: any, isHistory?: boolean, typeIcon: any }) {
-  const isApproved = request.status === "Approvato" || request.status === "APPROVED";
-  const isRejected = request.status === "Rifiutato" || request.status === "REJECTED";
+  const status = (request.status || "").toUpperCase();
+  const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
+  const isRejected = status === "RIFIUTATO" || status === "REJECTED" || status === "Rifiutato";
 
   return (
     <Card className={`overflow-hidden border-none shadow-sm ring-1 ring-slate-200 transition-all ${isHistory ? 'bg-white/60' : 'bg-white'}`}>
       <div className="flex flex-col md:flex-row">
-        {!isHistory && (
-          <div className={`w-1.5 ${isApproved ? "bg-green-500" : isRejected ? "bg-rose-500" : "bg-amber-400"}`} />
-        )}
+        {/* Bordino laterale di stato (Sempre visibile per chiarezza) */}
+        <div className={`w-1.5 shrink-0 ${isApproved ? "bg-green-500" : isRejected ? "bg-rose-500" : "bg-amber-400"}`} />
+        
         <div className="flex-1 p-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
