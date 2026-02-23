@@ -15,7 +15,8 @@ import {
   AlertCircle,
   Clock,
   CheckCircle2,
-  XCircle
+  XCircle,
+  MapPin
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +28,7 @@ import { collection, query, orderBy, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export default function ModificationRequestsPage() {
   const db = useFirestore()
@@ -36,6 +38,7 @@ export default function ModificationRequestsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [form, setForm] = useState({
+    locationId: "",
     entra: { barcode: "", name: "", pieces: "" },
     esce: { barcode: "", name: "", pieces: "" }
   })
@@ -44,6 +47,12 @@ export default function ModificationRequestsPage() {
     setEmployeeId(localStorage.getItem("employeeId"))
     setDisplayName(localStorage.getItem("userName") || "Un dipendente")
   }, [])
+
+  const locationsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, "companies", "default", "locations");
+  }, [db])
+  const { data: locations } = useCollection(locationsQuery)
 
   const modificationsQuery = useMemoFirebase(() => {
     if (!db || !employeeId) return null;
@@ -72,12 +81,12 @@ export default function ModificationRequestsPage() {
     e.preventDefault()
     if (!employeeId || !db) return
 
-    if (!form.entra.barcode || !form.entra.name || !form.entra.pieces ||
+    if (!form.locationId || !form.entra.barcode || !form.entra.name || !form.entra.pieces ||
         !form.esce.barcode || !form.esce.name || !form.esce.pieces) {
       toast({
         variant: "destructive",
         title: "Campi Mancanti",
-        description: "Compila tutti i campi richiesti per ENTRA ed ESCE."
+        description: "Compila tutti i campi richiesti, inclusa la sede."
       })
       return
     }
@@ -85,6 +94,7 @@ export default function ModificationRequestsPage() {
     setIsSubmitting(true)
     const requestId = `mod-${Date.now()}`
     const requestRef = doc(db, "employees", employeeId, "modifications", requestId)
+    const selectedLocation = locations?.find(l => l.id === form.locationId);
 
     // Salva la richiesta
     setDocumentNonBlocking(requestRef, {
@@ -92,6 +102,8 @@ export default function ModificationRequestsPage() {
       employeeId,
       submittedAt: new Date().toISOString(),
       status: "PENDING",
+      locationId: form.locationId,
+      locationName: selectedLocation?.name || "Nessuna",
       entra: {
         barcode: form.entra.barcode,
         name: form.entra.name,
@@ -110,13 +122,14 @@ export default function ModificationRequestsPage() {
       id: notifId,
       recipientId: "ADMIN",
       title: "Nuova Richiesta Entra/Esce",
-      message: `${displayName} ha inviato una nuova movimentazione: ${form.entra.name} <-> ${form.esce.name}.`,
+      message: `${displayName} (${selectedLocation?.name}) ha inviato una nuova movimentazione: ${form.entra.name} <-> ${form.esce.name}.`,
       type: "MODIFICATION_REQUEST",
       createdAt: new Date().toISOString(),
       isRead: false
     }, { merge: true });
 
     setForm({
+      locationId: "",
       entra: { barcode: "", name: "", pieces: "" },
       esce: { barcode: "", name: "", pieces: "" }
     })
@@ -147,6 +160,22 @@ export default function ModificationRequestsPage() {
             </CardHeader>
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-8">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1">
+                    <MapPin className="h-3 w-3" /> Sede di Riferimento
+                  </Label>
+                  <Select value={form.locationId} onValueChange={(v) => setForm({...form, locationId: v})}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue placeholder="Scegli la sede..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations?.map(loc => (
+                        <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-green-600">
                     <ArrowDownLeft className="h-5 w-5" />
@@ -260,6 +289,8 @@ export default function ModificationRequestsPage() {
                     <div className={`px-4 py-2 flex justify-between items-center text-[11px] font-bold ${isPending ? 'bg-amber-50' : isApproved ? 'bg-green-50' : 'bg-rose-50'}`}>
                       <span className="flex items-center gap-2">
                         <Clock className="h-3.5 w-3.5" /> {new Date(req.submittedAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        <span className="mx-2 opacity-20">|</span>
+                        <MapPin className="h-3 w-3" /> {req.locationName || "Sede N.D."}
                       </span>
                       <Badge className={`h-5 text-[9px] border-none px-2 font-black uppercase tracking-widest ${
                         isPending ? 'bg-amber-200 text-amber-900' : 

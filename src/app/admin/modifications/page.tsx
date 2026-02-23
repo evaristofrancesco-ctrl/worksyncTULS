@@ -12,7 +12,8 @@ import {
   ArrowDownLeft, 
   ArrowUpRight,
   History,
-  Calendar
+  Calendar,
+  MapPin
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -134,11 +135,16 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold truncate text-[#1e293b]">{emp ? `${emp.firstName} ${emp.lastName}` : "Dipendente Sconosciuto"}</p>
-            <p className="text-[10px] text-muted-foreground uppercase font-medium">{new Date(req.submittedAt).toLocaleDateString('it-IT')}</p>
+            <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-black uppercase">
+              <span>{new Date(req.submittedAt).toLocaleDateString('it-IT')}</span>
+              <span className="opacity-20">|</span>
+              <MapPin className="h-2.5 w-2.5" />
+              <span>{req.locationName || "Sede N.D."}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-6 text-xs font-black uppercase">
+          <div className="flex items-center gap-6 text-[10px] font-black uppercase">
             <span className="text-green-700 bg-green-50 px-2 py-1 rounded">IN: {req.entra.name} ({req.entra.pieces})</span>
-            <span className="text-rose-700 bg-rose-50 px-2 py-1 rounded">OUT: {req.esce.name} ({req.esce.pieces})</span>
+            <span className="text-rose-700 bg-rose-50 px-2 py-1 rounded">OUT: {req.esce.name} (-{req.esce.pieces})</span>
           </div>
           <Badge className={`h-6 text-[10px] font-black uppercase tracking-tight ${isApproved ? "bg-green-100 text-green-800" : "bg-rose-100 text-rose-800"}`}>
             {req.status === 'APPROVED' ? 'Approvata' : 'Rifiutata'}
@@ -159,7 +165,12 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
             </Avatar>
             <div>
               <h3 className="font-bold text-sm text-[#1e293b]">{emp ? `${emp.firstName} ${emp.lastName}` : "Dipendente Sconosciuto"}</h3>
-              <p className="text-xs text-muted-foreground">Inviato alle {new Date(req.submittedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                <span>Inviato alle {new Date(req.submittedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="opacity-20">|</span>
+                <MapPin className="h-3 w-3 text-[#227FD8]" />
+                <span className="font-black uppercase tracking-widest text-[10px]">{req.locationName || "Sede N.D."}</span>
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -187,7 +198,7 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
             <p className="text-sm font-black text-[#1e293b] truncate mb-1">{req.esce.name}</p>
             <div className="flex justify-between items-center">
               <code className="text-[10px] bg-white px-1.5 py-0.5 rounded border font-mono text-muted-foreground">{req.esce.barcode}</code>
-              <span className="text-sm font-black text-rose-700">Qta: {req.esce.pieces}</span>
+              <span className="text-sm font-black text-rose-700">Qta: -{req.esce.pieces}</span>
             </div>
           </div>
         </div>
