@@ -1,4 +1,3 @@
-
 "use client"
 
 import { 
@@ -14,7 +13,10 @@ import {
   Umbrella,
   Activity,
   Timer,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  User
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -35,6 +37,7 @@ import { collection, collectionGroup, doc } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { useMemo, useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
 
 export default function RequestsPage() {
   const db = useFirestore()
@@ -63,9 +66,6 @@ export default function RequestsPage() {
     }, {} as any);
   }, [employees]);
 
-  // Logica di Auto-pulizia Selettiva: 
-  // Rimuovi record RIFIUTATI o PENDENTI più vecchi di 7 giorni.
-  // Le richieste APPROVATE non vengono mai cancellate automaticamente.
   useEffect(() => {
     if (!requests || !db) return;
     const now = new Date();
@@ -75,6 +75,7 @@ export default function RequestsPage() {
       const status = (req.status || "").toUpperCase();
       const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
       
+      // Conserviamo le APPROVATE per sempre. Puliamo solo le RIFIUTATE/PENDENTI vecchie.
       if (req.submittedAt && new Date(req.submittedAt) < oneWeekAgo && !isApproved) {
         deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "requests", req.id));
       }
@@ -111,7 +112,6 @@ export default function RequestsPage() {
       updatedAt: new Date().toISOString()
     })
 
-    // Crea notifica per il dipendente
     const notifId = `notif-req-${Date.now()}`;
     const statusText = newStatus.toUpperCase();
     const typeLabel = request.type === 'VACATION' ? 'Ferie' : 'un Permesso';
@@ -189,7 +189,7 @@ export default function RequestsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-3">
+        <TabsContent value="history" className="space-y-2">
           {historyRequests.map((request) => (
             <RequestCard 
               key={request.id} 
@@ -235,16 +235,98 @@ export default function RequestsPage() {
 }
 
 function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typeIcon }: { request: any, emp: any, onApprove?: any, onReject?: any, isHistory?: boolean, typeIcon: any }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const status = (request.status || "").toUpperCase();
   const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
   const isRejected = status === "RIFIUTATO" || status === "REJECTED" || status === "Rifiutato";
 
+  // Visualizzazione Storico (Compatta)
+  if (isHistory) {
+    return (
+      <Card 
+        className={cn(
+          "overflow-hidden border-none shadow-sm ring-1 ring-slate-200 transition-all cursor-pointer hover:bg-white bg-white/60",
+          isExpanded && "bg-white ring-slate-300"
+        )}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex">
+          <div className={cn("w-1.5 shrink-0", isApproved ? "bg-green-500" : "bg-rose-500")} />
+          <div className="flex-1">
+            {/* Header compatto */}
+            <div className="flex items-center p-3 gap-4">
+              <Avatar className="h-8 w-8 border shadow-sm">
+                <AvatarImage src={emp?.photoUrl} />
+                <AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-[#1e293b] truncate">
+                  {emp ? `${emp.firstName} ${emp.lastName}` : "Dipendente"}
+                </p>
+                <p className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1">
+                  {request.startDate} {request.endDate ? `al ${request.endDate}` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline" className="h-5 px-2 text-[8px] font-black uppercase border-none bg-slate-100 text-slate-500 gap-1">
+                  {typeIcon} {request.type}
+                </Badge>
+                <Badge className={cn(
+                  "h-5 px-2 text-[8px] font-black uppercase border-none",
+                  isApproved ? "bg-green-100 text-green-700" : "bg-rose-100 text-rose-700"
+                )}>
+                  {request.status}
+                </Badge>
+                <ChevronDown className={cn("h-4 w-4 text-slate-300 transition-transform", isExpanded && "rotate-180")} />
+              </div>
+            </div>
+
+            {/* Dettagli Espandibili */}
+            {isExpanded && (
+              <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
+                <div className="p-3 bg-slate-50/50 rounded-xl border border-dashed space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Periodo Richiesto</p>
+                      <p className="text-xs font-bold text-slate-700">{request.startDate} {request.endDate ? `al ${request.endDate}` : ""}</p>
+                    </div>
+                    {request.submittedAt && (
+                      <div className="text-right">
+                        <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Inviata il</p>
+                        <p className="text-xs font-bold text-slate-700">{new Date(request.submittedAt).toLocaleDateString('it-IT')}</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {request.reason && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Nota Dipendente</p>
+                      <p className="text-xs italic text-slate-600">"{request.reason}"</p>
+                    </div>
+                  )}
+
+                  {request.adminNote && (
+                    <div className="pt-2 border-t border-slate-200">
+                      <p className="text-[9px] font-black uppercase text-rose-600 mb-1 flex items-center gap-1">
+                        <MessageSquare className="h-3 w-3" /> Nota Amministrazione
+                      </p>
+                      <p className="text-xs font-medium text-rose-800 italic">"{request.adminNote}"</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  // Visualizzazione Pendenti (Standard)
   return (
-    <Card className={`overflow-hidden border-none shadow-sm ring-1 ring-slate-200 transition-all ${isHistory ? 'bg-white/60' : 'bg-white'}`}>
-      <div className="flex flex-col md:flex-row">
-        {/* Bordino laterale di stato (Sempre visibile per chiarezza) */}
-        <div className={`w-1.5 shrink-0 ${isApproved ? "bg-green-500" : isRejected ? "bg-rose-500" : "bg-amber-400"}`} />
-        
+    <Card className="overflow-hidden border-none shadow-sm ring-1 ring-slate-200 bg-white">
+      <div className="flex">
+        <div className="w-1.5 shrink-0 bg-amber-400" />
         <div className="flex-1 p-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -263,23 +345,13 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
             </div>
 
             <div className="flex items-center gap-3">
-              <Badge 
-                variant={isHistory ? "outline" : "secondary"}
-                className={`font-black text-[10px] uppercase px-3 py-1 ${
-                  isApproved ? "bg-green-100 text-green-700 border-none" : 
-                  isRejected ? "bg-rose-100 text-rose-700 border-none" : 
-                  "bg-amber-100 text-amber-700 border-none"
-                }`}
-              >
+              <Badge className="font-black text-[10px] uppercase px-3 py-1 bg-amber-100 text-amber-700 border-none">
                 {request.status}
               </Badge>
-              
-              {!isHistory && (
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="h-8 text-xs font-black border-rose-200 text-rose-600 hover:bg-rose-50" onClick={onReject}>RIFIUTA</Button>
-                  <Button size="sm" className="h-8 text-xs font-black bg-green-600 hover:bg-green-700" onClick={onApprove}>APPROVA</Button>
-                </div>
-              )}
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="h-8 text-xs font-black border-rose-200 text-rose-600 hover:bg-rose-50" onClick={onReject}>RIFIUTA</Button>
+                <Button size="sm" className="h-8 text-xs font-black bg-green-600 hover:bg-green-700" onClick={onApprove}>APPROVA</Button>
+              </div>
             </div>
           </div>
 
@@ -299,15 +371,6 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
               </div>
             )}
           </div>
-
-          {request.adminNote && (
-            <div className="mt-3 p-3 rounded-lg bg-rose-50/50 border border-rose-100">
-              <p className="text-[9px] font-black uppercase text-rose-600 mb-1 flex items-center gap-1">
-                <MessageSquare className="h-3 w-3" /> Nota Amministrazione
-              </p>
-              <p className="text-xs font-medium text-rose-800 italic">"{request.adminNote}"</p>
-            </div>
-          )}
         </div>
       </div>
     </Card>
