@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -94,8 +95,11 @@ export default function ReportsPage() {
     if (hours === 0 && minutes === 0) return "0h";
     
     let formatted = "";
-    if (minutes === 0) formatted = `${hours}h`;
-    else formatted = `${hours}h ${minutes}m`;
+    if (hours > 0) formatted += `${hours}h`;
+    if (minutes > 0) {
+      if (hours > 0) formatted += " ";
+      formatted += `${minutes}m`;
+    }
     
     return isNegative ? `-${formatted}` : formatted;
   };
@@ -127,9 +131,47 @@ export default function ReportsPage() {
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
     }).map(emp => {
-      const weeklyTarget = emp.weeklyHours || 40;
-      const daysInThisMonth = getDaysInMonth(targetDate);
-      const monthlyExpectedHours = (weeklyTarget / 7) * daysInThisMonth;
+      // CALCOLO ORE PREVISTE GIORNO PER GIORNO (BASATO SU REGOLE TURNI REALI)
+      let monthlyExpectedHours = 0;
+      const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      daysInMonth.forEach(day => {
+        const dayOfWeekStr = day.getDay().toString();
+        if (dayOfWeekStr === "0") return; // Domenica sempre esclusa
+
+        const isRestDay = dayOfWeekStr === emp.restDay;
+        const rStart = emp.restStartTime || "00:00";
+        const rEnd = emp.restEndTime || "00:00";
+
+        const isSavino = emp.firstName?.toLowerCase().includes('savino') || emp.lastName?.toLowerCase().includes('savino');
+
+        if (isSavino) {
+          const dayIdx = day.getDay();
+          // Mattina Savino
+          let amHours = 1;
+          if (dayIdx === 4) amHours = 4; // Gio 9-13
+          else if (dayIdx === 6) amHours = 2; // Sab 9-11
+          // Pomeriggio Savino
+          let pmHours = 3.333; // 17-20:20 (3h 20m)
+          monthlyExpectedHours += (amHours + pmHours);
+        } else {
+          // Standard Full-time / Part-time
+          // Mattina standard: 09:00 - 13:00 (4h)
+          // Pomeriggio standard: 17:00 - 20:20 (3.333h)
+          
+          if (emp.contractType === 'full-time') {
+            const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
+            if (!morningOverlaps) monthlyExpectedHours += 4;
+            
+            const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
+            if (!afternoonOverlaps) monthlyExpectedHours += 3.333;
+          } else {
+            // Part-time standard solo pomeriggio
+            const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
+            if (!afternoonOverlaps) monthlyExpectedHours += 3.333;
+          }
+        }
+      });
 
       const empEntries = (entriesMap[emp.id] || []).filter(entry => {
         if (entry.companyId !== "default") return false;
