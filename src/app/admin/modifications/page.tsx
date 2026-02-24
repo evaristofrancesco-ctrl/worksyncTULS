@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { 
   ArrowLeftRight, 
   CheckCircle2, 
@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast"
 export default function AdminModificationsPage() {
   const db = useFirestore()
   const { toast } = useToast()
+  const cleanupPerformed = useRef(false)
   
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -50,19 +51,23 @@ export default function AdminModificationsPage() {
     }, {} as any);
   }, [employees]);
 
+  // Cleanup controllato
   useEffect(() => {
-    if (!modifications || !db) return;
+    if (!modifications || !db || cleanupPerformed.current) return;
+    
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
     modifications.forEach(req => {
-      if (new Date(req.submittedAt) < oneWeekAgo) {
+      if (req.submittedAt && new Date(req.submittedAt) < oneWeekAgo) {
         deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "modifications", req.id));
       }
     });
+    cleanupPerformed.current = true;
   }, [modifications, db]);
 
-  const pendingRequests = useMemo(() => modifications?.filter(m => m.status === "PENDING").sort((a,b) => b.submittedAt.localeCompare(a.submittedAt)) || [], [modifications]);
-  const historyRequests = useMemo(() => modifications?.filter(m => m.status !== "PENDING").sort((a,b) => b.submittedAt.localeCompare(a.submittedAt)) || [], [modifications]);
+  const pendingRequests = useMemo(() => modifications?.filter(m => m.status === "PENDING").sort((a,b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")) || [], [modifications]);
+  const historyRequests = useMemo(() => modifications?.filter(m => m.status !== "PENDING").sort((a,b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")) || [], [modifications]);
 
   const handleUpdateStatus = (request: any, newStatus: string) => {
     if (!db) return;
@@ -90,10 +95,10 @@ export default function AdminModificationsPage() {
       <Tabs defaultValue="pending" className="w-full">
         <TabsList className="bg-muted/50 border h-11 p-1 mb-6">
           <TabsTrigger value="pending" className="text-xs font-black uppercase px-6 h-9 data-[state=active]:bg-[#227FD8] data-[state=active]:text-white">
-            <Clock className="h-4 w-4 mr-2" /> Pendenti ({pendingRequests.length})
+            Pendenti ({pendingRequests.length})
           </TabsTrigger>
           <TabsTrigger value="history" className="text-xs font-black uppercase px-6 h-9 data-[state=active]:bg-slate-700 data-[state=active]:text-white">
-            <History className="h-4 w-4 mr-2" /> Storico ({historyRequests.length})
+            Storico ({historyRequests.length})
           </TabsTrigger>
         </TabsList>
 
@@ -137,7 +142,7 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold truncate text-[#1e293b]">{emp ? `${emp.firstName} ${emp.lastName}` : "Dipendente Sconosciuto"}</p>
             <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-black uppercase">
-              <span>{new Date(req.submittedAt).toLocaleDateString('it-IT')}</span>
+              <span>{req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('it-IT') : '--'}</span>
               <span className="opacity-20">|</span>
               <MapPin className="h-2.5 w-2.5" />
               <span>{req.locationName || "Sede N.D."}</span>
@@ -146,11 +151,11 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
           <div className="flex items-center gap-4 text-[10px] font-black uppercase">
             <div className="flex flex-col items-end">
               <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded mb-0.5">IN: {req.entra.name} ({req.entra.pieces})</span>
-              <code className="text-[9px] font-mono text-slate-500">{req.entra.barcode}</code>
+              <code className="text-[9px] font-mono font-black bg-slate-900 text-white px-1.5 rounded">{req.entra.barcode}</code>
             </div>
             <div className="flex flex-col items-end border-l pl-4">
               <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded mb-0.5">OUT: {req.esce.name} (-{req.esce.pieces})</span>
-              <code className="text-[9px] font-mono text-slate-500">{req.esce.barcode}</code>
+              <code className="text-[9px] font-mono font-black bg-slate-900 text-white px-1.5 rounded">{req.esce.barcode}</code>
             </div>
           </div>
           <Badge className={`h-6 text-[10px] font-black uppercase tracking-tight ${isApproved ? "bg-green-100 text-green-800" : "bg-rose-100 text-rose-800"}`}>
@@ -173,7 +178,7 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
             <div>
               <h3 className="font-bold text-sm text-[#1e293b]">{emp ? `${emp.firstName} ${emp.lastName}` : "Dipendente Sconosciuto"}</h3>
               <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                <span>Inviato alle {new Date(req.submittedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>Inviato alle {req.submittedAt ? new Date(req.submittedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '--'}</span>
                 <span className="opacity-20">|</span>
                 <MapPin className="h-3 w-3 text-[#227FD8]" />
                 <span className="font-black uppercase tracking-widest text-[10px]">{req.locationName || "Sede N.D."}</span>
@@ -195,7 +200,7 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
             <div className="flex justify-between items-center bg-white p-2 rounded-lg border shadow-sm">
               <div className="flex items-center gap-2">
                 <Barcode className="h-4 w-4 text-slate-400" />
-                <code className="text-sm font-black font-mono text-[#1e293b] tracking-wider">{req.entra.barcode}</code>
+                <code className="text-sm font-black font-mono text-white bg-slate-900 px-2 py-0.5 rounded tracking-wider">{req.entra.barcode}</code>
               </div>
               <span className="text-sm font-black text-green-700">Qta: {req.entra.pieces}</span>
             </div>
@@ -209,7 +214,7 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
             <div className="flex justify-between items-center bg-white p-2 rounded-lg border shadow-sm">
               <div className="flex items-center gap-2">
                 <Barcode className="h-4 w-4 text-slate-400" />
-                <code className="text-sm font-black font-mono text-[#1e293b] tracking-wider">{req.esce.barcode}</code>
+                <code className="text-sm font-black font-mono text-white bg-slate-900 px-2 py-0.5 rounded tracking-wider">{req.esce.barcode}</code>
               </div>
               <span className="text-sm font-black text-rose-700">Qta: -{req.esce.pieces}</span>
             </div>

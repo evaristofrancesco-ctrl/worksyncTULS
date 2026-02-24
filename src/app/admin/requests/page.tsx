@@ -1,3 +1,4 @@
+
 "use client"
 
 import { 
@@ -36,7 +37,7 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
 
 export default function RequestsPage() {
@@ -45,6 +46,7 @@ export default function RequestsPage() {
   
   const [rejectingRequest, setRejectingRequest] = useState<any>(null)
   const [adminNote, setAdminNote] = useState("")
+  const cleanupPerformed = useRef(false)
 
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -66,20 +68,28 @@ export default function RequestsPage() {
     }, {} as any);
   }, [employees]);
 
+  // Cleanup controllato: esegui solo una volta quando arrivano i dati
   useEffect(() => {
-    if (!requests || !db) return;
+    if (!requests || !db || cleanupPerformed.current) return;
+    
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     
+    let deletedCount = 0;
     requests.forEach(req => {
       const status = (req.status || "").toUpperCase();
       const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
       
-      // Conserviamo le APPROVATE per sempre. Puliamo solo le RIFIUTATE/PENDENTI vecchie.
       if (req.submittedAt && new Date(req.submittedAt) < oneWeekAgo && !isApproved) {
         deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "requests", req.id));
+        deletedCount++;
       }
     });
+
+    if (deletedCount > 0) {
+      console.log(`Pulizia completata: rimosse ${deletedCount} vecchie richieste.`);
+    }
+    cleanupPerformed.current = true;
   }, [requests, db]);
 
   const pendingRequests = useMemo(() => {
@@ -89,7 +99,7 @@ export default function RequestsPage() {
         const status = (req.status || "").toUpperCase();
         return status === "PENDING" || status === "IN ATTESA";
       })
-      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
   }, [requests]);
 
   const historyRequests = useMemo(() => {
@@ -99,7 +109,7 @@ export default function RequestsPage() {
         const status = (req.status || "").toUpperCase();
         return status !== "PENDING" && status !== "IN ATTESA";
       })
-      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
   }, [requests]);
 
   const handleUpdateStatus = (request: any, newStatus: string, note: string = "") => {
@@ -113,13 +123,12 @@ export default function RequestsPage() {
     })
 
     const notifId = `notif-req-${Date.now()}`;
-    const statusText = newStatus.toUpperCase();
     const typeLabel = request.type === 'VACATION' ? 'Ferie' : 'un Permesso';
     
     setDocumentNonBlocking(doc(db, "notifications", notifId), {
       id: notifId,
       recipientId: request.employeeId,
-      title: `Richiesta ${statusText}`,
+      title: `Richiesta ${newStatus.toUpperCase()}`,
       message: `La tua richiesta di ${typeLabel} per il ${request.startDate} è stata ${newStatus.toLowerCase()}.`,
       type: "REQUEST_STATUS",
       createdAt: new Date().toISOString(),
@@ -240,7 +249,6 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
   const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
   const isRejected = status === "RIFIUTATO" || status === "REJECTED" || status === "Rifiutato";
 
-  // Visualizzazione Storico (Compatta)
   if (isHistory) {
     return (
       <Card 
@@ -253,7 +261,6 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
         <div className="flex">
           <div className={cn("w-1.5 shrink-0", isApproved ? "bg-green-500" : "bg-rose-500")} />
           <div className="flex-1">
-            {/* Header compatto */}
             <div className="flex items-center p-3 gap-4">
               <Avatar className="h-8 w-8 border shadow-sm">
                 <AvatarImage src={emp?.photoUrl} />
@@ -281,7 +288,6 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
               </div>
             </div>
 
-            {/* Dettagli Espandibili */}
             {isExpanded && (
               <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
                 <div className="p-3 bg-slate-50/50 rounded-xl border border-dashed space-y-3">
@@ -322,7 +328,6 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
     );
   }
 
-  // Visualizzazione Pendenti (Standard)
   return (
     <Card className="overflow-hidden border-none shadow-sm ring-1 ring-slate-200 bg-white">
       <div className="flex">
