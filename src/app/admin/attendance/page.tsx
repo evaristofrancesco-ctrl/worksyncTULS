@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Save, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X, Umbrella, Activity, Timer, CalendarDays, History } from "lucide-react"
@@ -12,7 +11,7 @@ import {
   TableHead, 
   TableHeader, 
   TableRow 
-} from "@/table"
+} from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ClockInOut } from "@/components/attendance/ClockInOut"
