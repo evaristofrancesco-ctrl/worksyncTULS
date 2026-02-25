@@ -65,12 +65,11 @@ export function ClockInOut() {
     setIsProcessing(true)
     const now = new Date();
     const day = now.getDay();
-    const isWeekday = day >= 1 && day <= 5; // Lun-Ven
+    const isWeekday = day >= 1 && day <= 5;
     
     let effectiveTime = now.toISOString();
     let isAnomaly = false;
 
-    // Logica di arrotondamento e Alert (solo Lun-Ven)
     if (isWeekday) {
       const getPrecise = (h: number, m: number) => {
         const d = new Date(now);
@@ -79,8 +78,8 @@ export function ClockInOut() {
       };
 
       const slots = isClockedIn 
-        ? [getPrecise(13, 0), getPrecise(20, 20)] // Check-out target
-        : [getPrecise(9, 0), getPrecise(17, 0)];  // Check-in target
+        ? [getPrecise(13, 0), getPrecise(20, 20)]
+        : [getPrecise(9, 0), getPrecise(17, 0)];
 
       let minDiff = Infinity;
       let targetPrecise: Date | null = null;
@@ -102,7 +101,6 @@ export function ClockInOut() {
 
     try {
       if (isClockedIn && currentEntry) {
-        // USCITA
         const entryRef = doc(db, "employees", employeeId, "timeentries", currentEntry.id)
         updateDocumentNonBlocking(entryRef, {
           checkOutTime: effectiveTime,
@@ -116,7 +114,6 @@ export function ClockInOut() {
         
         toast({ title: "Uscita registrata", description: isAnomaly ? "Orario registrato con segnalazione." : "Buon riposo!" })
       } else {
-        // ENTRATA
         const entryId = `entry-${Date.now()}`
         const entryRef = doc(db, "employees", employeeId, "timeentries", entryId)
         setDocumentNonBlocking(entryRef, {

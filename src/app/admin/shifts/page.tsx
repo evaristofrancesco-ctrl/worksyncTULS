@@ -121,7 +121,6 @@ export default function ShiftsPage() {
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // Rimosso ordinamento server-side per evitare errore di indice mancante
     return query(collectionGroup(db, "requests"), limit(500));
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
@@ -291,7 +290,7 @@ export default function ShiftsPage() {
       startTime: sObj.toISOString(),
       endTime: eObj.toISOString(),
       title: newManualShift.title,
-      type: "MANUAL" // Diventa manuale se modificato
+      type: "MANUAL"
     });
     setIsEditOpen(false);
     toast({ title: "Turno Aggiornato" });
@@ -381,7 +380,6 @@ export default function ShiftsPage() {
         </CardContent>
       </Card>
 
-      {/* Dialogs per Nuovo Turno e Modifica Turno */}
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black">Nuovo Turno Manuale</DialogTitle></DialogHeader>

@@ -72,7 +72,6 @@ export default function ReportsPage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    // Rimosso filtraggio backend per evitare errori di indice mancante
     return collectionGroup(db, "timeentries");
   }, [db, user])
   const { data: allEntries, isLoading: entriesLoading } = useCollection(timeEntriesQuery)
@@ -105,12 +104,7 @@ export default function ReportsPage() {
     const targetDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 1);
     const monthStart = startOfMonth(targetDate);
     const monthEnd = endOfMonth(targetDate);
-    const now = new Date();
     
-    const isCurrentMonth = isSameMonth(targetDate, now);
-    const actualLimitDate = isCurrentMonth ? now : monthEnd;
-
-    // Filtraggio e raggruppamento lato client per evitare errori di indice
     const entriesMap = allEntries.reduce((acc, entry) => {
       if (!entry.checkInTime) return acc;
       try {

@@ -4,27 +4,16 @@
 import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList, AlertTriangle, BellRing, ArrowRight } from "lucide-react"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Cell
-} from "recharts"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { collection, collectionGroup, query, limit } from "firebase/firestore"
 import Link from "next/link"
 import { useMemo, useState, useEffect } from "react"
-import { format, isAfter, addMinutes, parseISO, startOfWeek } from "date-fns"
+import { format, isAfter, addMinutes, startOfWeek } from "date-fns"
 
 export default function AdminDashboard() {
   const db = useFirestore()
@@ -46,8 +35,7 @@ export default function AdminDashboard() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // Rimosso orderBy per evitare errore di indice e velocizzare il caricamento
-    return query(collectionGroup(db, "timeentries"), limit(500));
+    return collectionGroup(db, "timeentries");
   }, [db])
   const { data: allEntries, isLoading: isEntriesLoading } = useCollection(timeEntriesQuery)
 
@@ -72,17 +60,10 @@ export default function AdminDashboard() {
     return map;
   }, [employees]);
 
-  // Ottimizzazione Lookup Timbrature per Dipendente
   const entriesByEmployee = useMemo(() => {
     if (!allEntries) return new Map<string, any[]>();
-    // Ordiniamo lato client per data decrescente
-    const sorted = [...allEntries].sort((a, b) => {
-      const dateA = a.checkInTime ? new Date(a.checkInTime).getTime() : 0;
-      const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
-      return dateB - dateA;
-    });
     const map = new Map<string, any[]>();
-    for (const entry of sorted) {
+    for (const entry of allEntries) {
       const list = map.get(entry.employeeId) || [];
       list.push(entry);
       map.set(entry.employeeId, list);
@@ -90,7 +71,6 @@ export default function AdminDashboard() {
     return map;
   }, [allEntries]);
 
-  // Logica Anomalie Ottimizzata
   const missingClockIns = useMemo(() => {
     if (!allShifts || !allEntries || !employees) return [];
     
@@ -127,7 +107,6 @@ export default function AdminDashboard() {
     }));
   }, [allShifts, entriesByEmployee, employees, employeeMap, now]);
 
-  // Logica Presenze Recenti Ottimizzata
   const todayAttendance = useMemo(() => {
     if (!allShifts || !allEntries || !employees) return [];
     
@@ -158,16 +137,8 @@ export default function AdminDashboard() {
           let isWrong = false;
           if (matchedShift) {
             const shiftIn = new Date(matchedShift.startTime);
-            const shiftOut = new Date(matchedShift.endTime);
-            
             const inDiff = Math.abs(entryIn.getTime() - shiftIn.getTime()) / 60000;
             if (inDiff > 15) isWrong = true;
-
-            if (entry.checkOutTime) {
-              const entryOut = new Date(entry.checkOutTime);
-              const outDiff = Math.abs(entryOut.getTime() - shiftOut.getTime()) / 60000;
-              if (outDiff > 15) isWrong = true;
-            }
           } else {
             isWrong = true;
           }
@@ -236,18 +207,10 @@ export default function AdminDashboard() {
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-10">
           <div className="grid gap-6 md:grid-cols-4">
-            <Link href="/admin/employees" className="block transition-all hover:scale-[1.03]">
-              <StatCard title="Team" value={employees?.length || 0} description="Totali" icon={Users} />
-            </Link>
-            <Link href="/admin/attendance" className="block transition-all hover:scale-[1.03]">
-              <StatCard title="Attivi" value={allEntries?.filter(e => !e.checkOutTime).length || 0} description="In servizio" icon={Clock} />
-            </Link>
-            <Link href="/admin/requests" className="block transition-all hover:scale-[1.03]">
-              <StatCard title="Richieste" value={allRequests?.filter(r => (r.status || "").toUpperCase() === "PENDING").length || 0} description="Da gestire" icon={FileText} />
-            </Link>
-            <Link href="/admin/shifts" className="block transition-all hover:scale-[1.03]">
-              <StatCard title="Turni" value={allShifts?.filter(s => s.date === now.toISOString().split('T')[0]).length || 0} description="Oggi" icon={Calendar} />
-            </Link>
+            <StatCard title="Team" value={employees?.length || 0} description="Totali" icon={Users} />
+            <StatCard title="Attivi" value={allEntries?.filter(e => !e.checkOutTime).length || 0} description="In servizio" icon={Clock} />
+            <StatCard title="Richieste" value={allRequests?.filter(r => (r.status || "").toUpperCase() === "PENDING").length || 0} description="Da gestire" icon={FileText} />
+            <StatCard title="Turni" value={allShifts?.filter(s => s.date === now.toISOString().split('T')[0]).length || 0} description="Oggi" icon={Calendar} />
           </div>
 
           <div className="grid gap-8 md:grid-cols-2">

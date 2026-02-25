@@ -63,7 +63,6 @@ export default function AttendancePage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    // Rimosso orderBy per evitare errore di indice mancante
     return collectionGroup(db, "timeentries");
   }, [db, user])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
@@ -138,7 +137,7 @@ export default function AttendancePage() {
         const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
         return dateB - dateA;
       })
-      .slice(0, 500); // Limite di visualizzazione per fluidità
+      .slice(0, 500);
   }, [unifiedEntries, employeeMap, searchQuery, filterDate, filterType, showAllHistory]);
 
   const groupedEntries = useMemo(() => {
@@ -324,7 +323,6 @@ export default function AttendancePage() {
         )) : (<Card className="py-20 text-center border-dashed border-2"><p className="text-slate-400 font-bold italic">Nessun movimento trovato.</p></Card>)}
       </div>
 
-      {/* Dialog Nuova Timbratura */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -367,7 +365,6 @@ export default function AttendancePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Modifica Timbratura */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
