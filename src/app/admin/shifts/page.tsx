@@ -164,7 +164,6 @@ export default function ShiftsPage() {
       if (day.getDay() === 0) return;
 
       locations.forEach(loc => {
-        // Un collaboratore copre una sede se ha un turno in QUELLA sede e non è assente
         const morningPresent = weekShifts.filter(s => 
           s.locationId === loc.id && 
           s.date === dayStr && 
@@ -455,45 +454,50 @@ export default function ShiftsPage() {
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-3 border-r min-h-[160px] flex flex-col gap-4 bg-white">
-                            {/* Assenze (globali per il dipendente) */}
+                            {/* Assenze (sempre in alto alla cella) */}
                             {dayAbsences.length > 0 && (
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1 border-b border-rose-100 pb-2">
                                 {dayAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
                               </div>
                             )}
 
-                            {/* Blocchi Turni per Sede */}
-                            {Object.entries(shiftsByLocation).map(([locId, locShifts]) => {
-                              const locName = locations?.find(l => l.id === locId)?.name || "Sede";
-                              const morningShifts = locShifts.filter(s => parseISO(s.startTime).getHours() < 14);
-                              const afternoonShifts = locShifts.filter(s => parseISO(s.startTime).getHours() >= 14);
+                            {/* Blocchi Turni per Sede - STRUTTURA RICHIESTA */}
+                            <div className="space-y-4">
+                              {Object.entries(shiftsByLocation).map(([locId, locShifts]) => {
+                                const locName = locations?.find(l => l.id === locId)?.name || "Sede";
+                                const morningShifts = locShifts.filter(s => parseISO(s.startTime).getHours() < 14);
+                                const afternoonShifts = locShifts.filter(s => parseISO(s.startTime).getHours() >= 14);
 
-                              return (
-                                <div key={locId} className="flex flex-col gap-2 p-2 rounded-xl bg-slate-50/50 border border-slate-100">
-                                  <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">{locName}</span>
-                                  <div className="flex flex-col gap-1.5">
-                                    {morningShifts.map(s => (
-                                      <ShiftItem 
-                                        key={s.id} 
-                                        s={s} 
-                                        isMorning={true} 
-                                        onEdit={() => handleEditShift(s)} 
-                                        onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
-                                      />
-                                    ))}
-                                    {afternoonShifts.map(s => (
-                                      <ShiftItem 
-                                        key={s.id} 
-                                        s={s} 
-                                        isMorning={false} 
-                                        onEdit={() => handleEditShift(s)} 
-                                        onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
-                                      />
-                                    ))}
+                                return (
+                                  <div key={locId} className="flex flex-col gap-1">
+                                    <div className="text-[10px] font-black uppercase text-[#227FD8] border-b border-blue-100 pb-0.5 mb-1.5 flex items-center gap-1">
+                                      <MapPin className="h-2.5 w-2.5" />
+                                      {locName}
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                      {morningShifts.map(s => (
+                                        <ShiftItem 
+                                          key={s.id} 
+                                          s={s} 
+                                          isMorning={true} 
+                                          onEdit={() => handleEditShift(s)} 
+                                          onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
+                                        />
+                                      ))}
+                                      {afternoonShifts.map(s => (
+                                        <ShiftItem 
+                                          key={s.id} 
+                                          s={s} 
+                                          isMorning={false} 
+                                          onEdit={() => handleEditShift(s)} 
+                                          onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
+                                        />
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         );
                       })}
@@ -645,30 +649,29 @@ export default function ShiftsPage() {
 }
 
 function ShiftItem({ s, isMorning, onEdit, onDelete }: { s: any, isMorning: boolean, onEdit: () => void, onDelete: () => void }) {
+  const start = format(parseISO(s.startTime), 'HH:mm');
+  const end = format(parseISO(s.endTime), 'HH:mm');
+  
   return (
     <div 
       className={cn(
-        "group/item relative p-2 rounded-lg border-l-4 shadow-sm transition-all hover:scale-[1.02]",
+        "group/item relative p-1.5 rounded border-l-2 shadow-sm transition-all hover:scale-[1.02] mb-1",
         isMorning 
-          ? "bg-amber-50/80 border-amber-400 text-amber-900" 
-          : "bg-indigo-50/80 border-indigo-400 text-indigo-900"
+          ? "bg-amber-50 border-amber-400 text-amber-900" 
+          : "bg-blue-50 border-blue-400 text-blue-900"
       )}
     >
-      <div className="flex justify-between items-start mb-1">
+      <div className="flex justify-between items-start">
         <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
-            {isMorning ? <Sun className="h-3 w-3 text-amber-500" /> : <Moon className="h-3 w-3 text-indigo-500" />}
-            <span className="font-black uppercase tracking-tighter text-[8px] opacity-70 truncate max-w-[100px]">{s.title || (isMorning ? "Mattina" : "Pomeriggio")}</span>
+          <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-tight">
+            {isMorning ? <Sun className="h-2.5 w-2.5" /> : <Moon className="h-2.5 w-2.5" />}
+            {start} - {end}
           </div>
         </div>
         <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-1 hover:bg-black/5 rounded-md"><Edit className="h-3 w-3" /></button>
-          <button onClick={onDelete} className="p-1 hover:bg-rose-500/10 rounded-md text-rose-600"><Trash2 className="h-3 w-3" /></button>
+          <button onClick={onEdit} className="p-0.5 hover:bg-black/5 rounded"><Edit className="h-2.5 w-2.5" /></button>
+          <button onClick={onDelete} className="p-0.5 hover:bg-rose-500/10 rounded text-rose-600"><Trash2 className="h-2.5 w-2.5" /></button>
         </div>
-      </div>
-      <div className="font-black text-[11px] flex items-center gap-1">
-        <Clock className="h-3 w-3 opacity-40" />
-        {format(parseISO(s.startTime), 'HH:mm')} - {format(parseISO(s.endTime), 'HH:mm')}
       </div>
     </div>
   )
@@ -694,13 +697,13 @@ function AbsenceItem({ a }: { a: any }) {
   }
 
   return (
-    <div className="bg-rose-50 border-l-4 border-rose-400 p-2 rounded-lg shadow-sm">
-      <div className="flex items-center gap-1.5 mb-1">
+    <div className="bg-rose-50 border-l-2 border-rose-400 p-1.5 rounded shadow-sm mb-1">
+      <div className="flex items-center gap-1.5">
         {getIcon()}
-        <span className="font-black uppercase tracking-tighter text-[8px] text-rose-700">{getLabel()}</span>
+        <span className="font-black uppercase tracking-tighter text-[9px] text-rose-700">{getLabel()}</span>
       </div>
-      <div className="font-black text-[10px] text-rose-900">
-        {a.type === 'HOURLY_PERMIT' ? `${a.startTime} - ${a.endTime}` : 'Tutto il giorno'}
+      <div className="font-bold text-[9px] text-rose-900 mt-0.5">
+        {a.type === 'HOURLY_PERMIT' ? `${a.startTime} - ${a.endTime}` : 'Giornaliera'}
       </div>
     </div>
   )
