@@ -4,13 +4,8 @@
 import { useState, useMemo } from "react"
 import { 
   Calculator, 
-  Calendar, 
   Download, 
   Users, 
-  Clock, 
-  Umbrella, 
-  Activity, 
-  Timer,
   Loader2,
   RefreshCw
 } from "lucide-react"
@@ -32,9 +27,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, getDaysInMonth, isSameMonth, format } from "date-fns"
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
+import { collection, collectionGroup, query, where } from "firebase/firestore"
+import { startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, format } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
@@ -55,6 +50,7 @@ const MONTHS = [
 
 export default function ReportsPage() {
   const db = useFirestore()
+  const { user } = useUser()
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth().toString())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -62,28 +58,43 @@ export default function ReportsPage() {
   const yearsOptions = useMemo(() => {
     const current = new Date().getFullYear()
     const years = []
-    for (let i = current - 3; i <= current + 1; i++) {
+    for (let i = current - 2; i <= current + 1; i++) {
       years.push(i.toString())
     }
     return years.reverse()
   }, [])
 
+  // Filtraggio Query: Scarichiamo SOLO i dati del mese selezionato per evitare i 45 minuti di attesa
+  const dateRange = useMemo(() => {
+    const start = startOfMonth(new Date(parseInt(selectedYear), parseInt(selectedMonth), 1)).toISOString()
+    const end = endOfMonth(new Date(parseInt(selectedYear), parseInt(selectedMonth), 1)).toISOString()
+    return { start, end }
+  }, [selectedMonth, selectedYear])
+
   const employeesQuery = useMemoFirebase(() => {
-    if (!db) return null;
+    if (!db || !user) return null;
     return collection(db, "employees");
-  }, [db])
+  }, [db, user])
   const { data: employees, isLoading: employeesLoading } = useCollection(employeesQuery)
 
   const timeEntriesQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return collectionGroup(db, "timeentries");
-  }, [db])
+    if (!db || !user) return null;
+    // OTTIMIZZAZIONE CRITICA: filtro temporale sulla query globale
+    return query(
+      collectionGroup(db, "timeentries"),
+      where("checkInTime", ">=", dateRange.start),
+      where("checkInTime", "<=", dateRange.end)
+    );
+  }, [db, user, dateRange])
   const { data: allEntries, isLoading: entriesLoading } = useCollection(timeEntriesQuery)
 
   const requestsQuery = useMemoFirebase(() => {
-    if (!db) return null;
-    return collectionGroup(db, "requests");
-  }, [db])
+    if (!db || !user) return null;
+    return query(
+      collectionGroup(db, "requests"),
+      where("status", "in", ["Approvato", "APPROVED", "Approved"])
+    );
+  }, [db, user])
   const { data: allRequests, isLoading: requestsLoading } = useCollection(requestsQuery)
 
   const formatTime = (decimalHours: number) => {
@@ -92,16 +103,13 @@ export default function ReportsPage() {
     const totalMinutes = Math.round(absHours * 60);
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
-    
     if (hours === 0 && minutes === 0) return "0h";
-    
     let formatted = "";
     if (hours > 0) formatted += `${hours}h`;
     if (minutes > 0) {
       if (hours > 0) formatted += " ";
       formatted += `${minutes}m`;
     }
-    
     return isNegative ? `-${formatted}` : formatted;
   };
 
@@ -158,7 +166,6 @@ export default function ReportsPage() {
           if (emp.contractType === 'full-time') {
             const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
             if (!morningOverlaps) monthlyExpectedHours += 4;
-            
             const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
             if (!afternoonOverlaps) monthlyExpectedHours += AFTERNOON_HOURS;
           } else {
@@ -169,7 +176,6 @@ export default function ReportsPage() {
       });
 
       const empEntries = (entriesMap[emp.id] || []).filter(entry => {
-        if (entry.companyId !== "default") return false;
         try {
           const checkIn = new Date(entry.checkInTime);
           return checkIn >= monthStart && checkIn <= actualLimitDate;
@@ -187,8 +193,6 @@ export default function ReportsPage() {
       });
 
       const empRequests = (requestsMap[emp.id] || []).filter(req => {
-        const status = (req.status || "").toUpperCase();
-        if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return false;
         try {
           const reqStart = new Date(req.startDate);
           const reqEnd = req.endDate ? new Date(req.endDate) : reqStart;
@@ -205,22 +209,14 @@ export default function ReportsPage() {
         try {
           const rStart = new Date(req.startDate);
           const rEnd = req.endDate ? new Date(req.endDate) : rStart;
-          
           const overlapStart = rStart < monthStart ? monthStart : rStart;
           const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
-          
           if (overlapStart > overlapEnd) return;
-
           const daysInInterval = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
           const count = daysInInterval.length;
-
           const typeLabel = req.type === 'VACATION' ? 'Ferie' : req.type === 'SICK' ? 'Malattia' : req.type === 'HOURLY_PERMIT' ? 'Permesso Orario' : 'Permesso';
           const timeInfo = req.type === 'HOURLY_PERMIT' ? ` (${req.startTime}-${req.endTime})` : '';
-
-          daysInInterval.forEach(d => {
-            absenceDetails.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo}`);
-          });
-
+          daysInInterval.forEach(d => { absenceDetails.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo}`); });
           if (req.type === "VACATION") vacationHours += count * 8;
           else if (req.type === "SICK") sickHours += count * 8;
           else if (req.type === "PERSONAL") permitHours += count * 8;
@@ -237,7 +233,6 @@ export default function ReportsPage() {
 
       const absenceTotal = vacationHours + sickHours + permitHours;
       const netTotalHours = actualWorkHours - absenceTotal;
-      const isSubtracted = absenceTotal > 0;
 
       return {
         id: emp.id,
@@ -250,7 +245,7 @@ export default function ReportsPage() {
         sickHoursFormatted: formatTime(sickHours),
         permitHoursFormatted: formatTime(permitHours),
         totalHoursFormatted: formatTime(netTotalHours),
-        isSubtracted: isSubtracted,
+        isSubtracted: absenceTotal > 0,
         absenceDetailStr: absenceDetails.join(" | ")
       }
     });
@@ -261,40 +256,6 @@ export default function ReportsPage() {
     setTimeout(() => setIsRefreshing(false), 800)
   }
 
-  const handleExport = () => {
-    if (!reportData.length) return;
-
-    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Ore Nette", "Dettaglio Assenze"];
-    const rows = reportData.map(row => [
-      row.name,
-      row.jobTitle,
-      row.expectedHoursFormatted,
-      row.workedHoursFormatted,
-      row.vacationHoursFormatted,
-      row.sickHoursFormatted,
-      row.permitHoursFormatted,
-      row.totalHoursFormatted,
-      row.absenceDetailStr
-    ]);
-
-    const csvContent = [
-      headers.join(";"),
-      ...rows.map(r => r.map(cell => `"${cell}"`).join(";"))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    const monthLabel = MONTHS.find(m => m.value === selectedMonth)?.label || "report";
-    
-    link.setAttribute("href", url);
-    link.setAttribute("download", `report_presenze_${monthLabel}_${selectedYear}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const isLoading = employeesLoading || entriesLoading || requestsLoading || isRefreshing;
 
   return (
@@ -304,59 +265,34 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Ore previste totali vs <b>ore nette</b> (timbrate meno assenze).</p>
+          <p className="text-slate-500 font-medium">Ore previste vs <b>ore nette</b> (timbrate meno assenze).</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-[150px] border-none font-bold">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-[150px] border-none font-bold"><SelectValue /></SelectTrigger>
             <SelectContent>
               {MONTHS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          
           <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[100px] border-none font-bold">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-[100px] border-none font-bold"><SelectValue /></SelectTrigger>
             <SelectContent>
               {yearsOptions.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
             </SelectContent>
           </Select>
-
           <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
-
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50"
-            onClick={handleRefresh}
-            disabled={isLoading}
-          >
-            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-            Ricalcola
+          <Button variant="ghost" size="sm" className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50" onClick={handleRefresh} disabled={isLoading}>
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} /> Ricalcola
           </Button>
         </div>
       </div>
 
       <Card className="border-none shadow-sm overflow-hidden bg-white">
         <CardHeader className="border-b bg-slate-50/50">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-              <Users className="h-4 w-4" /> Analisi Presenze e Contratto
-            </CardTitle>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-8 text-xs font-bold gap-2"
-              onClick={handleExport}
-              disabled={isLoading || reportData.length === 0}
-            >
-              <Download className="h-3.5 w-3.5" /> Esporta Report
-            </Button>
-          </div>
+          <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            <Users className="h-4 w-4" /> Analisi Presenze e Contratto
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -367,58 +303,28 @@ export default function ReportsPage() {
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
-                <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette (Oggi)</TableHead>
+                <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-64 text-center">
-                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" />
-                    <p className="text-sm font-bold text-slate-400 mt-4">Analisi dati in corso...</p>
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={6} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /><p className="text-sm font-bold text-slate-400 mt-4">Analisi dati in corso...</p></TableCell></TableRow>
               ) : reportData.length > 0 ? reportData.map((row) => (
                 <TableRow key={row.id} className="h-16 hover:bg-slate-50/50 transition-colors">
                   <TableCell className="pl-8">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border shadow-sm">
-                        <AvatarImage src={row.photoUrl} />
-                        <AvatarFallback className="font-bold">{row.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-900 text-base">{row.name}</span>
-                        <span className="text-xs text-slate-400 font-bold uppercase tracking-tight">{row.jobTitle}</span>
-                      </div>
+                      <Avatar className="h-10 w-10 border shadow-sm"><AvatarImage src={row.photoUrl} /><AvatarFallback className="font-bold">{row.name.charAt(0)}</AvatarFallback></Avatar>
+                      <div className="flex flex-col"><span className="font-bold text-slate-900 text-base">{row.name}</span><span className="text-xs text-slate-400 font-bold uppercase tracking-tight">{row.jobTitle}</span></div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">
-                    <span className="text-sm font-bold text-slate-400">{row.expectedHoursFormatted}</span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <span className="text-sm font-bold text-amber-600">{row.vacationHoursFormatted}</span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <span className="text-sm font-bold text-rose-600">{row.sickHoursFormatted}</span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <span className="text-sm font-bold text-cyan-600">{row.permitHoursFormatted}</span>
-                  </TableCell>
-                  <TableCell className="text-right pr-8">
-                    <span className={cn(
-                      "text-lg font-black transition-colors", 
-                      row.isSubtracted ? "text-rose-600" : "text-[#227FD8]"
-                    )}>
-                      {row.totalHoursFormatted}
-                    </span>
-                  </TableCell>
+                  <TableCell className="text-center"><span className="text-sm font-bold text-slate-400">{row.expectedHoursFormatted}</span></TableCell>
+                  <TableCell className="text-center"><span className="text-sm font-bold text-amber-600">{row.vacationHoursFormatted}</span></TableCell>
+                  <TableCell className="text-center"><span className="text-sm font-bold text-rose-600">{row.sickHoursFormatted}</span></TableCell>
+                  <TableCell className="text-center"><span className="text-sm font-bold text-cyan-600">{row.permitHoursFormatted}</span></TableCell>
+                  <TableCell className="text-right pr-8"><span className={cn("text-lg font-black transition-colors", row.isSubtracted ? "text-rose-600" : "text-[#227FD8]")}>{row.totalHoursFormatted}</span></TableCell>
                 </TableRow>
               )) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-40 text-center text-slate-400 italic font-medium">
-                    Nessuna timbratura trovata per il periodo selezionato.
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={6} className="h-40 text-center text-slate-400 italic font-medium">Nessuna timbratura trovata per il periodo selezionato.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

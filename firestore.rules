@@ -2,10 +2,28 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Permette l'accesso completo a qualsiasi documento se l'utente è autenticato.
-    // Questo risolve i problemi con le query collectionGroup e le strutture annidate in fase di prototipo.
+    // Regola base: permette tutto agli utenti autenticati per la fase di prototipo
     match /{document=**} {
       allow read, write: if request.auth != null;
+    }
+    
+    // Regole esplicite per le query collectionGroup (necessarie per evitare errori di permessi)
+    match /{path=**}/timeentries/{id} {
+      allow read, write: if request.auth != null;
+    }
+    match /{path=**}/requests/{id} {
+      allow read, write: if request.auth != null;
+    }
+    match /{path=**}/shifts/{id} {
+      allow read, write: if request.auth != null;
+    }
+    match /{path=**}/modifications/{id} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Permette la lettura degli impiegati anche in fase di login (necessario per check credenziali)
+    match /employees/{employeeId} {
+      allow read: if true;
     }
   }
 }
