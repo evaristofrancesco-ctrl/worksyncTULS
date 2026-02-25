@@ -153,8 +153,9 @@ export default function ShiftsPage() {
     });
   }, [allRequests, weekStart]);
 
+  // LOGICA DI COPERTURA: Un dipendente conta come presente solo se ha un turno E NON ha un'assenza (ferie/permessi/malattia)
   const coverageAnalysis = useMemo(() => {
-    if (!locations || !weekShifts || !displayEmployees || !daysOfVisualizedWeek) return [];
+    if (!locations || !weekShifts || !displayEmployees || !daysOfVisualizedWeek || !weekAbsences) return [];
     
     const gaps: any[] = [];
     
@@ -164,19 +165,32 @@ export default function ShiftsPage() {
       if (dayOfWeek === 0) return; // Domenica chiuso
 
       locations.forEach(loc => {
-        const morningStaff = weekShifts.filter(s => 
-          s.date === dayStr && 
-          parseISO(s.startTime).getHours() < 14 &&
-          displayEmployees.find(e => e.id === s.employeeId)?.locationId === loc.id
-        );
-        
-        const afternoonStaff = weekShifts.filter(s => 
-          s.date === dayStr && 
-          parseISO(s.startTime).getHours() >= 14 &&
-          displayEmployees.find(e => e.id === s.employeeId)?.locationId === loc.id
-        );
+        // Filtriamo i dipendenti di questa sede
+        const locEmployees = displayEmployees.filter(e => e.locationId === loc.id);
 
-        if (morningStaff.length === 0) {
+        const actuallyPresentMorning = locEmployees.filter(emp => {
+          const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
+          const hasAbsence = weekAbsences.some(abs => 
+            abs.employeeId === emp.id && 
+            dayStr >= abs.startDate && 
+            dayStr <= (abs.endDate || abs.startDate) &&
+            abs.type !== 'HOURLY_PERMIT' // I permessi orari potrebbero non coprire tutto il turno, ma le ferie/malattia sì
+          );
+          return hasShift && !hasAbsence;
+        });
+
+        const actuallyPresentAfternoon = locEmployees.filter(emp => {
+          const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
+          const hasAbsence = weekAbsences.some(abs => 
+            abs.employeeId === emp.id && 
+            dayStr >= abs.startDate && 
+            dayStr <= (abs.endDate || abs.startDate) &&
+            abs.type !== 'HOURLY_PERMIT'
+          );
+          return hasShift && !hasAbsence;
+        });
+
+        if (actuallyPresentMorning.length === 0) {
           gaps.push({ 
             day: dayStr, 
             dayName: format(day, 'EEEE d MMMM', { locale: it }), 
@@ -185,7 +199,7 @@ export default function ShiftsPage() {
             id: `gap-${dayStr}-${loc.id}-AM`
           });
         }
-        if (afternoonStaff.length === 0) {
+        if (actuallyPresentAfternoon.length === 0) {
           gaps.push({ 
             day: dayStr, 
             dayName: format(day, 'EEEE d MMMM', { locale: it }), 
@@ -198,7 +212,7 @@ export default function ShiftsPage() {
     });
     
     return gaps;
-  }, [locations, weekShifts, displayEmployees, daysOfVisualizedWeek]);
+  }, [locations, weekShifts, displayEmployees, daysOfVisualizedWeek, weekAbsences]);
 
   const handleAutoGenerate = async () => {
     if (!displayEmployees || displayEmployees.length === 0) {
@@ -405,7 +419,6 @@ export default function ShiftsPage() {
                     </div>
                   </div>
                 ))}
-                {/* INTESTAZIONE RIEPILOGO */}
                 <div className="min-w-[250px] p-4 bg-slate-100/50 flex items-center gap-2 border-l-2 border-slate-300">
                   <BarChart3 className="h-4 w-4 text-slate-500" />
                   <span className="font-black text-xs uppercase text-slate-600">Riepilogo Sedi</span>
@@ -435,7 +448,6 @@ export default function ShiftsPage() {
                         
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-0 border-r min-h-[180px] flex flex-col">
-                            {/* AREA ASSENZE (In alto) */}
                             {dayAbsences.length > 0 && (
                               <div className="p-2 flex flex-col gap-1 bg-rose-50/30">
                                 {dayAbsences.map(a => (
@@ -446,7 +458,6 @@ export default function ShiftsPage() {
                               </div>
                             )}
 
-                            {/* SLOT MATTINA */}
                             <div className="flex-1 p-2 flex flex-col gap-2 min-h-[80px]">
                               <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
                                 <Sun className="h-2 w-2" /> MATTINA
@@ -456,14 +467,12 @@ export default function ShiftsPage() {
                               ))}
                             </div>
 
-                            {/* LINEA DI DISTINZIONE NETTA */}
                             <div className="border-t border-slate-100 relative h-0">
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <div className="bg-white px-2 text-[7px] font-black text-slate-200 tracking-tighter uppercase">Separatore</div>
                               </div>
                             </div>
 
-                            {/* SLOT POMERIGGIO */}
                             <div className="flex-1 p-2 flex flex-col gap-2 min-h-[80px] bg-slate-50/20">
                               <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
                                 <Moon className="h-2 w-2" /> POMERIGGIO
@@ -476,9 +485,7 @@ export default function ShiftsPage() {
                         );
                       })}
 
-                      {/* COLONNA SPECCHIETTO RIEPILOGO PER SEDE */}
                       <div className="min-w-[250px] p-0 border-l-2 border-slate-300 bg-slate-50/40 flex flex-col">
-                        {/* RIEPILOGO MATTINA */}
                         <div className="flex-1 p-3 flex flex-col gap-1.5 min-h-[80px]">
                           <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                             <Users className="h-2 w-2" /> Conta Mattina
@@ -486,21 +493,25 @@ export default function ShiftsPage() {
                           {locations?.map(loc => {
                             const count = displayEmployees.filter(e => e.locationId === loc.id).reduce((acc, emp) => {
                               const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
-                              return acc + (hasShift ? 1 : 0);
+                              const isAbsent = weekAbsences.some(abs => 
+                                abs.employeeId === emp.id && 
+                                dayStr >= abs.startDate && 
+                                dayStr <= (abs.endDate || abs.startDate) &&
+                                abs.type !== 'HOURLY_PERMIT'
+                              );
+                              return acc + (hasShift && !isAbsent ? 1 : 0);
                             }, 0);
                             return (
-                              <div key={`sum-am-${loc.id}`} className={cn("flex justify-between items-center px-2 py-1 rounded border", count > 0 ? "bg-white border-slate-200" : "bg-transparent border-dashed border-slate-200 opacity-40")}>
-                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[150px]">{loc.name}</span>
-                                <Badge variant={count > 0 ? "default" : "outline"} className={cn("h-5 px-1.5 text-[10px] font-black", count > 0 ? "bg-[#227FD8]" : "text-slate-300")}>{count}</Badge>
+                              <div key={`sum-am-${loc.id}`} className={cn("flex justify-between items-center px-2 py-1 rounded border", count > 0 ? "bg-white border-slate-200" : "bg-rose-50 border-rose-200 animate-pulse")}>
+                                <span className={cn("text-[10px] font-bold truncate max-w-[150px]", count > 0 ? "text-slate-600" : "text-rose-700")}>{loc.name}</span>
+                                <Badge variant={count > 0 ? "default" : "destructive"} className={cn("h-5 px-1.5 text-[10px] font-black", count > 0 ? "bg-[#227FD8]" : "")}>{count}</Badge>
                               </div>
                             )
                           })}
                         </div>
 
-                        {/* LINEA SEPARATORE RIEPILOGO */}
                         <div className="border-t border-slate-200 h-0" />
 
-                        {/* RIEPILOGO POMERIGGIO */}
                         <div className="flex-1 p-3 flex flex-col gap-1.5 min-h-[80px]">
                           <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                             <Users className="h-2 w-2" /> Conta Pomeriggio
@@ -508,12 +519,18 @@ export default function ShiftsPage() {
                           {locations?.map(loc => {
                             const count = displayEmployees.filter(e => e.locationId === loc.id).reduce((acc, emp) => {
                               const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
-                              return acc + (hasShift ? 1 : 0);
+                              const isAbsent = weekAbsences.some(abs => 
+                                abs.employeeId === emp.id && 
+                                dayStr >= abs.startDate && 
+                                dayStr <= (abs.endDate || abs.startDate) &&
+                                abs.type !== 'HOURLY_PERMIT'
+                              );
+                              return acc + (hasShift && !isAbsent ? 1 : 0);
                             }, 0);
                             return (
-                              <div key={`sum-pm-${loc.id}`} className={cn("flex justify-between items-center px-2 py-1 rounded border", count > 0 ? "bg-white border-slate-200" : "bg-transparent border-dashed border-slate-200 opacity-40")}>
-                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[150px]">{loc.name}</span>
-                                <Badge variant={count > 0 ? "secondary" : "outline"} className={cn("h-5 px-1.5 text-[10px] font-black", count > 0 ? "bg-slate-700 text-white" : "text-slate-300")}>{count}</Badge>
+                              <div key={`sum-pm-${loc.id}`} className={cn("flex justify-between items-center px-2 py-1 rounded border", count > 0 ? "bg-white border-slate-200" : "bg-rose-50 border-rose-200 animate-pulse")}>
+                                <span className={cn("text-[10px] font-bold truncate max-w-[150px]", count > 0 ? "text-slate-600" : "text-rose-700")}>{loc.name}</span>
+                                <Badge variant={count > 0 ? "secondary" : "destructive"} className={cn("h-5 px-1.5 text-[10px] font-black", count > 0 ? "bg-slate-700 text-white" : "")}>{count}</Badge>
                               </div>
                             )
                           })}
@@ -529,7 +546,6 @@ export default function ShiftsPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog Nuova Manuale */}
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
@@ -564,7 +580,6 @@ export default function ShiftsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Modifica Turno */}
       <Dialog open={isEditShiftOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Modifica Turno</DialogTitle></DialogHeader>
@@ -583,7 +598,6 @@ export default function ShiftsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Assenza */}
       <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight text-rose-600">Registra Assenza</DialogTitle></DialogHeader>
