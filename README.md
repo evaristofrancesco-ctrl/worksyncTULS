@@ -25,6 +25,13 @@ Se non hai dimestichezza con Git, puoi scaricare periodicamente l'intero progett
 - Copia la cartella del progetto in una cartella di backup (es. `TU.L.S._Backup_DATA`).
 - In caso di problemi gravi, potrai sovrascrivere i file attuali con quelli della copia di backup.
 
+## 🧠 Glossario Tecnico dell'Interfaccia AI
+L'interfaccia che usi per comunicare con l'assistente AI e sviluppare l'app viene definita in vari modi:
+- **Conversational UI (CUI)**: Interfaccia utente basata sul dialogo naturale.
+- **AI Coding Assistant**: Un partner virtuale che scrive e modifica codice seguendo istruzioni testuali.
+- **Agentic Interface**: Un sistema capace di eseguire azioni complesse (come creare file o configurare database) in autonomia.
+- **Prompt Engineering**: L'arte di formulare le richieste per ottenere il miglior risultato dall'AI.
+
 ## Come pubblicare il progetto (Deployment)
 
 Questo progetto è basato su **Next.js**. La procedura consigliata è ospitare l'applicazione su **Firebase App Hosting**.
