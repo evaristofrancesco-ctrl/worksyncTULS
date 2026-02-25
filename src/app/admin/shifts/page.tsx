@@ -152,7 +152,6 @@ export default function ShiftsPage() {
     });
   }, [allRequests, weekStart]);
 
-  // LOGICA CONTROLLO PUNTI VENDITA SCOPERTI
   const coverageAnalysis = useMemo(() => {
     if (!locations || !weekShifts || !displayEmployees || !daysOfVisualizedWeek) return [];
     
@@ -360,7 +359,6 @@ export default function ShiftsPage() {
         </div>
       </div>
 
-      {/* AVVISI PUNTI VENDITA SCOPERTI */}
       {coverageAnalysis.length > 0 && (
         <Alert variant="destructive" className="bg-rose-50 border-rose-200 shadow-sm animate-in slide-in-from-top-4">
           <AlertCircle className="h-5 w-5 text-rose-600" />
@@ -393,7 +391,7 @@ export default function ShiftsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="w-full h-[700px]">
+          <ScrollArea className="w-full h-[750px]">
             <div className="inline-block min-w-full">
               <div className="flex sticky top-0 z-30 bg-white border-b shadow-sm">
                 <div className="w-[180px] p-4 font-black text-xs uppercase text-slate-400 sticky left-0 bg-white border-r z-40">DATA</div>
@@ -423,50 +421,50 @@ export default function ShiftsPage() {
                         <div className="text-3xl font-black text-slate-800">{format(day, 'dd')}</div>
                       </div>
                       {displayEmployees.map((emp) => {
-                        const dayShifts = weekShifts
-                          .filter(s => s.employeeId === emp.id && s.date === dayStr)
-                          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
-                        
+                        const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
+                        const morningShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() < 14).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+                        const afternoonShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() >= 14).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
                         const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
                         
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-3 border-r min-h-[140px] flex flex-col gap-2">
-                            {dayAbsences.map(a => (
-                              <Badge key={a.id} className="bg-rose-100 text-rose-700 border-none font-black text-[9px] uppercase h-6 justify-center">
-                                <Umbrella className="h-3 w-3 mr-1" /> {a.type}
-                              </Badge>
-                            ))}
-                            {dayShifts.map(s => {
-                              const isMorning = parseISO(s.startTime).getHours() < 14;
-                              return (
-                                <div 
-                                  key={s.id} 
-                                  className={cn(
-                                    "group/item relative p-2.5 rounded-xl border-l-4 shadow-sm transition-all hover:scale-[1.02]",
-                                    isMorning 
-                                      ? "bg-amber-50/80 border-amber-400 text-amber-900" 
-                                      : "bg-indigo-50/80 border-indigo-400 text-indigo-900"
-                                  )}
-                                >
-                                  <div className="flex justify-between items-start mb-1.5">
-                                    <div className="flex flex-col">
-                                      <div className="flex items-center gap-1.5">
-                                        {isMorning ? <Sun className="h-3 w-3 text-amber-500" /> : <Moon className="h-3 w-3 text-indigo-500" />}
-                                        <span className="font-black uppercase tracking-tighter text-[9px] opacity-70">{s.title || (isMorning ? "Mattina" : "Pomeriggio")}</span>
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                      <button onClick={() => handleEditShift(s)} className="p-1 hover:bg-black/5 rounded-md"><Edit className="h-3 w-3" /></button>
-                                      <button onClick={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} className="p-1 hover:bg-rose-500/10 rounded-md text-rose-600"><Trash2 className="h-3 w-3" /></button>
-                                    </div>
-                                  </div>
-                                  <div className="font-black text-sm flex items-center gap-1">
-                                    <Clock className="h-3.5 w-3.5 opacity-40" />
-                                    {format(parseISO(s.startTime), 'HH:mm')} - {format(parseISO(s.endTime), 'HH:mm')}
-                                  </div>
-                                </div>
-                              );
-                            })}
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-0 border-r min-h-[180px] flex flex-col">
+                            {/* AREA ASSENZE (In alto) */}
+                            {dayAbsences.length > 0 && (
+                              <div className="p-2 flex flex-col gap-1 bg-rose-50/30">
+                                {dayAbsences.map(a => (
+                                  <Badge key={a.id} className="bg-rose-100 text-rose-700 border-none font-black text-[9px] uppercase h-6 justify-center">
+                                    <Umbrella className="h-3 w-3 mr-1" /> {a.type}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* SLOT MATTINA */}
+                            <div className="flex-1 p-2 flex flex-col gap-2 min-h-[80px]">
+                              <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
+                                <Sun className="h-2 w-2" /> MATTINA
+                              </div>
+                              {morningShifts.map(s => (
+                                <ShiftItem key={s.id} s={s} isMorning={true} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
+                              ))}
+                            </div>
+
+                            {/* LINEA DI DISTINZIONE NETTA */}
+                            <div className="border-t border-slate-100 relative h-0">
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="bg-white px-2 text-[7px] font-black text-slate-200 tracking-tighter uppercase">Separatore</div>
+                              </div>
+                            </div>
+
+                            {/* SLOT POMERIGGIO */}
+                            <div className="flex-1 p-2 flex flex-col gap-2 min-h-[80px] bg-slate-50/20">
+                              <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
+                                <Moon className="h-2 w-2" /> POMERIGGIO
+                              </div>
+                              {afternoonShifts.map(s => (
+                                <ShiftItem key={s.id} s={s} isMorning={false} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
+                              ))}
+                            </div>
                           </div>
                         );
                       })}
@@ -480,6 +478,7 @@ export default function ShiftsPage() {
         </CardContent>
       </Card>
 
+      {/* Dialog Nuova Manuale */}
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
@@ -514,6 +513,7 @@ export default function ShiftsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog Modifica Turno */}
       <Dialog open={isEditShiftOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Modifica Turno</DialogTitle></DialogHeader>
@@ -532,6 +532,7 @@ export default function ShiftsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog Assenza */}
       <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight text-rose-600">Registra Assenza</DialogTitle></DialogHeader>
@@ -556,6 +557,36 @@ export default function ShiftsPage() {
           <DialogFooter><Button onClick={handleSaveAbsence} className="bg-rose-600 font-black w-full h-12 uppercase tracking-widest shadow-lg">CONFERMA ASSENZA</Button></DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function ShiftItem({ s, isMorning, onEdit, onDelete }: { s: any, isMorning: boolean, onEdit: () => void, onDelete: () => void }) {
+  return (
+    <div 
+      className={cn(
+        "group/item relative p-2 rounded-lg border-l-4 shadow-sm transition-all hover:scale-[1.02]",
+        isMorning 
+          ? "bg-amber-50/80 border-amber-400 text-amber-900" 
+          : "bg-indigo-50/80 border-indigo-400 text-indigo-900"
+      )}
+    >
+      <div className="flex justify-between items-start mb-1">
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1.5">
+            {isMorning ? <Sun className="h-3 w-3 text-amber-500" /> : <Moon className="h-3 w-3 text-indigo-500" />}
+            <span className="font-black uppercase tracking-tighter text-[8px] opacity-70 truncate max-w-[100px]">{s.title || (isMorning ? "Mattina" : "Pomeriggio")}</span>
+          </div>
+        </div>
+        <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+          <button onClick={onEdit} className="p-1 hover:bg-black/5 rounded-md"><Edit className="h-3 w-3" /></button>
+          <button onClick={onDelete} className="p-1 hover:bg-rose-500/10 rounded-md text-rose-600"><Trash2 className="h-3 w-3" /></button>
+        </div>
+      </div>
+      <div className="font-black text-[11px] flex items-center gap-1">
+        <Clock className="h-3 w-3 opacity-40" />
+        {format(parseISO(s.startTime), 'HH:mm')} - {format(parseISO(s.endTime), 'HH:mm')}
+      </div>
     </div>
   )
 }
