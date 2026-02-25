@@ -95,21 +95,12 @@ export default function ShiftsPage() {
     return Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i))
   }, [weekStart])
 
+  // Query ottimizzate con limiti
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
   }, [db])
   const { data: employees, isLoading: isEmployeesLoading } = useCollection(employeesQuery)
-
-  const displayEmployees = useMemo(() => {
-    if (!employees) return [];
-    return employees
-      .filter(emp => {
-        const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
-        return !isFrancesco;
-      })
-      .sort((a, b) => (a.locationName || "").localeCompare(b.locationName || ""));
-  }, [employees]);
 
   const locationsQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -129,30 +120,92 @@ export default function ShiftsPage() {
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
-  const weekShifts = useMemo(() => {
-    if (!shifts) return [];
-    const weekEnd = addDays(weekStart, 7);
-    return shifts.filter(s => {
-      try {
-        const d = parseISO(s.date);
-        return d >= weekStart && d < weekEnd;
-      } catch (e) { return false; }
-    });
-  }, [shifts, weekStart]);
+  const displayEmployees = useMemo(() => {
+    if (!employees) return [];
+    return employees
+      .filter(emp => {
+        const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
+        return !isFrancesco;
+      })
+      .sort((a, b) => (a.locationName || "").localeCompare(b.locationName || ""));
+  }, [employees]);
 
-  const weekAbsences = useMemo(() => {
-    if (!allRequests) return [];
+  // --- OTTIMIZZAZIONE: INDICIZZAZIONE DATI ---
+  // Raggruppiamo i turni per data e dipendente UNA SOLA VOLTA
+  const indexedShifts = useMemo(() => {
+    const map: Record<string, Record<string, any[]>> = {};
+    if (!shifts) return map;
+    
+    shifts.forEach(s => {
+      if (!map[s.date]) map[s.date] = {};
+      if (!map[s.date][s.employeeId]) map[s.date][s.employeeId] = [];
+      map[s.date][s.employeeId].push(s);
+    });
+    return map;
+  }, [shifts]);
+
+  // Raggruppiamo le assenze per data e dipendente
+  const indexedAbsences = useMemo(() => {
+    const map: Record<string, Record<string, any[]>> = {};
+    if (!allRequests) return map;
+
     const weekEnd = addDays(weekStart, 7);
-    return allRequests.filter(r => {
+    
+    allRequests.forEach(r => {
       const status = (r.status || "").toUpperCase();
-      if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return false;
+      if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return;
+      
       try {
         const start = parseISO(r.startDate);
         const end = r.endDate ? parseISO(r.endDate) : start;
-        return (start < weekEnd && end >= weekStart);
-      } catch (e) { return false; }
+        
+        // Per ogni giorno della settimana, verifichiamo se l'assenza copre quel giorno
+        daysOfVisualizedWeek.forEach(day => {
+          const dateStr = format(day, 'yyyy-MM-dd');
+          if (dateStr >= r.startDate && dateStr <= (r.endDate || r.startDate)) {
+            if (!map[dateStr]) map[dateStr] = {};
+            if (!map[dateStr][r.employeeId]) map[dateStr][r.employeeId] = [];
+            map[dateStr][r.employeeId].push(r);
+          }
+        });
+      } catch (e) {}
     });
-  }, [allRequests, weekStart]);
+    return map;
+  }, [allRequests, weekStart, daysOfVisualizedWeek]);
+
+  // Pre-calcolo conteggio coperture per velocizzare lo specchietto laterale
+  const dailyLocationCounts = useMemo(() => {
+    const counts: Record<string, Record<string, { morning: number, afternoon: number }>> = {};
+    
+    daysOfVisualizedWeek.forEach(day => {
+      const dStr = format(day, 'yyyy-MM-dd');
+      counts[dStr] = {};
+      
+      locations?.forEach(loc => {
+        let morning = 0;
+        let afternoon = 0;
+        
+        const dayShifts = indexedShifts[dStr] || {};
+        Object.keys(dayShifts).forEach(empId => {
+          // Escludiamo chi ha assenze non orarie in questo giorno
+          const abs = (indexedAbsences[dStr] || {})[empId] || [];
+          const isFullyAbsent = abs.some(a => a.type !== 'HOURLY_PERMIT');
+          if (isFullyAbsent) return;
+
+          dayShifts[empId].forEach(s => {
+            if (s.locationId === loc.id) {
+              const hour = parseISO(s.startTime).getHours();
+              if (hour < 14) morning++;
+              else afternoon++;
+            }
+          });
+        });
+        
+        counts[dStr][loc.id] = { morning, afternoon };
+      });
+    });
+    return counts;
+  }, [daysOfVisualizedWeek, locations, indexedShifts, indexedAbsences]);
 
   const handleAutoGenerate = async () => {
     if (!displayEmployees || displayEmployees.length === 0) {
@@ -162,11 +215,15 @@ export default function ShiftsPage() {
     setIsGenerating(true);
 
     try {
-      if (weekShifts.length > 0) {
-        for (const shift of weekShifts) {
-          if (shift.type !== "MANUAL") {
-            deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id));
-          }
+      // Eliminiamo i turni esistenti della settimana (solo AUTO)
+      const weekEnd = addDays(weekStart, 7);
+      if (shifts) {
+        const shiftsToDelete = shifts.filter(s => {
+          const d = parseISO(s.date);
+          return d >= weekStart && d < weekEnd && s.type !== "MANUAL";
+        });
+        for (const shift of shiftsToDelete) {
+          deleteDocumentNonBlocking(doc(db, "employees", shift.employeeId, "shifts", shift.id));
         }
       }
       
@@ -178,69 +235,53 @@ export default function ShiftsPage() {
           const targetDay = addDays(weekStart, i);
           const dateStr = format(targetDay, 'yyyy-MM-dd');
           
-          const isAbsent = weekAbsences.some(abs => 
-            abs.employeeId === emp.id && dateStr >= abs.startDate && dateStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT'
-          );
-          if (isAbsent) continue;
+          // Verifica assenza
+          const dayAbs = (indexedAbsences[dateStr] || {})[emp.id] || [];
+          if (dayAbs.some(a => a.type !== 'HOURLY_PERMIT')) continue;
 
           if (isSavino) {
             let amEndHour = 10;
             if (i === 3) amEndHour = 13; // Giovedì
             else if (i === 5) amEndHour = 11; // Sabato
 
+            const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
+            const endAM = new Date(targetDay); endAM.setHours(amEndHour, 0, 0);
             const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
-            const hasAM = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() < 14);
-            if (!hasAM) {
-              const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
-              const endAM = new Date(targetDay); endAM.setHours(amEndHour, 0, 0);
-              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
-                id: idAM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Mattina", date: dateStr, startTime: startAM.toISOString(), endTime: endAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO"
-              }, { merge: true });
-            }
+            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
+              id: idAM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Mattina", date: dateStr, startTime: startAM.toISOString(), endTime: endAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO"
+            }, { merge: true });
 
+            const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
+            const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
             const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
-            const hasPM = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() >= 14);
-            if (!hasPM) {
-              const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
-              const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
-              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
-                id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: startPM.toISOString(), endTime: endPM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
-              }, { merge: true });
-            }
+            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
+              id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: startPM.toISOString(), endTime: endPM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
+            }, { merge: true });
             continue;
           }
 
           if (emp.contractType === "full-time") {
             const mOver = targetDay.getDay().toString() === emp.restDay && (("09:00" < (emp.restEndTime || "00:00") && "13:00" > (emp.restStartTime || "00:00")));
             if (!mOver) {
+              const sAM = new Date(targetDay); sAM.setHours(9, 0, 0);
+              const eAM = new Date(targetDay); eAM.setHours(13, 0, 0);
               const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
-              const hasM = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() < 14);
-              if (!hasM) {
-                const sAM = new Date(targetDay); sAM.setHours(9, 0, 0);
-                const eAM = new Date(targetDay); eAM.setHours(13, 0, 0);
-                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), { id: idAM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Mattina", date: dateStr, startTime: sAM.toISOString(), endTime: eAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO" }, { merge: true });
-              }
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), { id: idAM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Mattina", date: dateStr, startTime: sAM.toISOString(), endTime: eAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO" }, { merge: true });
             }
             const pOver = targetDay.getDay().toString() === emp.restDay && (("17:00" < (emp.restEndTime || "00:00") && "20:20" > (emp.restStartTime || "00:00")));
             if (!pOver) {
+              const sPM = new Date(targetDay); sPM.setHours(17, 0, 0);
+              const ePM = new Date(targetDay); ePM.setHours(20, 20, 0);
               const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
-              const hasP = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() >= 14);
-              if (!hasP) {
-                const sPM = new Date(targetDay); sPM.setHours(17, 0, 0);
-                const ePM = new Date(targetDay); ePM.setHours(20, 20, 0);
-                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), { id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: sPM.toISOString(), endTime: ePM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO" }, { merge: true });
-              }
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), { id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: sPM.toISOString(), endTime: ePM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO" }, { merge: true });
             }
           } else {
             const pOver = targetDay.getDay().toString() === emp.restDay && (("17:00" < (emp.restEndTime || "00:00") && "20:20" > (emp.restStartTime || "00:00")));
             if (!pOver) {
+              const sPT = new Date(targetDay); sPT.setHours(17, 0, 0);
+              const ePT = new Date(targetDay); ePT.setHours(20, 20, 0);
               const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
-              const hasP = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() >= 14);
-              if (!hasP) {
-                const sPT = new Date(targetDay); sPT.setHours(17, 0, 0);
-                const ePT = new Date(targetDay); ePT.setHours(20, 20, 0);
-                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), { id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio (PT)", date: dateStr, startTime: sPT.toISOString(), endTime: ePT.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO" }, { merge: true });
-              }
+              setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), { id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio (PT)", date: dateStr, startTime: sPT.toISOString(), endTime: ePT.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO" }, { merge: true });
             }
           }
         }
@@ -309,12 +350,15 @@ export default function ShiftsPage() {
     toast({ title: "Turno Aggiornato" });
   }
 
+  const paleseLoc = locations?.find(l => l.name.toUpperCase().includes("PALESE"));
+  const bisceglieLoc = locations?.find(l => l.name.toUpperCase().includes("BISCEGLIE"));
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-slate-500 font-medium">Agenda settimanale con doppio slot fisso Palese/Bisceglie.</p>
+          <p className="text-slate-500 font-medium">Gestione ottimizzata a doppio slot (Palese/Bisceglie).</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-11 px-6"><UserMinus className="h-4 w-4 mr-2" /> Assenza</Button>
@@ -342,7 +386,6 @@ export default function ShiftsPage() {
             <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
           ) : (
             <div className="flex flex-col">
-              {/* Header Colonne */}
               <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
                 <div className="w-[180px] p-4 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
                 {displayEmployees.map(emp => (
@@ -363,7 +406,6 @@ export default function ShiftsPage() {
                 </div>
               </div>
 
-              {/* Righe Giornaliere */}
               <div className="divide-y">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
@@ -371,54 +413,42 @@ export default function ShiftsPage() {
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-50/10">
-                      {/* Cella Data */}
                       <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
                         <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
                         <div className="text-3xl font-black text-slate-800">{format(day, 'dd')}</div>
                       </div>
                       
-                      {/* Celle Dipendenti */}
                       {displayEmployees.map(emp => {
-                        const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
-                        const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
+                        const dayShifts = (indexedShifts[dayStr] || {})[emp.id] || [];
+                        const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
                         
-                        const paleseLoc = locations?.find(l => l.name.toUpperCase().includes("PALESE"));
-                        const bisceglieLoc = locations?.find(l => l.name.toUpperCase().includes("BISCEGLIE"));
-
-                        // Smistamento turni per slot fisso
-                        const paleseEvents = dayShifts.filter(s => s.locationId === paleseLoc?.id || (s.type === 'AUTO' && emp.locationId === paleseLoc?.id));
-                        const bisceglieEvents = dayShifts.filter(s => s.locationId === bisceglieLoc?.id || (s.type === 'AUTO' && emp.locationId === bisceglieLoc?.id));
-                        
-                        // Assenze (vanno in entrambi o in base alla sede principale?) -> Per ora le mostriamo in entrambi per visibilità
-                        const paleseAbs = dayAbsences;
-                        const bisceglieAbs = dayAbsences;
+                        // Smistamento turni (accesso O(1) invece di .filter ogni volta)
+                        const paleseEvents = dayShifts.filter(s => s.locationId === paleseLoc?.id);
+                        const bisceglieEvents = dayShifts.filter(s => s.locationId === bisceglieLoc?.id);
 
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[240px] border-r flex flex-col divide-y bg-white">
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[240px] border-r flex flex-col bg-white">
                             
-                            {/* SLOT PALESE (ALTO) */}
-                            <div className="p-2 min-h-[100px] flex flex-col gap-1 bg-blue-50/20">
-                              <div className="flex items-center justify-between opacity-40 mb-1">
+                            {/* SLOT PALESE */}
+                            <div className="p-2 min-h-[80px] flex flex-col gap-1 bg-blue-50/10 border-b border-dashed border-slate-100">
+                              <div className="flex items-center justify-between opacity-30 mb-0.5">
                                 <span className="text-[7px] font-black uppercase tracking-widest text-blue-600">PALESE</span>
-                                <MapPin className="h-2 w-2 text-blue-400" />
                               </div>
                               <div className="flex flex-col gap-1">
-                                {paleseAbs.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
-                                {paleseEvents.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(s => (
+                                {dayAbsences.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
+                                {paleseEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
                               </div>
                             </div>
 
-                            {/* SLOT BISCEGLIE (BASSO) */}
-                            <div className="p-2 min-h-[100px] flex flex-col gap-1 bg-emerald-50/20">
-                              <div className="flex items-center justify-between opacity-40 mb-1">
+                            {/* SLOT BISCEGLIE */}
+                            <div className="p-2 min-h-[80px] flex flex-col gap-1 bg-emerald-50/10">
+                              <div className="flex items-center justify-between opacity-30 mb-0.5">
                                 <span className="text-[7px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
-                                <MapPin className="h-2 w-2 text-emerald-400" />
                               </div>
                               <div className="flex flex-col gap-1">
-                                {bisceglieAbs.map(a => <AbsenceItem key={`b-abs-${a.id}`} a={a} />)}
-                                {bisceglieEvents.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()).map(s => (
+                                {bisceglieEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
                               </div>
@@ -427,24 +457,11 @@ export default function ShiftsPage() {
                         );
                       })}
 
-                      {/* Riepilogo Sedi */}
+                      {/* Riepilogo Sedi (Accesso O(1) ai dati pre-calcolati) */}
                       <div className="min-w-[250px] p-3 border-l-2 border-slate-300 bg-slate-50/50 flex flex-col gap-2 justify-center">
                         {locations?.map(loc => {
-                          const morningCount = weekShifts.filter(s => 
-                            s.locationId === loc.id && 
-                            s.date === dayStr && 
-                            parseISO(s.startTime).getHours() < 14 &&
-                            !weekAbsences.some(abs => abs.employeeId === s.employeeId && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT')
-                          ).length;
-
-                          const afternoonCount = weekShifts.filter(s => 
-                            s.locationId === loc.id && 
-                            s.date === dayStr && 
-                            parseISO(s.startTime).getHours() >= 14 &&
-                            !weekAbsences.some(abs => abs.employeeId === s.employeeId && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT')
-                          ).length;
-
-                          const isWarning = morningCount === 0 || afternoonCount === 0;
+                          const counts = dailyLocationCounts[dayStr]?.[loc.id] || { morning: 0, afternoon: 0 };
+                          const isWarning = counts.morning === 0 || counts.afternoon === 0;
 
                           return (
                             <div key={loc.id} className={cn("p-2 rounded-xl bg-white border shadow-sm space-y-1", isWarning && "ring-2 ring-rose-200")}>
@@ -454,14 +471,14 @@ export default function ShiftsPage() {
                               </div>
                               <div className="flex justify-between items-center text-[10px] font-bold">
                                 <span className="text-slate-400">MAT:</span>
-                                <Badge className={cn("h-5 px-1.5 font-black text-[9px]", morningCount > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>
-                                  {morningCount}
+                                <Badge className={cn("h-5 px-1.5 font-black text-[9px]", counts.morning > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>
+                                  {counts.morning}
                                 </Badge>
                               </div>
                               <div className="flex justify-between items-center text-[10px] font-bold">
                                 <span className="text-slate-400">POM:</span>
-                                <Badge className={cn("h-5 px-1.5 font-black text-[9px]", afternoonCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700")}>
-                                  {afternoonCount}
+                                <Badge className={cn("h-5 px-1.5 font-black text-[9px]", counts.afternoon > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700")}>
+                                  {counts.afternoon}
                                 </Badge>
                               </div>
                             </div>
