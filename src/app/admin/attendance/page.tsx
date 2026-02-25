@@ -126,7 +126,7 @@ export default function AttendancePage() {
 
         if (filterType !== "all") {
           const type = entry.type || "MANUAL";
-          if (filterType === "USER" && type !== "MANUAL") return false;
+          if (filterType === "USER" && type !== "MANUAL" && type !== "USER") return false;
           if (filterType === "AUTO" && type !== "AUTO") return false;
           if (filterType === "ADMIN" && type !== "ADMIN") return false;
           if (filterType === "ABSENCE" && type !== "ABSENCE") return false;
@@ -327,14 +327,14 @@ export default function AttendancePage() {
                           {getSourceBadge(log.type)}
                         </TableCell>
                         <TableCell className="pr-6 text-right">
-                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex justify-end gap-2">
                             {!isAbsence && (
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" onClick={() => handleEditClick(log)}>
-                                <Edit className="h-3.5 w-3.5" />
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-[#227FD8] hover:bg-blue-50" onClick={() => handleEditClick(log)}>
+                                <Edit className="h-4 w-4" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500" onClick={() => handleDeleteEntry(log)}>
-                              <Trash2 className="h-3.5 w-3.5" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-50" onClick={() => handleDeleteEntry(log)}>
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -346,7 +346,7 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
         )) : (
-          <Card className="py-20 text-center border-dashed"><p className="text-slate-400 font-bold italic">Nessun movimento trovato.</p></Card>
+          <Card className="py-20 text-center border-dashed border-2"><p className="text-slate-400 font-bold italic">Nessun movimento trovato per i criteri selezionati.</p></Card>
         )}
       </div>
 

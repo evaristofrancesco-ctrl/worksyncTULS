@@ -6,18 +6,32 @@ service cloud.firestore {
     /**
      * CONFIGURAZIONE OTTIMIZZATA TU.L.S. (PROTOTIPO)
      * Consente l'accesso completo a tutti gli utenti autenticati.
-     * Questo è necessario per supportare le query di ricerca (login) 
-     * e i report globali (collectionGroup) su qualsiasi dispositivo.
      */
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Permettiamo lettura e scrittura su tutti i documenti se l'utente è autenticato
-    // (L'autenticazione anonima viene attivata automaticamente nella pagina di login)
+    // Regola Catch-all per tutti i documenti
     match /{document=**} {
       allow read, write: if isSignedIn();
+    }
+
+    // Regole esplicite per supportare le query collectionGroup (necessarie per report e dashboard admin)
+    match /{path=**}/timeentries/{doc} {
+      allow read: if isSignedIn();
+    }
+    match /{path=**}/requests/{doc} {
+      allow read: if isSignedIn();
+    }
+    match /{path=**}/shifts/{doc} {
+      allow read: if isSignedIn();
+    }
+    match /{path=**}/modifications/{doc} {
+      allow read: if isSignedIn();
+    }
+    match /{path=**}/notifications/{doc} {
+      allow read: if isSignedIn();
     }
   }
 }
