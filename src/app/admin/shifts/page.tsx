@@ -24,7 +24,8 @@ import {
   Timer,
   Users,
   Building2,
-  Lock
+  Lock,
+  AlertCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -58,6 +59,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function ShiftsPage() {
   const db = useFirestore()
@@ -149,6 +151,54 @@ export default function ShiftsPage() {
       } catch (e) { return false; }
     });
   }, [allRequests, weekStart]);
+
+  // LOGICA CONTROLLO PUNTI VENDITA SCOPERTI
+  const coverageAnalysis = useMemo(() => {
+    if (!locations || !weekShifts || !displayEmployees || !daysOfVisualizedWeek) return [];
+    
+    const gaps: any[] = [];
+    
+    daysOfVisualizedWeek.forEach(day => {
+      const dayStr = format(day, 'yyyy-MM-dd');
+      const dayOfWeek = day.getDay();
+      if (dayOfWeek === 0) return; // Domenica chiuso
+
+      locations.forEach(loc => {
+        const morningStaff = weekShifts.filter(s => 
+          s.date === dayStr && 
+          parseISO(s.startTime).getHours() < 14 &&
+          displayEmployees.find(e => e.id === s.employeeId)?.locationId === loc.id
+        );
+        
+        const afternoonStaff = weekShifts.filter(s => 
+          s.date === dayStr && 
+          parseISO(s.startTime).getHours() >= 14 &&
+          displayEmployees.find(e => e.id === s.employeeId)?.locationId === loc.id
+        );
+
+        if (morningStaff.length === 0) {
+          gaps.push({ 
+            day: dayStr, 
+            dayName: format(day, 'EEEE d MMMM', { locale: it }), 
+            location: loc.name, 
+            slot: "Mattina",
+            id: `gap-${dayStr}-${loc.id}-AM`
+          });
+        }
+        if (afternoonStaff.length === 0) {
+          gaps.push({ 
+            day: dayStr, 
+            dayName: format(day, 'EEEE d MMMM', { locale: it }), 
+            location: loc.name, 
+            slot: "Pomeriggio",
+            id: `gap-${dayStr}-${loc.id}-PM`
+          });
+        }
+      });
+    });
+    
+    return gaps;
+  }, [locations, weekShifts, displayEmployees, daysOfVisualizedWeek]);
 
   const handleAutoGenerate = async () => {
     if (!displayEmployees || displayEmployees.length === 0) {
@@ -310,6 +360,23 @@ export default function ShiftsPage() {
         </div>
       </div>
 
+      {/* AVVISI PUNTI VENDITA SCOPERTI */}
+      {coverageAnalysis.length > 0 && (
+        <Alert variant="destructive" className="bg-rose-50 border-rose-200 shadow-sm animate-in slide-in-from-top-4">
+          <AlertCircle className="h-5 w-5 text-rose-600" />
+          <AlertTitle className="font-black uppercase tracking-tight text-rose-800">Attenzione: Sedi Scoperte</AlertTitle>
+          <AlertDescription className="text-rose-700 font-medium grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1 mt-2">
+            {coverageAnalysis.map(gap => (
+              <div key={gap.id} className="flex items-center gap-2 text-xs">
+                <span className="font-black text-rose-900 min-w-[100px]">{gap.dayName}:</span>
+                <span className="bg-rose-200/50 px-1.5 py-0.5 rounded font-bold">{gap.location}</span>
+                <span className="italic">({gap.slot})</span>
+              </div>
+            ))}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card className="border-none shadow-sm overflow-hidden bg-white">
         <CardHeader className="bg-slate-50/50 border-b py-4">
           <div className="flex items-center justify-between">
@@ -333,7 +400,10 @@ export default function ShiftsPage() {
                 {displayEmployees.map((emp) => (
                   <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3">
                     <Avatar className="h-8 w-8 shadow-sm ring-1 ring-slate-100"><AvatarImage src={emp.photoUrl} /><AvatarFallback className="font-bold">{(emp.firstName || "U").charAt(0)}</AvatarFallback></Avatar>
-                    <span className="font-bold text-slate-900 text-sm">{emp.firstName}</span>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-slate-900 text-sm leading-tight">{emp.firstName}</span>
+                      <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{emp.locationName || "Sede N.D."}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -343,9 +413,12 @@ export default function ShiftsPage() {
                   <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
                 ) : daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
+                  const hasGaps = coverageAnalysis.some(g => g.day === dayStr);
+                  
                   return (
-                    <div key={dayStr} className="flex group hover:bg-slate-50/30">
-                      <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
+                    <div key={dayStr} className={cn("flex group hover:bg-slate-50/30", hasGaps && "bg-rose-50/10")}>
+                      <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center relative">
+                        {hasGaps && <div className="absolute top-2 right-2 h-2 w-2 rounded-full bg-rose-500 animate-pulse" title="Sedi scoperte in questo giorno" />}
                         <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
                         <div className="text-3xl font-black text-slate-800">{format(day, 'dd')}</div>
                       </div>
