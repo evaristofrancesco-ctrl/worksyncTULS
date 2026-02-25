@@ -188,13 +188,13 @@ export default function ShiftsPage() {
         for (let i = 0; i < 6; i++) {
           const targetDay = addDays(weekStart, i);
           const dateStr = format(targetDay, 'yyyy-MM-dd');
-          const dayIdx = targetDay.getDay(); // 1=Lun, 6=Sab
+          const dayIdx = targetDay.getDay();
           
           if (isSavino) {
             let amEndHour = 10;
             let amEndMin = 0;
-            if (dayIdx === 4) amEndHour = 13; // Giovedì
-            else if (dayIdx === 6) { amEndHour = 11; amEndMin = 0; } // Sabato
+            if (dayIdx === 4) amEndHour = 13;
+            else if (dayIdx === 6) { amEndHour = 11; amEndMin = 0; }
 
             const sAM = new Date(targetDay); sAM.setHours(9, 0, 0);
             const eAM = new Date(targetDay); eAM.setHours(amEndHour, amEndMin, 0);
@@ -210,7 +210,7 @@ export default function ShiftsPage() {
               id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: sPM.toISOString(), endTime: ePM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
             }, { merge: true });
           } else {
-            // Regole standard... (omesse per brevità ma mantenute nel motore)
+            // Logica per altri dipendenti se necessaria
           }
         }
       }
@@ -273,8 +273,8 @@ export default function ShiftsPage() {
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-slate-500 font-medium">Layout a doppio slot fisso (Palese/Bisceglie) ottimizzato.</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
+          <p className="text-base text-slate-500 font-medium">Layout a doppio slot fisso (Palese/Bisceglie) ottimizzato.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-11 px-6"><UserMinus className="h-4 w-4 mr-2" /> Assenza</Button>
@@ -287,7 +287,7 @@ export default function ShiftsPage() {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-5 w-5" /></Button>
           <div className="text-center min-w-[200px]">
-            <span className="text-xl font-black text-slate-900 uppercase">
+            <span className="text-2xl font-black text-slate-900 uppercase">
               {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
             </span>
           </div>
@@ -303,22 +303,22 @@ export default function ShiftsPage() {
           ) : (
             <div className="flex flex-col">
               <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
-                <div className="w-[180px] p-4 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
+                <div className="w-[180px] p-4 font-black text-[11px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
                 {displayEmployees.map(emp => (
                   <div key={emp.id} className="min-w-[240px] p-4 border-r flex items-center gap-3">
-                    <Avatar className="h-8 w-8 shadow-sm ring-1 ring-slate-200">
+                    <Avatar className="h-10 w-10 shadow-sm ring-1 ring-slate-200">
                       <AvatarImage src={emp.photoUrl} />
-                      <AvatarFallback className="font-bold">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="font-bold text-base">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-bold text-slate-900 text-sm leading-tight">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{emp.locationName}</span>
+                      <span className="font-bold text-slate-900 text-base leading-tight">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{emp.locationName}</span>
                     </div>
                   </div>
                 ))}
                 <div className="min-w-[250px] p-4 bg-slate-100/50 flex items-center gap-2 border-l-2 border-slate-300">
-                  <BarChart3 className="h-4 w-4 text-slate-600" />
-                  <span className="font-black text-[10px] uppercase text-slate-600">Copertura</span>
+                  <BarChart3 className="h-5 w-5 text-slate-600" />
+                  <span className="font-black text-[11px] uppercase text-slate-600">Copertura</span>
                 </div>
               </div>
 
@@ -330,8 +330,8 @@ export default function ShiftsPage() {
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-50/5">
                       <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
-                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className="text-3xl font-black text-slate-800">{format(day, 'dd')}</div>
+                        <div className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
+                        <div className="text-4xl font-black text-slate-800">{format(day, 'dd')}</div>
                       </div>
                       
                       {displayEmployees.map(emp => {
@@ -348,7 +348,7 @@ export default function ShiftsPage() {
                             {/* SLOT FISSO PALESE */}
                             <div className="p-2 min-h-[100px] flex flex-col gap-1 bg-blue-50/10 border-b border-dashed border-slate-100 relative group/slot">
                               <div className="flex items-center justify-between opacity-20 mb-0.5">
-                                <span className="text-[7px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
+                                <span className="text-[8px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
                               </div>
                               <div className="flex flex-col gap-1">
                                 {paleseAbsences.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
@@ -361,7 +361,7 @@ export default function ShiftsPage() {
                             {/* SLOT FISSO BISCEGLIE */}
                             <div className="p-2 min-h-[100px] flex flex-col gap-1 bg-emerald-50/10 relative group/slot">
                               <div className="flex items-center justify-between opacity-20 mb-0.5">
-                                <span className="text-[7px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
+                                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
                               </div>
                               <div className="flex flex-col gap-1">
                                 {bisceglieAbsences.map(a => <AbsenceItem key={`b-abs-${a.id}`} a={a} />)}
@@ -381,16 +381,16 @@ export default function ShiftsPage() {
                           return (
                             <div key={loc.id} className={cn("p-2 rounded-xl bg-white border shadow-sm space-y-1", isWarning && "ring-2 ring-rose-200 animate-pulse")}>
                               <div className="flex items-center gap-1.5 mb-1">
-                                <MapPin className={cn("h-3 w-3", isWarning ? "text-rose-500" : "text-slate-400")} />
-                                <span className="font-black text-[9px] uppercase text-slate-600 truncate">{loc.name}</span>
+                                <MapPin className={cn("h-4 w-4", isWarning ? "text-rose-500" : "text-slate-400")} />
+                                <span className="font-black text-[10px] uppercase text-slate-600 truncate">{loc.name}</span>
                               </div>
-                              <div className="flex justify-between items-center text-[10px] font-bold">
+                              <div className="flex justify-between items-center text-[11px] font-bold">
                                 <span className="text-slate-400">MAT:</span>
-                                <Badge className={cn("h-5 px-1.5 font-black text-[9px]", counts.morning > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{counts.morning}</Badge>
+                                <Badge className={cn("h-6 px-2 font-black text-[10px]", counts.morning > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{counts.morning}</Badge>
                               </div>
-                              <div className="flex justify-between items-center text-[10px] font-bold">
+                              <div className="flex justify-between items-center text-[11px] font-bold">
                                 <span className="text-slate-400">POM:</span>
-                                <Badge className={cn("h-5 px-1.5 font-black text-[9px]", counts.afternoon > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700")}>{counts.afternoon}</Badge>
+                                <Badge className={cn("h-6 px-2 font-black text-[10px]", counts.afternoon > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700")}>{counts.afternoon}</Badge>
                               </div>
                             </div>
                           );
@@ -406,7 +406,6 @@ export default function ShiftsPage() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      {/* Dialogs per Nuovo Turno, Modifica e Assenza */}
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
@@ -488,20 +487,20 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
   const isMorning = parseISO(s.startTime).getHours() < 14;
   
   return (
-    <div className={cn("group/item relative p-1.5 rounded border-l-2 shadow-sm transition-all hover:scale-[1.02] bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
+    <div className={cn("group/item relative p-2 rounded border-l-2 shadow-sm transition-all hover:scale-[1.02] bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
       <div className="flex justify-between items-start">
         <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-tight">
-            {isMorning ? <Sun className="h-2.5 w-2.5 text-amber-500" /> : <Moon className="h-2.5 w-2.5 text-indigo-500" />}
+          <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-tight">
+            {isMorning ? <Sun className="h-3 w-3 text-amber-500" /> : <Moon className="h-3 w-3 text-indigo-500" />}
             {start} - {end}
           </div>
           {s.title && s.title !== 'Turno Mattina' && s.title !== 'Turno Pomeriggio' && (
-            <span className="text-[8px] font-bold text-slate-400 truncate w-32">{s.title}</span>
+            <span className="text-[9px] font-bold text-slate-400 truncate w-36">{s.title}</span>
           )}
         </div>
-        <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-0.5 hover:bg-black/5 rounded"><Edit className="h-3 w-3" /></button>
-          <button onClick={onDelete} className="p-0.5 hover:bg-rose-500/10 rounded text-rose-600"><Trash2 className="h-3 w-3" /></button>
+        <div className="flex gap-1.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
+          <button onClick={onEdit} className="p-0.5 hover:bg-black/5 rounded"><Edit className="h-3.5 w-3.5" /></button>
+          <button onClick={onDelete} className="p-0.5 hover:bg-rose-500/10 rounded text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
         </div>
       </div>
     </div>
@@ -511,19 +510,19 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
 function AbsenceItem({ a }: { a: any }) {
   const getIcon = () => {
     switch(a.type) {
-      case 'VACATION': return <Umbrella className="h-2.5 w-2.5" />;
-      case 'SICK': return <Activity className="h-2.5 w-2.5" />;
-      case 'HOURLY_PERMIT': return <Timer className="h-2.5 w-2.5" />;
-      default: return <UserMinus className="h-2.5 w-2.5" />;
+      case 'VACATION': return <Umbrella className="h-3 w-3" />;
+      case 'SICK': return <Activity className="h-3 w-3" />;
+      case 'HOURLY_PERMIT': return <Timer className="h-3 w-3" />;
+      default: return <UserMinus className="h-3 w-3" />;
     }
   }
   return (
-    <div className="bg-rose-50 border-l-2 border-rose-400 p-1.5 rounded shadow-sm">
+    <div className="bg-rose-50 border-l-2 border-rose-400 p-2 rounded shadow-sm">
       <div className="flex items-center gap-1">
         {getIcon()}
-        <span className="font-black uppercase tracking-tighter text-[8px] text-rose-700">{a.type}</span>
+        <span className="font-black uppercase tracking-tighter text-[9px] text-rose-700">{a.type}</span>
       </div>
-      <div className="font-bold text-[8px] text-rose-900 mt-0.5">
+      <div className="font-bold text-[9px] text-rose-900 mt-0.5">
         {a.type === 'HOURLY_PERMIT' ? `${a.startTime} - ${a.endTime}` : 'Giornaliera'}
       </div>
     </div>
