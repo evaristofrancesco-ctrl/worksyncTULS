@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Clock, Search, Loader2, Zap, UserCheck, Plus, Edit, Trash2, Save, AlertTriangle, ShieldCheck, Fingerprint, Info, Check, X, Umbrella, Activity, Timer, CalendarDays, History } from "lucide-react"
@@ -16,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, doc } from "firebase/firestore"
+import { collection, collectionGroup, doc, query, orderBy, limit } from "firebase/firestore"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -40,7 +41,6 @@ export default function AttendancePage() {
   const db = useFirestore()
   const { toast } = useToast()
   
-  // Stati per i Filtri
   const [searchQuery, setSearchQuery] = useState("")
   const [filterDate, setFilterDate] = useState("")
   const [filterType, setFilterType] = useState("all")
@@ -49,22 +49,6 @@ export default function AttendancePage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isForceOpen, setIsForceOpen] = useState(false)
   const [isAutoOpen, setIsAutoOpen] = useState(false)
-  const [isEditOpen, setIsEditOpen] = useState(false)
-  const [editingEntry, setEditingEntry] = useState<any>(null)
-
-  const [newEntry, setNewEntry] = useState({
-    employeeId: "",
-    date: new Date().toISOString().split('T')[0],
-    checkIn: "09:00",
-    checkOut: "13:00"
-  })
-
-  const [autoParams, setAutoParams] = useState({
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
-    selectedEmployees: [] as string[],
-    selectAll: true
-  })
 
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -74,13 +58,14 @@ export default function AttendancePage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return collectionGroup(db, "timeentries");
+    // Ottimizzazione: limitiamo a 500 per evitare crash, ordinando per i più recenti
+    return query(collectionGroup(db, "timeentries"), orderBy("checkInTime", "desc"), limit(500));
   }, [db])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return collectionGroup(db, "requests");
+    return query(collectionGroup(db, "requests"), orderBy("submittedAt", "desc"), limit(200));
   }, [db])
   const { data: allRequests, isLoading: isLoadingRequests } = useCollection(requestsQuery)
 
@@ -88,10 +73,11 @@ export default function AttendancePage() {
 
   const employeeMap = useMemo(() => {
     if (!employees) return {};
-    return employees.reduce((acc, emp) => {
-      acc[emp.id] = emp;
-      return acc;
-    }, {} as Record<string, any>);
+    const map: Record<string, any> = {};
+    for (const emp of employees) {
+      map[emp.id] = emp;
+    }
+    return map;
   }, [employees]);
 
   const unifiedEntries = useMemo(() => {
@@ -118,14 +104,15 @@ export default function AttendancePage() {
   }, [entries, allRequests]);
 
   const filteredEntries = useMemo(() => {
-    const horizon = subDays(new Date(), 7);
+    const horizon = subDays(new Date(), 30); // Mostriamo gli ultimi 30 giorni di default se non filtrato
 
     return unifiedEntries
       .filter(entry => {
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
 
-        if (!showAllHistory && !filterDate && entry.checkInTime) {
+        // Se non abbiamo filtri attivi, limitiamo la vista per performance
+        if (!showAllHistory && !filterDate && !searchQuery && entry.checkInTime) {
           if (new Date(entry.checkInTime) < horizon) return false;
         }
 
@@ -156,43 +143,13 @@ export default function AttendancePage() {
 
   const groupedEntries = useMemo(() => {
     const groups: Record<string, any[]> = {};
-    filteredEntries.forEach(entry => {
+    for (const entry of filteredEntries) {
       const dateKey = entry.checkInTime ? new Date(entry.checkInTime).toISOString().split('T')[0] : "no-date";
       if (!groups[dateKey]) groups[dateKey] = [];
       groups[dateKey].push(entry);
-    });
+    }
     return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
   }, [filteredEntries]);
-
-  const handleAutoClockIn = async () => {
-    const targetIds = autoParams.selectAll ? activeEmployees.map(e => e.id) : autoParams.selectedEmployees;
-    if (targetIds.length === 0) return;
-    setIsGenerating(true);
-    try {
-      let count = 0;
-      const start = parseISO(autoParams.startDate);
-      const end = parseISO(autoParams.endDate);
-      for (let d = start; d <= end; d = addDays(d, 1)) {
-        if (isSunday(d)) continue;
-        const dateStr = format(d, 'yyyy-MM-dd');
-        for (const empId of targetIds) {
-          const emp = employeeMap[empId];
-          if (!emp || emp.autoClockIn === false) continue;
-          const idAM = `auto-${emp.id}-${dateStr}-MORNING`;
-          const checkInAM = new Date(d); checkInAM.setHours(9, 0, 0);
-          const checkOutAM = new Date(d); checkOutAM.setHours(13, 0, 0);
-          setDocumentNonBlocking(doc(db, "employees", emp.id, "timeentries", idAM), {
-            id: idAM, employeeId: emp.id, companyId: "default", checkInTime: checkInAM.toISOString(), checkOutTime: checkOutAM.toISOString(), status: "PRESENT", isApproved: true, type: "AUTO"
-          }, { merge: true });
-          count++;
-        }
-      }
-      toast({ title: "Completato", description: `Generate ${count} timbrature.` });
-      setIsAutoOpen(false);
-    } finally {
-      setIsGenerating(false);
-    }
-  }
 
   const handleDeleteEntry = (log: any) => {
     if (log.type === "ABSENCE") {
@@ -219,15 +176,12 @@ export default function AttendancePage() {
         <div>
           <h1 className="text-3xl font-black text-[#1e293b] tracking-tight">Registro Presenze</h1>
           <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-            <History className="h-4 w-4" /> Archivio movimenti e gestione timbrature.
+            <History className="h-4 w-4" /> Archivio movimenti recenti (max 500).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIsForceOpen(true)} className="font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-10 shadow-sm">
             <Plus className="h-4 w-4 mr-2" /> Inserimento Manuale
-          </Button>
-          <Button onClick={() => setIsAutoOpen(true)} className="bg-amber-500 hover:bg-amber-600 font-black h-10 shadow-md">
-            <Zap className="h-4 w-4 mr-2" /> Genera Automatico
           </Button>
         </div>
       </div>
@@ -253,7 +207,7 @@ export default function AttendancePage() {
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" className="h-10 font-bold" onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}>Reset</Button>
               {!showAllHistory && !filterDate && (
-                <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase tracking-tighter" onClick={() => setShowAllHistory(true)}>Mostra tutto lo storico</Button>
+                <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase tracking-tighter" onClick={() => setShowAllHistory(true)}>Carica Altro</Button>
               )}
             </div>
           </div>
@@ -275,7 +229,7 @@ export default function AttendancePage() {
                     <CardTitle className="text-sm font-black uppercase text-[#1e293b]">
                       {format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}
                     </CardTitle>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti registrati</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti</p>
                   </div>
                 </div>
               </CardHeader>
