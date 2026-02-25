@@ -120,7 +120,6 @@ export default function ShiftsPage() {
       .sort((a, b) => (a.firstName || "").localeCompare(b.firstName || ""));
   }, [employees]);
 
-  // --- OTTIMIZZAZIONE TRAMITE LOOKUP MAPS (O(1) Access) ---
   const indexedShifts = useMemo(() => {
     const map: Record<string, Record<string, any[]>> = {};
     if (!shifts) return map;
@@ -150,7 +149,6 @@ export default function ShiftsPage() {
     return map;
   }, [allRequests, daysOfVisualizedWeek]);
 
-  // Pre-calcolo delle coperture per efficienza
   const dailyLocationCounts = useMemo(() => {
     const counts: Record<string, Record<string, { morning: number, afternoon: number }>> = {};
     daysOfVisualizedWeek.forEach(day => {
@@ -209,8 +207,6 @@ export default function ShiftsPage() {
             setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
               id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: sPM.toISOString(), endTime: ePM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
             }, { merge: true });
-          } else {
-            // Logica per altri dipendenti se necessaria
           }
         }
       }
@@ -270,68 +266,68 @@ export default function ShiftsPage() {
   const bisceglieLoc = locations?.find(l => l.name.toUpperCase().includes("BISCEGLIE"));
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-base text-slate-500 font-medium">Layout a doppio slot fisso (Palese/Bisceglie) ottimizzato.</p>
+          <h1 className="text-5xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
+          <p className="text-lg text-slate-500 font-medium">Layout a doppio slot fisso (Palese/Bisceglie) ottimizzato.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-11 px-6"><UserMinus className="h-4 w-4 mr-2" /> Assenza</Button>
-          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="font-bold border-blue-200 text-[#227FD8] h-11">{isGenerating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />} Genera</Button>
-          <Button onClick={() => setIsShiftOpen(true)} className="bg-[#227FD8] font-black h-11 px-6 shadow-lg"><Plus className="h-4 w-4 mr-2" /> Nuovo Turno</Button>
+          <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-12 px-6 uppercase"><UserMinus className="h-5 w-5 mr-2" /> Assenza</Button>
+          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="font-bold border-blue-200 text-[#227FD8] h-12 px-6 uppercase">{isGenerating ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Sparkles className="h-5 w-5 mr-2" />} Genera</Button>
+          <Button onClick={() => setIsShiftOpen(true)} className="bg-[#227FD8] font-black h-12 px-8 shadow-lg uppercase"><Plus className="h-5 w-5 mr-2" /> Nuovo Turno</Button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-5 w-5" /></Button>
-          <div className="text-center min-w-[200px]">
-            <span className="text-2xl font-black text-slate-900 uppercase">
+      <div className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border ring-1 ring-slate-100">
+        <div className="flex items-center gap-6">
+          <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-6 w-6" /></Button>
+          <div className="text-center min-w-[250px]">
+            <span className="text-3xl font-black text-slate-900 uppercase tracking-tight">
               {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
             </span>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-5 w-5" /></Button>
+          <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-6 w-6" /></Button>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => setCurrentDate(new Date())} className="font-bold uppercase">Oggi</Button>
+        <Button variant="secondary" className="font-black uppercase px-6 h-10 tracking-widest" onClick={() => setCurrentDate(new Date())}>Oggi</Button>
       </div>
 
-      <ScrollArea className="w-full h-[800px] border rounded-2xl bg-white shadow-sm">
+      <ScrollArea className="w-full h-[850px] border rounded-3xl bg-white shadow-md">
         <div className="inline-block min-w-full">
           {isEmployeesLoading || isShiftsLoading ? (
-            <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
+            <div className="py-32 text-center"><Loader2 className="h-12 w-12 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-bold text-slate-400">Caricamento dati...</p></div>
           ) : (
             <div className="flex flex-col">
               <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
-                <div className="w-[180px] p-4 font-black text-[11px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
+                <div className="w-[200px] p-5 font-black text-xs uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
                 {displayEmployees.map(emp => (
-                  <div key={emp.id} className="min-w-[240px] p-4 border-r flex items-center gap-3">
-                    <Avatar className="h-10 w-10 shadow-sm ring-1 ring-slate-200">
+                  <div key={emp.id} className="min-w-[260px] p-5 border-r flex items-center gap-4 bg-slate-50/50">
+                    <Avatar className="h-12 w-12 shadow-md ring-2 ring-white">
                       <AvatarImage src={emp.photoUrl} />
-                      <AvatarFallback className="font-bold text-base">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="font-black text-lg">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-bold text-slate-900 text-base leading-tight">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{emp.locationName}</span>
+                      <span className="font-black text-slate-900 text-lg leading-tight truncate w-32">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[11px] font-black uppercase text-slate-400 tracking-widest">{emp.locationName}</span>
                     </div>
                   </div>
                 ))}
-                <div className="min-w-[250px] p-4 bg-slate-100/50 flex items-center gap-2 border-l-2 border-slate-300">
-                  <BarChart3 className="h-5 w-5 text-slate-600" />
-                  <span className="font-black text-[11px] uppercase text-slate-600">Copertura</span>
+                <div className="min-w-[280px] p-5 bg-slate-100/80 flex items-center gap-3 border-l-2 border-slate-300">
+                  <BarChart3 className="h-6 w-6 text-slate-600" />
+                  <span className="font-black text-xs uppercase text-slate-600 tracking-widest">Copertura Sedi</span>
                 </div>
               </div>
 
-              <div className="divide-y">
+              <div className="divide-y divide-slate-100">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
                   if (day.getDay() === 0) return null;
 
                   return (
-                    <div key={dayStr} className="flex group hover:bg-slate-50/5">
-                      <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
-                        <div className="text-[11px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className="text-4xl font-black text-slate-800">{format(day, 'dd')}</div>
+                    <div key={dayStr} className="flex group hover:bg-slate-50/10 transition-colors">
+                      <div className="w-[200px] p-5 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
+                        <div className="text-xs font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
+                        <div className="text-5xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
                       </div>
                       
                       {displayEmployees.map(emp => {
@@ -344,13 +340,13 @@ export default function ShiftsPage() {
                         const bisceglieAbsences = dayAbsences.filter(a => a.locationId === bisceglieLoc?.id);
 
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[240px] border-r flex flex-col bg-white">
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r flex flex-col bg-white">
                             {/* SLOT FISSO PALESE */}
-                            <div className="p-2 min-h-[100px] flex flex-col gap-1 bg-blue-50/10 border-b border-dashed border-slate-100 relative group/slot">
-                              <div className="flex items-center justify-between opacity-20 mb-0.5">
-                                <span className="text-[8px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
+                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-blue-50/10 border-b border-dashed border-slate-100 relative group/slot">
+                              <div className="flex items-center justify-between opacity-30 mb-0.5">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
                               </div>
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1.5">
                                 {paleseAbsences.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
                                 {paleseEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
@@ -359,11 +355,11 @@ export default function ShiftsPage() {
                             </div>
 
                             {/* SLOT FISSO BISCEGLIE */}
-                            <div className="p-2 min-h-[100px] flex flex-col gap-1 bg-emerald-50/10 relative group/slot">
-                              <div className="flex items-center justify-between opacity-20 mb-0.5">
-                                <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
+                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-emerald-50/10 relative group/slot">
+                              <div className="flex items-center justify-between opacity-30 mb-0.5">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
                               </div>
-                              <div className="flex flex-col gap-1">
+                              <div className="flex flex-col gap-1.5">
                                 {bisceglieAbsences.map(a => <AbsenceItem key={`b-abs-${a.id}`} a={a} />)}
                                 {bisceglieEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
@@ -374,23 +370,23 @@ export default function ShiftsPage() {
                         );
                       })}
 
-                      <div className="min-w-[250px] p-3 border-l-2 border-slate-300 bg-slate-50/50 flex flex-col gap-2 justify-center">
+                      <div className="min-w-[280px] p-4 border-l-2 border-slate-300 bg-slate-50/50 flex flex-col gap-3 justify-center">
                         {locations?.map(loc => {
                           const counts = dailyLocationCounts[dayStr]?.[loc.id] || { morning: 0, afternoon: 0 };
                           const isWarning = counts.morning === 0 || counts.afternoon === 0;
                           return (
-                            <div key={loc.id} className={cn("p-2 rounded-xl bg-white border shadow-sm space-y-1", isWarning && "ring-2 ring-rose-200 animate-pulse")}>
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <MapPin className={cn("h-4 w-4", isWarning ? "text-rose-500" : "text-slate-400")} />
-                                <span className="font-black text-[10px] uppercase text-slate-600 truncate">{loc.name}</span>
+                            <div key={loc.id} className={cn("p-3 rounded-2xl bg-white border shadow-md space-y-2", isWarning && "ring-2 ring-rose-200 animate-pulse")}>
+                              <div className="flex items-center gap-2 mb-1">
+                                <MapPin className={cn("h-5 w-5", isWarning ? "text-rose-500" : "text-slate-400")} />
+                                <span className="font-black text-[11px] uppercase text-slate-600 truncate">{loc.name}</span>
                               </div>
-                              <div className="flex justify-between items-center text-[11px] font-bold">
-                                <span className="text-slate-400">MAT:</span>
-                                <Badge className={cn("h-6 px-2 font-black text-[10px]", counts.morning > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{counts.morning}</Badge>
+                              <div className="flex justify-between items-center text-xs font-black">
+                                <span className="text-slate-400">MATTINA:</span>
+                                <Badge className={cn("h-7 px-3 font-black text-xs", counts.morning > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{counts.morning}</Badge>
                               </div>
-                              <div className="flex justify-between items-center text-[11px] font-bold">
-                                <span className="text-slate-400">POM:</span>
-                                <Badge className={cn("h-6 px-2 font-black text-[10px]", counts.afternoon > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700")}>{counts.afternoon}</Badge>
+                              <div className="flex justify-between items-center text-xs font-black">
+                                <span className="text-slate-400">POMERIGGIO:</span>
+                                <Badge className={cn("h-7 px-3 font-black text-xs", counts.afternoon > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700")}>{counts.afternoon}</Badge>
                               </div>
                             </div>
                           );
@@ -408,73 +404,73 @@ export default function ShiftsPage() {
 
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
+          <DialogHeader><DialogTitle className="font-black text-2xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
+          <div className="space-y-5 py-4">
             <div className="space-y-2">
-              <Label className="font-bold text-xs uppercase text-slate-500">Collaboratore</Label>
+              <Label className="font-black text-xs uppercase text-slate-500">Collaboratore</Label>
               <Select value={newManualShift.employeeId} onValueChange={v => setNewManualShift({...newManualShift, employeeId: v})}>
-                <SelectTrigger className="h-11"><SelectValue placeholder="Scegli..." /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Scegli..." /></SelectTrigger>
                 <SelectContent>{displayEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="font-bold text-xs uppercase text-slate-500">Sede</Label>
+              <Label className="font-black text-xs uppercase text-slate-500">Sede</Label>
               <Select value={newManualShift.locationId} onValueChange={v => setNewManualShift({...newManualShift, locationId: v})}>
-                <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona Sede..." /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Seleziona Sede..." /></SelectTrigger>
                 <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Inizio</Label><Input type="time" className="h-11" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} /></div>
-              <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Fine</Label><Input type="time" className="h-11" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} /></div>
+              <div className="space-y-2"><Label className="font-black text-xs uppercase text-slate-500">Inizio</Label><Input type="time" className="h-12 text-lg" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} /></div>
+              <div className="space-y-2"><Label className="font-black text-xs uppercase text-slate-500">Fine</Label><Input type="time" className="h-12 text-lg" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} /></div>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleSaveManualShift} className="bg-[#227FD8] font-black w-full h-12 uppercase tracking-widest shadow-lg">SALVA TURNO</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleSaveManualShift} className="bg-[#227FD8] font-black w-full h-14 uppercase tracking-widest shadow-xl text-lg">SALVA TURNO</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isEditShiftOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Modifica Turno</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
+          <DialogHeader><DialogTitle className="font-black text-2xl uppercase tracking-tight">Modifica Turno</DialogTitle></DialogHeader>
+          <div className="space-y-5 py-4">
             <div className="space-y-2">
-              <Label className="font-bold text-xs uppercase text-slate-500">Sede</Label>
+              <Label className="font-black text-xs uppercase text-slate-500">Sede</Label>
               <Select value={newManualShift.locationId} onValueChange={v => setNewManualShift({...newManualShift, locationId: v})}>
-                <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
                 <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input type="time" className="h-11" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
-              <Input type="time" className="h-11" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} />
+              <Input type="time" className="h-12 text-lg" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
+              <Input type="time" className="h-12 text-lg" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} />
             </div>
           </div>
-          <DialogFooter><Button onClick={handleUpdateShift} className="bg-[#227FD8] font-black w-full h-12 uppercase tracking-widest shadow-lg">AGGIORNA TURNO</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleUpdateShift} className="bg-[#227FD8] font-black w-full h-14 uppercase tracking-widest shadow-xl text-lg">AGGIORNA TURNO</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight text-rose-600">Registra Assenza</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
+          <DialogHeader><DialogTitle className="font-black text-2xl uppercase tracking-tight text-rose-600">Registra Assenza</DialogTitle></DialogHeader>
+          <div className="space-y-5 py-4">
             <div className="space-y-2">
-              <Label className="font-bold text-xs uppercase text-slate-500">Dipendente</Label>
+              <Label className="font-black text-xs uppercase text-slate-500">Dipendente</Label>
               <Select value={newAbsence.employeeId} onValueChange={v => setNewAbsence({...newAbsence, employeeId: v})}>
-                <SelectTrigger className="h-11"><SelectValue placeholder="Scegli..." /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Scegli..." /></SelectTrigger>
                 <SelectContent>{displayEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Giorno</Label><Input type="date" className="h-11" value={newAbsence.startDate} onChange={e => setNewAbsence({...newAbsence, startDate: e.target.value})} /></div>
-              <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Tipo</Label>
+              <div className="space-y-2"><Label className="font-black text-xs uppercase text-slate-500">Giorno</Label><Input type="date" className="h-12 text-base" value={newAbsence.startDate} onChange={e => setNewAbsence({...newAbsence, startDate: e.target.value})} /></div>
+              <div className="space-y-2"><Label className="font-black text-xs uppercase text-slate-500">Tipo</Label>
                 <Select value={newAbsence.type} onValueChange={v => setNewAbsence({...newAbsence, type: v})}>
-                  <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="VACATION">Ferie</SelectItem><SelectItem value="SICK">Malattia</SelectItem><SelectItem value="PERSONAL">Permesso</SelectItem></SelectContent>
                 </Select>
               </div>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleSaveAbsence} className="bg-rose-600 font-black w-full h-12 uppercase tracking-widest shadow-lg">CONFERMA ASSENZA</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleSaveAbsence} className="bg-rose-600 font-black w-full h-14 uppercase tracking-widest shadow-xl text-lg">CONFERMA ASSENZA</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -487,20 +483,20 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
   const isMorning = parseISO(s.startTime).getHours() < 14;
   
   return (
-    <div className={cn("group/item relative p-2 rounded border-l-2 shadow-sm transition-all hover:scale-[1.02] bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
+    <div className={cn("group/item relative p-2.5 rounded-lg border-l-4 shadow-sm transition-all hover:scale-[1.02] bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
       <div className="flex justify-between items-start">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-tight">
-            {isMorning ? <Sun className="h-3 w-3 text-amber-500" /> : <Moon className="h-3 w-3 text-indigo-500" />}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-tight">
+            {isMorning ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-500" />}
             {start} - {end}
           </div>
           {s.title && s.title !== 'Turno Mattina' && s.title !== 'Turno Pomeriggio' && (
-            <span className="text-[9px] font-bold text-slate-400 truncate w-36">{s.title}</span>
+            <span className="text-[10px] font-black text-slate-400 truncate w-40 uppercase tracking-tighter">{s.title}</span>
           )}
         </div>
-        <div className="flex gap-1.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-0.5 hover:bg-black/5 rounded"><Edit className="h-3.5 w-3.5" /></button>
-          <button onClick={onDelete} className="p-0.5 hover:bg-rose-500/10 rounded text-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
+        <div className="flex gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
+          <button onClick={onEdit} className="p-1 hover:bg-black/5 rounded"><Edit className="h-4 w-4" /></button>
+          <button onClick={onDelete} className="p-1 hover:bg-rose-500/10 rounded text-rose-600"><Trash2 className="h-4 w-4" /></button>
         </div>
       </div>
     </div>
@@ -510,19 +506,19 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
 function AbsenceItem({ a }: { a: any }) {
   const getIcon = () => {
     switch(a.type) {
-      case 'VACATION': return <Umbrella className="h-3 w-3" />;
-      case 'SICK': return <Activity className="h-3 w-3" />;
-      case 'HOURLY_PERMIT': return <Timer className="h-3 w-3" />;
-      default: return <UserMinus className="h-3 w-3" />;
+      case 'VACATION': return <Umbrella className="h-4 w-4" />;
+      case 'SICK': return <Activity className="h-4 w-4" />;
+      case 'HOURLY_PERMIT': return <Timer className="h-4 w-4" />;
+      default: return <UserMinus className="h-4 w-4" />;
     }
   }
   return (
-    <div className="bg-rose-50 border-l-2 border-rose-400 p-2 rounded shadow-sm">
-      <div className="flex items-center gap-1">
+    <div className="bg-rose-50 border-l-4 border-rose-400 p-2.5 rounded-lg shadow-sm">
+      <div className="flex items-center gap-2">
         {getIcon()}
-        <span className="font-black uppercase tracking-tighter text-[9px] text-rose-700">{a.type}</span>
+        <span className="font-black uppercase tracking-widest text-[10px] text-rose-700">{a.type}</span>
       </div>
-      <div className="font-bold text-[9px] text-rose-900 mt-0.5">
+      <div className="font-black text-[10px] text-rose-900 mt-1 uppercase">
         {a.type === 'HOURLY_PERMIT' ? `${a.startTime} - ${a.endTime}` : 'Giornaliera'}
       </div>
     </div>
