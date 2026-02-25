@@ -381,7 +381,7 @@ export default function ShiftsPage() {
               {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
             </span>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-5 w-5" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => addDays(currentDate, 7) && setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-5 w-5" /></Button>
         </div>
         <Button variant="secondary" size="sm" onClick={() => setCurrentDate(new Date())} className="font-bold uppercase">Oggi</Button>
       </div>
