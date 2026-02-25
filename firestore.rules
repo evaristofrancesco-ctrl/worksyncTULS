@@ -2,36 +2,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * CONFIGURAZIONE OTTIMIZZATA TU.L.S. (PROTOTIPO)
-     * Consente l'accesso completo a tutti gli utenti autenticati.
-     */
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Regola Catch-all per tutti i documenti
+    // Regola globale: permette ogni operazione se l'utente è autenticato.
+    // Necessaria per supportare query collectionGroup e query su collezioni dinamiche in fase di prototipo.
     match /{document=**} {
-      allow read, write: if isSignedIn();
-    }
-
-    // Regole esplicite per supportare le query collectionGroup (necessarie per report e dashboard admin)
-    match /{path=**}/timeentries/{doc} {
-      allow read: if isSignedIn();
-    }
-    match /{path=**}/requests/{doc} {
-      allow read: if isSignedIn();
-    }
-    match /{path=**}/shifts/{doc} {
-      allow read: if isSignedIn();
-    }
-    match /{path=**}/modifications/{doc} {
-      allow read: if isSignedIn();
-    }
-    match /{path=**}/notifications/{doc} {
-      allow read: if isSignedIn();
+      allow read, write: if request.auth != null;
     }
   }
 }

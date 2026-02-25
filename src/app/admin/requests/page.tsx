@@ -2,22 +2,17 @@
 "use client"
 
 import { 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
   MessageSquare, 
   Loader2, 
   Inbox, 
   Send,
-  History,
+  Clock,
   Calendar,
   Umbrella,
   Activity,
   Timer,
   RefreshCw,
-  ChevronDown,
-  ChevronUp,
-  User
+  ChevronDown
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -34,10 +29,10 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, doc } from "firebase/firestore"
-import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { collection, collectionGroup, doc, query, orderBy, limit } from "firebase/firestore"
+import { updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
-import { useMemo, useState, useEffect, useRef } from "react"
+import { useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
 
 export default function RequestsPage() {
@@ -46,7 +41,6 @@ export default function RequestsPage() {
   
   const [rejectingRequest, setRejectingRequest] = useState<any>(null)
   const [adminNote, setAdminNote] = useState("")
-  const cleanupPerformed = useRef(false)
 
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -56,7 +50,7 @@ export default function RequestsPage() {
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return collectionGroup(db, "requests");
+    return query(collectionGroup(db, "requests"), orderBy("submittedAt", "desc"), limit(300));
   }, [db])
   const { data: requests, isLoading } = useCollection(requestsQuery)
 
@@ -68,48 +62,20 @@ export default function RequestsPage() {
     }, {} as any);
   }, [employees]);
 
-  // Cleanup controllato: esegui solo una volta quando arrivano i dati
-  useEffect(() => {
-    if (!requests || !db || cleanupPerformed.current) return;
-    
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    let deletedCount = 0;
-    requests.forEach(req => {
-      const status = (req.status || "").toUpperCase();
-      const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
-      
-      if (req.submittedAt && new Date(req.submittedAt) < oneWeekAgo && !isApproved) {
-        deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "requests", req.id));
-        deletedCount++;
-      }
-    });
-
-    if (deletedCount > 0) {
-      console.log(`Pulizia completata: rimosse ${deletedCount} vecchie richieste.`);
-    }
-    cleanupPerformed.current = true;
-  }, [requests, db]);
-
   const pendingRequests = useMemo(() => {
     if (!requests) return [];
-    return requests
-      .filter(req => {
-        const status = (req.status || "").toUpperCase();
-        return status === "PENDING" || status === "IN ATTESA";
-      })
-      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+    return requests.filter(req => {
+      const status = (req.status || "").toUpperCase();
+      return status === "PENDING" || status === "IN ATTESA";
+    });
   }, [requests]);
 
   const historyRequests = useMemo(() => {
     if (!requests) return [];
-    return requests
-      .filter(req => {
-        const status = (req.status || "").toUpperCase();
-        return status !== "PENDING" && status !== "IN ATTESA";
-      })
-      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+    return requests.filter(req => {
+      const status = (req.status || "").toUpperCase();
+      return status !== "PENDING" && status !== "IN ATTESA";
+    });
   }, [requests]);
 
   const handleUpdateStatus = (request: any, newStatus: string, note: string = "") => {
@@ -123,23 +89,17 @@ export default function RequestsPage() {
     })
 
     const notifId = `notif-req-${Date.now()}`;
-    const typeLabel = request.type === 'VACATION' ? 'Ferie' : 'un Permesso';
-    
     setDocumentNonBlocking(doc(db, "notifications", notifId), {
       id: notifId,
       recipientId: request.employeeId,
       title: `Richiesta ${newStatus.toUpperCase()}`,
-      message: `La tua richiesta di ${typeLabel} per il ${request.startDate} è stata ${newStatus.toLowerCase()}.`,
+      message: `La tua richiesta per il ${request.startDate} è stata ${newStatus.toLowerCase()}.`,
       type: "REQUEST_STATUS",
       createdAt: new Date().toISOString(),
       isRead: false
     }, { merge: true });
 
-    toast({
-      title: newStatus === "Approvato" ? "Richiesta Approvata" : "Richiesta Rifiutata",
-      description: `La richiesta di ${employeeMap[request.employeeId]?.firstName} è stata aggiornata.`,
-    })
-    
+    toast({ title: "Richiesta Aggiornata" })
     setRejectingRequest(null)
     setAdminNote("")
   }
@@ -161,9 +121,6 @@ export default function RequestsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] tracking-tight">Gestione Richieste</h1>
           <p className="text-sm text-muted-foreground font-medium">Monitora ferie, permessi e assenze del team.</p>
         </div>
-        <Badge variant="outline" className="h-8 gap-2 bg-blue-50 text-blue-700 border-blue-100 text-xs font-bold px-4">
-          <Clock className="h-4 w-4" /> Conservazione: Approvate Sempre
-        </Badge>
       </div>
 
       <Tabs defaultValue="pending" className="w-full">
@@ -215,13 +172,11 @@ export default function RequestsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-black text-destructive">Rifiuta Richiesta</DialogTitle>
-            <DialogDescription>
-              Inserisci una motivazione per il rifiuto.
-            </DialogDescription>
+            <DialogDescription>Inserisci una motivazione per il rifiuto.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea 
-              placeholder="Esempio: Purtroppo per quel periodo abbiamo già troppe assenze..."
+              placeholder="Motivazione..."
               value={adminNote}
               onChange={(e) => setAdminNote(e.target.value)}
               className="min-h-[120px]"
@@ -247,7 +202,6 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
   const [isExpanded, setIsExpanded] = useState(false);
   const status = (request.status || "").toUpperCase();
   const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
-  const isRejected = status === "RIFIUTATO" || status === "REJECTED" || status === "Rifiutato";
 
   if (isHistory) {
     return (
@@ -296,21 +250,13 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
                       <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Periodo Richiesto</p>
                       <p className="text-xs font-bold text-slate-700">{request.startDate} {request.endDate ? `al ${request.endDate}` : ""}</p>
                     </div>
-                    {request.submittedAt && (
-                      <div className="text-right">
-                        <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Inviata il</p>
-                        <p className="text-xs font-bold text-slate-700">{new Date(request.submittedAt).toLocaleDateString('it-IT')}</p>
-                      </div>
-                    )}
                   </div>
-                  
                   {request.reason && (
                     <div className="pt-2 border-t border-slate-200">
                       <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Nota Dipendente</p>
                       <p className="text-xs italic text-slate-600">"{request.reason}"</p>
                     </div>
                   )}
-
                   {request.adminNote && (
                     <div className="pt-2 border-t border-slate-200">
                       <p className="text-[9px] font-black uppercase text-rose-600 mb-1 flex items-center gap-1">
@@ -342,7 +288,7 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
               <div>
                 <h3 className="font-bold text-sm text-[#1e293b]">{emp ? `${emp.firstName} ${emp.lastName}` : "Utente Sconosciuto"}</h3>
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-black uppercase">
-                  <span>{new Date(request.submittedAt).toLocaleDateString('it-IT')}</span>
+                  <span>{request.submittedAt ? new Date(request.submittedAt).toLocaleDateString('it-IT') : '--'}</span>
                   <span className="opacity-20">|</span>
                   <span className="flex items-center gap-1">{typeIcon} {request.type}</span>
                 </div>
@@ -366,7 +312,6 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
               <div className="flex items-center gap-2 font-bold text-sm text-slate-700">
                 <Calendar className="h-3.5 w-3.5 text-[#227FD8]" />
                 {request.startDate} {request.endDate ? `al ${request.endDate}` : ""}
-                {request.type === 'HOURLY_PERMIT' && ` (${request.startTime}-${request.endTime})`}
               </div>
             </div>
             {request.reason && (

@@ -1,35 +1,30 @@
 
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo } from "react"
 import { 
   ArrowLeftRight, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
   Loader2, 
   Inbox, 
   ArrowDownLeft, 
-  ArrowUpRight,
-  History,
+  ArrowUpRight, 
   Calendar,
   MapPin,
   Barcode
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, doc } from "firebase/firestore"
-import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { collection, collectionGroup, doc, query, orderBy, limit } from "firebase/firestore"
+import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 
 export default function AdminModificationsPage() {
   const db = useFirestore()
   const { toast } = useToast()
-  const cleanupPerformed = useRef(false)
   
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -39,7 +34,7 @@ export default function AdminModificationsPage() {
 
   const modificationsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return collectionGroup(db, "modifications");
+    return query(collectionGroup(db, "modifications"), orderBy("submittedAt", "desc"), limit(200));
   }, [db])
   const { data: modifications, isLoading } = useCollection(modificationsQuery)
 
@@ -51,23 +46,8 @@ export default function AdminModificationsPage() {
     }, {} as any);
   }, [employees]);
 
-  // Cleanup controllato
-  useEffect(() => {
-    if (!modifications || !db || cleanupPerformed.current) return;
-    
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
-    modifications.forEach(req => {
-      if (req.submittedAt && new Date(req.submittedAt) < oneWeekAgo) {
-        deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "modifications", req.id));
-      }
-    });
-    cleanupPerformed.current = true;
-  }, [modifications, db]);
-
-  const pendingRequests = useMemo(() => modifications?.filter(m => m.status === "PENDING").sort((a,b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")) || [], [modifications]);
-  const historyRequests = useMemo(() => modifications?.filter(m => m.status !== "PENDING").sort((a,b) => (b.submittedAt || "").localeCompare(a.submittedAt || "")) || [], [modifications]);
+  const pendingRequests = useMemo(() => modifications?.filter(m => m.status === "PENDING") || [], [modifications]);
+  const historyRequests = useMemo(() => modifications?.filter(m => m.status !== "PENDING") || [], [modifications]);
 
   const handleUpdateStatus = (request: any, newStatus: string) => {
     if (!db) return;
@@ -87,9 +67,6 @@ export default function AdminModificationsPage() {
           </h1>
           <p className="text-sm text-muted-foreground">Approvazione movimentazioni articoli inviate dai dipendenti.</p>
         </div>
-        <Badge variant="outline" className="h-8 gap-2 bg-blue-50 text-blue-700 border-blue-100 text-xs font-bold px-4">
-          <Calendar className="h-4 w-4" /> Auto-pulizia: 7 giorni
-        </Badge>
       </div>
 
       <Tabs defaultValue="pending" className="w-full">
