@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, doc, query, orderBy, limit } from "firebase/firestore"
+import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 
@@ -34,9 +34,10 @@ export default function AdminModificationsPage() {
 
   const modificationsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collectionGroup(db, "modifications"), orderBy("submittedAt", "desc"), limit(200));
+    // Rimosso orderBy server-side per evitare errore di indice
+    return query(collectionGroup(db, "modifications"), limit(500));
   }, [db])
-  const { data: modifications, isLoading } = useCollection(modificationsQuery)
+  const { data: rawModifications, isLoading } = useCollection(modificationsQuery)
 
   const employeeMap = useMemo(() => {
     if (!employees) return {};
@@ -46,8 +47,17 @@ export default function AdminModificationsPage() {
     }, {} as any);
   }, [employees]);
 
-  const pendingRequests = useMemo(() => modifications?.filter(m => m.status === "PENDING") || [], [modifications]);
-  const historyRequests = useMemo(() => modifications?.filter(m => m.status !== "PENDING") || [], [modifications]);
+  const sortedModifications = useMemo(() => {
+    if (!rawModifications) return [];
+    return [...rawModifications].sort((a, b) => {
+      const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+      const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+      return dateB - dateA;
+    });
+  }, [rawModifications]);
+
+  const pendingRequests = useMemo(() => sortedModifications.filter(m => m.status === "PENDING"), [sortedModifications]);
+  const historyRequests = useMemo(() => sortedModifications.filter(m => m.status !== "PENDING"), [sortedModifications]);
 
   const handleUpdateStatus = (request: any, newStatus: string) => {
     if (!db) return;
@@ -109,9 +119,8 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
   
   if (!isPending) {
     return (
-      <Card className="border-none shadow-sm bg-white/60 hover:bg-white transition-all overflow-hidden">
+      <Card className="border-none shadow-sm bg-white/60 hover:bg-white transition-all overflow-hidden border-l-4" style={{ borderLeftColor: isApproved ? '#22c55e' : '#ef4444' }}>
         <div className="flex items-center p-4 gap-4">
-          <div className={`w-1.5 h-10 rounded-full ${isApproved ? "bg-green-500" : "bg-rose-500"}`} />
           <Avatar className="h-8 w-8 border">
             <AvatarImage src={emp?.photoUrl} />
             <AvatarFallback className="text-xs font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
@@ -144,7 +153,7 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
   }
 
   return (
-    <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200 overflow-hidden">
+    <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200 overflow-hidden border-l-4 border-l-amber-400">
       <div className="flex flex-col">
         <div className="flex items-center justify-between p-4 border-b bg-slate-50/50">
           <div className="flex items-center gap-3">

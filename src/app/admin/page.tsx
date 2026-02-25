@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, doc, query, orderBy, limit } from "firebase/firestore"
+import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import Link from "next/link"
 import { useMemo, useState, useEffect } from "react"
@@ -46,19 +46,20 @@ export default function AdminDashboard() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collectionGroup(db, "timeentries"), orderBy("checkInTime", "desc"), limit(200));
+    // Rimosso orderBy per evitare errore di indice e velocizzare il caricamento
+    return query(collectionGroup(db, "timeentries"), limit(500));
   }, [db])
   const { data: allEntries, isLoading: isEntriesLoading } = useCollection(timeEntriesQuery)
 
   const shiftsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collectionGroup(db, "shifts"), orderBy("startTime", "desc"), limit(200));
+    return collectionGroup(db, "shifts");
   }, [db])
   const { data: allShifts } = useCollection(shiftsQuery)
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collectionGroup(db, "requests"), orderBy("submittedAt", "desc"), limit(50));
+    return query(collectionGroup(db, "requests"), limit(200));
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
@@ -74,8 +75,14 @@ export default function AdminDashboard() {
   // Ottimizzazione Lookup Timbrature per Dipendente
   const entriesByEmployee = useMemo(() => {
     if (!allEntries) return new Map<string, any[]>();
+    // Ordiniamo lato client per data decrescente
+    const sorted = [...allEntries].sort((a, b) => {
+      const dateA = a.checkInTime ? new Date(a.checkInTime).getTime() : 0;
+      const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
+      return dateB - dateA;
+    });
     const map = new Map<string, any[]>();
-    for (const entry of allEntries) {
+    for (const entry of sorted) {
       const list = map.get(entry.employeeId) || [];
       list.push(entry);
       map.set(entry.employeeId, list);
