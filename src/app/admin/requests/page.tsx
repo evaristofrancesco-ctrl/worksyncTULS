@@ -29,7 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, collectionGroup, doc, query, orderBy, limit } from "firebase/firestore"
+import { collection, collectionGroup, doc } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { useMemo, useState } from "react"
@@ -50,7 +50,8 @@ export default function RequestsPage() {
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collectionGroup(db, "requests"), orderBy("submittedAt", "desc"), limit(300));
+    // Rimosso orderBy per evitare errore di indice mancante
+    return collectionGroup(db, "requests");
   }, [db])
   const { data: requests, isLoading } = useCollection(requestsQuery)
 
@@ -62,21 +63,29 @@ export default function RequestsPage() {
     }, {} as any);
   }, [employees]);
 
-  const pendingRequests = useMemo(() => {
+  // Ordinamento e filtraggio lato client per evitare indici mancanti
+  const sortedRequests = useMemo(() => {
     if (!requests) return [];
-    return requests.filter(req => {
-      const status = (req.status || "").toUpperCase();
-      return status === "PENDING" || status === "IN ATTESA";
+    return [...requests].sort((a, b) => {
+      const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+      const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+      return dateB - dateA;
     });
   }, [requests]);
 
+  const pendingRequests = useMemo(() => {
+    return sortedRequests.filter(req => {
+      const status = (req.status || "").toUpperCase();
+      return status === "PENDING" || status === "IN ATTESA";
+    });
+  }, [sortedRequests]);
+
   const historyRequests = useMemo(() => {
-    if (!requests) return [];
-    return requests.filter(req => {
+    return sortedRequests.filter(req => {
       const status = (req.status || "").toUpperCase();
       return status !== "PENDING" && status !== "IN ATTESA";
     });
-  }, [requests]);
+  }, [sortedRequests]);
 
   const handleUpdateStatus = (request: any, newStatus: string, note: string = "") => {
     if (!db) return;

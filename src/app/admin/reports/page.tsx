@@ -28,8 +28,8 @@ import {
 } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, query, where } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, format } from "date-fns"
+import { collection, collectionGroup } from "firebase/firestore"
+import { startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, format, isWithinInterval, parseISO } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
@@ -64,13 +64,6 @@ export default function ReportsPage() {
     return years.reverse()
   }, [])
 
-  // Filtraggio Query: Scarichiamo SOLO i dati del mese selezionato per evitare i 45 minuti di attesa
-  const dateRange = useMemo(() => {
-    const start = startOfMonth(new Date(parseInt(selectedYear), parseInt(selectedMonth), 1)).toISOString()
-    const end = endOfMonth(new Date(parseInt(selectedYear), parseInt(selectedMonth), 1)).toISOString()
-    return { start, end }
-  }, [selectedMonth, selectedYear])
-
   const employeesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collection(db, "employees");
@@ -79,21 +72,14 @@ export default function ReportsPage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    // OTTIMIZZAZIONE CRITICA: filtro temporale sulla query globale
-    return query(
-      collectionGroup(db, "timeentries"),
-      where("checkInTime", ">=", dateRange.start),
-      where("checkInTime", "<=", dateRange.end)
-    );
-  }, [db, user, dateRange])
+    // Rimosso filtraggio backend per evitare errori di indice mancante
+    return collectionGroup(db, "timeentries");
+  }, [db, user])
   const { data: allEntries, isLoading: entriesLoading } = useCollection(timeEntriesQuery)
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(
-      collectionGroup(db, "requests"),
-      where("status", "in", ["Approvato", "APPROVED", "Approved"])
-    );
+    return collectionGroup(db, "requests");
   }, [db, user])
   const { data: allRequests, isLoading: requestsLoading } = useCollection(requestsQuery)
 
@@ -124,15 +110,25 @@ export default function ReportsPage() {
     const isCurrentMonth = isSameMonth(targetDate, now);
     const actualLimitDate = isCurrentMonth ? now : monthEnd;
 
+    // Filtraggio e raggruppamento lato client per evitare errori di indice
     const entriesMap = allEntries.reduce((acc, entry) => {
-      if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
-      acc[entry.employeeId].push(entry);
+      if (!entry.checkInTime) return acc;
+      try {
+        const checkIn = parseISO(entry.checkInTime);
+        if (isWithinInterval(checkIn, { start: monthStart, end: monthEnd })) {
+          if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
+          acc[entry.employeeId].push(entry);
+        }
+      } catch (e) {}
       return acc;
     }, {} as Record<string, any[]>);
 
     const requestsMap = allRequests.reduce((acc, req) => {
       if (!acc[req.employeeId]) acc[req.employeeId] = [];
-      acc[req.employeeId].push(req);
+      const status = (req.status || "").toUpperCase();
+      if (status === "APPROVATO" || status === "APPROVED" || status === "Approvato") {
+        acc[req.employeeId].push(req);
+      }
       return acc;
     }, {} as Record<string, any[]>);
 
@@ -175,12 +171,7 @@ export default function ReportsPage() {
         }
       });
 
-      const empEntries = (entriesMap[emp.id] || []).filter(entry => {
-        try {
-          const checkIn = new Date(entry.checkInTime);
-          return checkIn >= monthStart && checkIn <= actualLimitDate;
-        } catch (e) { return false; }
-      });
+      const empEntries = entriesMap[emp.id] || [];
 
       let actualWorkHours = 0;
       empEntries.forEach(entry => {
@@ -194,8 +185,8 @@ export default function ReportsPage() {
 
       const empRequests = (requestsMap[emp.id] || []).filter(req => {
         try {
-          const reqStart = new Date(req.startDate);
-          const reqEnd = req.endDate ? new Date(req.endDate) : reqStart;
+          const reqStart = parseISO(req.startDate);
+          const reqEnd = req.endDate ? parseISO(req.endDate) : reqStart;
           return (reqStart <= monthEnd && reqEnd >= monthStart);
         } catch (e) { return false; }
       });
@@ -207,8 +198,8 @@ export default function ReportsPage() {
 
       empRequests.forEach(req => {
         try {
-          const rStart = new Date(req.startDate);
-          const rEnd = req.endDate ? new Date(req.endDate) : rStart;
+          const rStart = parseISO(req.startDate);
+          const rEnd = req.endDate ? parseISO(req.endDate) : rStart;
           const overlapStart = rStart < monthStart ? monthStart : rStart;
           const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
           if (overlapStart > overlapEnd) return;

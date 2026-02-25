@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, doc, query, orderBy, limit } from "firebase/firestore"
+import { collection, collectionGroup, doc } from "firebase/firestore"
 import { useState, useMemo } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -55,7 +55,6 @@ export default function AttendancePage() {
     type: "ADMIN"
   })
 
-  // Queries stabili
   const employeesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collection(db, "employees");
@@ -64,13 +63,14 @@ export default function AttendancePage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collectionGroup(db, "timeentries"), orderBy("checkInTime", "desc"), limit(500));
+    // Rimosso orderBy per evitare errore di indice mancante
+    return collectionGroup(db, "timeentries");
   }, [db, user])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collectionGroup(db, "requests"), orderBy("submittedAt", "desc"), limit(200));
+    return collectionGroup(db, "requests");
   }, [db, user])
   const { data: allRequests, isLoading: isLoadingRequests } = useCollection(requestsQuery)
 
@@ -111,7 +111,6 @@ export default function AttendancePage() {
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
         
-        // Se non stiamo vedendo tutto lo storico, limitiamo ai 30gg
         if (!showAllHistory && !filterDate && !searchQuery && entry.checkInTime) {
           const d = new Date(entry.checkInTime);
           if (isValid(d) && d < horizon) return false;
@@ -138,7 +137,8 @@ export default function AttendancePage() {
         const dateA = a.checkInTime ? new Date(a.checkInTime).getTime() : 0;
         const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
         return dateB - dateA;
-      });
+      })
+      .slice(0, 500); // Limite di visualizzazione per fluidità
   }, [unifiedEntries, employeeMap, searchQuery, filterDate, filterType, showAllHistory]);
 
   const groupedEntries = useMemo(() => {
@@ -151,7 +151,6 @@ export default function AttendancePage() {
     return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
   }, [filteredEntries]);
 
-  // Gestione Form
   const handleAddEntry = () => {
     if (!formData.employeeId || !formData.checkInTime) {
       toast({ variant: "destructive", title: "Errore", description: "Seleziona collaboratore e orari." });
