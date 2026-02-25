@@ -10,7 +10,8 @@ import {
   ArrowUpRight, 
   Calendar,
   MapPin,
-  Barcode
+  Barcode,
+  Trash2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -19,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
-import { updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 
 export default function AdminModificationsPage() {
@@ -82,6 +83,20 @@ export default function AdminModificationsPage() {
     toast({ title: newStatus === "APPROVED" ? "Approvata" : "Rifiutata" })
   }
 
+  const handleDeleteRejected = () => {
+    const rejected = historyRequests.filter(req => req.status === "REJECTED");
+    if (rejected.length === 0) {
+      toast({ title: "Nessun record", description: "Non ci sono richieste rifiutate da eliminare." });
+      return;
+    }
+    
+    rejected.forEach(req => {
+      deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "modifications", req.id));
+    });
+    
+    toast({ title: "Database Alleggerito", description: `Eliminate ${rejected.length} richieste rifiutate.` });
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex items-center justify-between gap-4">
@@ -119,6 +134,16 @@ export default function AdminModificationsPage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-3">
+          <div className="flex justify-end mb-4">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-destructive border-destructive/20 hover:bg-rose-50 font-black uppercase text-[10px] h-8 gap-2"
+              onClick={handleDeleteRejected}
+            >
+              <Trash2 className="h-3 w-3" /> Pulisci Rifiutate
+            </Button>
+          </div>
           {historyRequests.map((req) => (
             <ModificationCard key={req.id} req={req} emp={employeeMap[req.employeeId]} onUpdate={handleUpdateStatus} isPending={false} />
           ))}

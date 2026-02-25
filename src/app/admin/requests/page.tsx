@@ -12,7 +12,8 @@ import {
   Activity,
   Timer,
   RefreshCw,
-  ChevronDown
+  ChevronDown,
+  Trash2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -30,7 +31,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc } from "firebase/firestore"
-import { updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
@@ -50,7 +51,6 @@ export default function RequestsPage() {
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // Rimosso orderBy per evitare errore di indice mancante
     return collectionGroup(db, "requests");
   }, [db])
   const { data: requests, isLoading } = useCollection(requestsQuery)
@@ -63,7 +63,6 @@ export default function RequestsPage() {
     }, {} as any);
   }, [employees]);
 
-  // Ordinamento e filtraggio lato client per evitare indici mancanti
   const sortedRequests = useMemo(() => {
     if (!requests) return [];
     return [...requests].sort((a, b) => {
@@ -111,6 +110,24 @@ export default function RequestsPage() {
     toast({ title: "Richiesta Aggiornata" })
     setRejectingRequest(null)
     setAdminNote("")
+  }
+
+  const handleDeleteRejected = () => {
+    const rejected = historyRequests.filter(req => {
+      const s = (req.status || "").toUpperCase();
+      return s === "RIFIUTATO" || s === "REJECTED";
+    });
+    
+    if (rejected.length === 0) {
+      toast({ title: "Nessun record", description: "Non ci sono richieste rifiutate da eliminare." });
+      return;
+    }
+    
+    rejected.forEach(req => {
+      deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "requests", req.id));
+    });
+    
+    toast({ title: "Pulizia Completata", description: `Eliminate ${rejected.length} richieste rifiutate dallo storico.` });
   }
 
   const getTypeIcon = (type: string) => {
@@ -165,6 +182,16 @@ export default function RequestsPage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-2">
+          <div className="flex justify-end mb-4">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-destructive border-destructive/20 hover:bg-rose-50 font-black uppercase text-[10px] h-8 gap-2"
+              onClick={handleDeleteRejected}
+            >
+              <Trash2 className="h-3 w-3" /> Pulisci Rifiutate
+            </Button>
+          </div>
           {historyRequests.map((request) => (
             <RequestCard 
               key={request.id} 
