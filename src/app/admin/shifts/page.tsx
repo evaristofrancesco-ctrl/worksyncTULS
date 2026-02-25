@@ -120,6 +120,7 @@ export default function ShiftsPage() {
       .sort((a, b) => (a.firstName || "").localeCompare(b.firstName || ""));
   }, [employees]);
 
+  // OTTIMIZZAZIONE: Lookup maps per evitare filter() ripetitivi nel rendering
   const indexedShifts = useMemo(() => {
     const map: Record<string, Record<string, any[]>> = {};
     if (!shifts) return map;
