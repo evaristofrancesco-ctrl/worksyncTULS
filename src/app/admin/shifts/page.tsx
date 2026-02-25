@@ -25,7 +25,8 @@ import {
   Users,
   Building2,
   Lock,
-  AlertCircle
+  AlertCircle,
+  BarChart3
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
@@ -350,7 +351,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-slate-500 font-medium">Agenda settimanale del team.</p>
+          <p className="text-slate-500 font-medium">Agenda settimanale del team con distinzione mattina/pomeriggio.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-11 px-6"><UserMinus className="h-4 w-4 mr-2" /> Assenza</Button>
@@ -404,6 +405,11 @@ export default function ShiftsPage() {
                     </div>
                   </div>
                 ))}
+                {/* INTESTAZIONE RIEPILOGO */}
+                <div className="min-w-[250px] p-4 bg-slate-100/50 flex items-center gap-2 border-l-2 border-slate-300">
+                  <BarChart3 className="h-4 w-4 text-slate-500" />
+                  <span className="font-black text-xs uppercase text-slate-600">Riepilogo Sedi</span>
+                </div>
               </div>
 
               <div className="divide-y">
@@ -420,6 +426,7 @@ export default function ShiftsPage() {
                         <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
                         <div className="text-3xl font-black text-slate-800">{format(day, 'dd')}</div>
                       </div>
+                      
                       {displayEmployees.map((emp) => {
                         const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
                         const morningShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() < 14).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
@@ -468,6 +475,50 @@ export default function ShiftsPage() {
                           </div>
                         );
                       })}
+
+                      {/* COLONNA SPECCHIETTO RIEPILOGO PER SEDE */}
+                      <div className="min-w-[250px] p-0 border-l-2 border-slate-300 bg-slate-50/40 flex flex-col">
+                        {/* RIEPILOGO MATTINA */}
+                        <div className="flex-1 p-3 flex flex-col gap-1.5 min-h-[80px]">
+                          <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <Users className="h-2 w-2" /> Conta Mattina
+                          </div>
+                          {locations?.map(loc => {
+                            const count = displayEmployees.filter(e => e.locationId === loc.id).reduce((acc, emp) => {
+                              const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
+                              return acc + (hasShift ? 1 : 0);
+                            }, 0);
+                            return (
+                              <div key={`sum-am-${loc.id}`} className={cn("flex justify-between items-center px-2 py-1 rounded border", count > 0 ? "bg-white border-slate-200" : "bg-transparent border-dashed border-slate-200 opacity-40")}>
+                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[150px]">{loc.name}</span>
+                                <Badge variant={count > 0 ? "default" : "outline"} className={cn("h-5 px-1.5 text-[10px] font-black", count > 0 ? "bg-[#227FD8]" : "text-slate-300")}>{count}</Badge>
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* LINEA SEPARATORE RIEPILOGO */}
+                        <div className="border-t border-slate-200 h-0" />
+
+                        {/* RIEPILOGO POMERIGGIO */}
+                        <div className="flex-1 p-3 flex flex-col gap-1.5 min-h-[80px]">
+                          <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <Users className="h-2 w-2" /> Conta Pomeriggio
+                          </div>
+                          {locations?.map(loc => {
+                            const count = displayEmployees.filter(e => e.locationId === loc.id).reduce((acc, emp) => {
+                              const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
+                              return acc + (hasShift ? 1 : 0);
+                            }, 0);
+                            return (
+                              <div key={`sum-pm-${loc.id}`} className={cn("flex justify-between items-center px-2 py-1 rounded border", count > 0 ? "bg-white border-slate-200" : "bg-transparent border-dashed border-slate-200 opacity-40")}>
+                                <span className="text-[10px] font-bold text-slate-600 truncate max-w-[150px]">{loc.name}</span>
+                                <Badge variant={count > 0 ? "secondary" : "outline"} className={cn("h-5 px-1.5 text-[10px] font-black", count > 0 ? "bg-slate-700 text-white" : "text-slate-300")}>{count}</Badge>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
