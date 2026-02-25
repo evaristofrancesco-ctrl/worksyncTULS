@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -111,12 +112,27 @@ export default function ShiftsPage() {
 
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
+    // ORDINE RICHIESTO: Vittorio, Isa, Rosa, Savino
+    const order = ['vittorio', 'isa', 'rosa', 'savino'];
+    
     return employees
       .filter(emp => {
         const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
         return !isFrancesco;
       })
-      .sort((a, b) => (a.firstName || "").localeCompare(b.firstName || ""));
+      .sort((a, b) => {
+        const nameA = (a.firstName || "").toLowerCase();
+        const nameB = (b.firstName || "").toLowerCase();
+        
+        const indexA = order.findIndex(o => nameA.startsWith(o));
+        const indexB = order.findIndex(o => nameB.startsWith(o));
+        
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        
+        return nameA.localeCompare(nameB);
+      });
   }, [employees]);
 
   // OTTIMIZZAZIONE: Lookup maps per evitare filter() ripetitivi nel rendering
