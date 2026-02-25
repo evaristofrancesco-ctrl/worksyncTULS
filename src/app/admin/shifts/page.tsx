@@ -120,7 +120,7 @@ export default function ShiftsPage() {
 
   const shiftsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return collectionGroup(db, "shifts");
+    return query(collectionGroup(db, "shifts"), limit(1000));
   }, [db])
   const { data: shifts, isLoading: isShiftsLoading } = useCollection(shiftsQuery)
 
@@ -397,7 +397,10 @@ export default function ShiftsPage() {
                 <div className="w-[180px] p-4 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
                 {displayEmployees.map(emp => (
                   <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3">
-                    <Avatar className="h-8 w-8 shadow-sm ring-1 ring-slate-200"><AvatarImage src={emp.photoUrl} /><AvatarFallback className="font-bold">{(emp.firstName || "U").charAt(0)}</AvatarFallback></Avatar>
+                    <Avatar className="h-8 w-8 shadow-sm ring-1 ring-slate-200">
+                      <AvatarImage src={emp.photoUrl} />
+                      <AvatarFallback className="font-bold">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                    </Avatar>
                     <div className="flex flex-col">
                       <span className="font-bold text-slate-900 text-sm leading-tight">{emp.firstName} {emp.lastName}</span>
                       <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{emp.locationName || emp.jobTitle}</span>
@@ -436,29 +439,49 @@ export default function ShiftsPage() {
                         const afternoonAbsences = dayAbsences.filter(abs => abs.type !== 'HOURLY_PERMIT' || parseInt(abs.endTime?.split(':')[0] || "0") >= 14);
                         
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-0 border-r min-h-[180px] flex flex-col bg-white">
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-2 border-r min-h-[180px] flex flex-col gap-4 bg-white">
                             {/* Slot Mattina */}
-                            <div className="flex-1 p-2 flex flex-col gap-1.5 min-h-[90px] border-b border-slate-50">
-                              <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
-                                <Sun className="h-2 w-2" /> MATTINA
-                              </div>
+                            <div className="flex flex-col gap-1.5">
+                              {(morningAbsences.length > 0 || morningShifts.length > 0) && (
+                                <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
+                                  <Sun className="h-2 w-2" /> MATTINA
+                                </div>
+                              )}
                               {morningAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
-                              {morningShifts.map(s => <ShiftItem key={s.id} s={s} isMorning={true} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />)}
+                              {morningShifts.map(s => (
+                                <ShiftItem 
+                                  key={s.id} 
+                                  s={s} 
+                                  isMorning={true} 
+                                  onEdit={() => handleEditShift(s)} 
+                                  onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
+                                />
+                              ))}
                             </div>
 
                             {/* Slot Pomeriggio */}
-                            <div className="flex-1 p-2 flex flex-col gap-1.5 min-h-[90px] bg-slate-50/30">
-                              <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
-                                <Moon className="h-2 w-2" /> POMERIGGIO
-                              </div>
+                            <div className="flex flex-col gap-1.5">
+                              {(afternoonAbsences.length > 0 || afternoonShifts.length > 0) && (
+                                <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
+                                  <Moon className="h-2 w-2" /> POMERIGGIO
+                                </div>
+                              )}
                               {afternoonAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
-                              {afternoonShifts.map(s => <ShiftItem key={s.id} s={s} isMorning={false} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />)}
+                              {afternoonShifts.map(s => (
+                                <ShiftItem 
+                                  key={s.id} 
+                                  s={s} 
+                                  isMorning={false} 
+                                  onEdit={() => handleEditShift(s)} 
+                                  onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
+                                />
+                              ))}
                             </div>
                           </div>
                         );
                       })}
 
-                      {/* Specchietto Riepilogo Sedi (Verticale per riga giorno) */}
+                      {/* Riepilogo Sedi */}
                       <div className="min-w-[250px] p-3 border-l-4 border-slate-300 bg-slate-100/30 flex flex-col gap-2">
                         {locations?.map(loc => {
                           const morningCount = displayEmployees.filter(e => e.locationId === loc.id).reduce((acc, emp) => {
