@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Clock, Search, Loader2, Zap, Plus, Edit, Trash2, CalendarDays, History, Fingerprint, ShieldCheck, Umbrella } from "lucide-react"
+import { Clock, Search, Loader2, Zap, Plus, Edit, Trash2, CalendarDays, History, Fingerprint, ShieldCheck, Umbrella, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { format, parseISO, subDays, isValid } from "date-fns"
+import { format, parseISO, subDays, isValid, isSameDay } from "date-fns"
 import { it } from "date-fns/locale"
 
 export default function AttendancePage() {
@@ -55,18 +55,21 @@ export default function AttendancePage() {
     type: "ADMIN"
   })
 
+  // Caricamento collaboratori
   const employeesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collection(db, "employees");
   }, [db, user])
   const { data: employees } = useCollection(employeesQuery)
 
+  // Caricamento timbrature (senza ordinamento server-side per evitare indici)
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collectionGroup(db, "timeentries");
   }, [db, user])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
 
+  // Caricamento richieste (ferie/permessi) per visualizzarle nel registro
   const requestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collectionGroup(db, "requests");
@@ -81,6 +84,7 @@ export default function AttendancePage() {
     }, {} as any);
   }, [employees]);
 
+  // Unifica timbrature reali e assenze simulate
   const unifiedEntries = useMemo(() => {
     const realEntries = entries || [];
     const mappedRequests = (allRequests || [])
@@ -104,25 +108,31 @@ export default function AttendancePage() {
   }, [entries, allRequests]);
 
   const filteredEntries = useMemo(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
     const horizon = subDays(new Date(), 30);
+
     return unifiedEntries
       .filter(entry => {
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
         
-        if (!showAllHistory && !filterDate && !searchQuery && entry.checkInTime) {
-          const d = new Date(entry.checkInTime);
-          if (isValid(d) && d < horizon) return false;
+        // LOGICA PULIZIA: Se non c'è filtro attivo, mostriamo SOLO OGGI
+        if (!showAllHistory && !filterDate && !searchQuery) {
+          const entryDate = entry.checkInTime ? entry.checkInTime.split('T')[0] : "";
+          if (entryDate !== today) return false;
         }
 
+        // Filtro per ricerca nome
         const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
         if (searchQuery && !fullName.includes(searchQuery.toLowerCase())) return false;
         
+        // Filtro per data specifica
         if (filterDate && entry.checkInTime) {
           const entryDate = entry.checkInTime.split('T')[0];
           if (entryDate !== filterDate) return false;
         }
 
+        // Filtro per tipo (User, Auto, Admin, Absence)
         if (filterType !== "all") {
           const type = entry.type || "MANUAL";
           if (filterType === "USER" && type !== "MANUAL" && type !== "USER") return false;
@@ -137,7 +147,7 @@ export default function AttendancePage() {
         const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
         return dateB - dateA;
       })
-      .slice(0, 500);
+      .slice(0, 500); // Limite per performance
   }, [unifiedEntries, employeeMap, searchQuery, filterDate, filterType, showAllHistory]);
 
   const groupedEntries = useMemo(() => {
@@ -229,18 +239,35 @@ export default function AttendancePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-[#1e293b] tracking-tight">Registro Presenze</h1>
-          <p className="text-sm text-muted-foreground font-medium flex items-center gap-2"><History className="h-4 w-4" /> Movimenti recenti del team.</p>
+          <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+            <Clock className="h-4 w-4 text-[#227FD8]" /> 
+            {showAllHistory || filterDate || searchQuery ? "Risultati ricerca e storico" : "Vista focalizzata sulla giornata di oggi."}
+          </p>
         </div>
-        <Button variant="default" onClick={() => setIsAddOpen(true)} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-11 px-6 shadow-md"><Plus className="h-5 w-5 mr-2" /> Inserimento Manuale</Button>
+        <div className="flex gap-2">
+          {!showAllHistory && !filterDate && !searchQuery && (
+            <Button variant="outline" onClick={() => setShowAllHistory(true)} className="font-bold border-slate-200 text-slate-600 h-11 px-6">
+              <History className="h-5 w-5 mr-2" /> Vedi Storico
+            </Button>
+          )}
+          <Button variant="default" onClick={() => setIsAddOpen(true)} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-11 px-6 shadow-md">
+            <Plus className="h-5 w-5 mr-2" /> Inserimento Manuale
+          </Button>
+        </div>
       </div>
 
       <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input placeholder="Cerca collaboratore..." className="pl-9 h-10 border-none bg-slate-50" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <Input placeholder="Cerca collaboratore..." className="pl-9 h-10 border-none bg-slate-50" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            </div>
             <Input type="date" className="h-10 border-none bg-slate-50" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="h-10 border-none bg-slate-50"><SelectValue placeholder="Fonte" /></SelectTrigger>
+              <SelectTrigger className="h-10 border-none bg-slate-50">
+                <SelectValue placeholder="Fonte" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tutte le fonti</SelectItem>
                 <SelectItem value="USER">Utente</SelectItem>
@@ -250,8 +277,7 @@ export default function AttendancePage() {
               </SelectContent>
             </Select>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-10 font-bold" onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}>Reset</Button>
-              {!showAllHistory && !filterDate && (<Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase" onClick={() => setShowAllHistory(true)}>Mostra Altro</Button>)}
+              <Button variant="ghost" size="sm" className="h-10 font-bold flex-1" onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}>Reset</Button>
             </div>
           </div>
         </CardContent>
@@ -266,7 +292,10 @@ export default function AttendancePage() {
               <div className="flex items-center gap-3">
                 <div className="bg-white p-2 rounded-xl shadow-sm border"><CalendarDays className="h-5 w-5 text-[#227FD8]" /></div>
                 <div>
-                  <CardTitle className="text-sm font-black uppercase text-[#1e293b]">{format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}</CardTitle>
+                  <CardTitle className="text-sm font-black uppercase text-[#1e293b]">
+                    {isSameDay(parseISO(date), new Date()) ? "OGGI - " : ""}
+                    {format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}
+                  </CardTitle>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti</p>
                 </div>
               </div>
@@ -320,9 +349,19 @@ export default function AttendancePage() {
               </Table>
             </CardContent>
           </Card>
-        )) : (<Card className="py-20 text-center border-dashed border-2"><p className="text-slate-400 font-bold italic">Nessun movimento trovato.</p></Card>)}
+        )) : (
+          <Card className="py-20 text-center border-dashed border-2 flex flex-col items-center gap-4">
+            <p className="text-slate-400 font-bold italic">Nessun movimento trovato per oggi.</p>
+            {!showAllHistory && !filterDate && !searchQuery && (
+              <Button variant="outline" size="sm" onClick={() => setShowAllHistory(true)} className="font-black uppercase text-[10px]">
+                Controlla lo storico recente
+              </Button>
+            )}
+          </Card>
+        )}
       </div>
 
+      {/* Dialog Nuova Timbratura */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -365,6 +404,7 @@ export default function AttendancePage() {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog Modifica Timbratura */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
