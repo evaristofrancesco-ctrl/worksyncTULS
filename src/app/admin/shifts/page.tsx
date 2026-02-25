@@ -83,6 +83,7 @@ export default function ShiftsPage() {
 
   const [newManualShift, setNewManualShift] = useState({
     employeeId: "",
+    locationId: "",
     date: format(new Date(), 'yyyy-MM-dd'),
     startTime: "09:00",
     endTime: "13:00",
@@ -163,29 +164,30 @@ export default function ShiftsPage() {
       if (day.getDay() === 0) return;
 
       locations.forEach(loc => {
-        const locEmployees = displayEmployees.filter(e => e.locationId === loc.id);
-
-        const morningPresent = locEmployees.filter(emp => {
-          const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
-          const hasAbsence = weekAbsences.some(abs => 
-            abs.employeeId === emp.id && 
+        // Un collaboratore copre una sede se ha un turno in QUELLA sede e non è assente
+        const morningPresent = weekShifts.filter(s => 
+          s.locationId === loc.id && 
+          s.date === dayStr && 
+          parseISO(s.startTime).getHours() < 14 &&
+          !weekAbsences.some(abs => 
+            abs.employeeId === s.employeeId && 
             dayStr >= abs.startDate && 
             dayStr <= (abs.endDate || abs.startDate) &&
             abs.type !== 'HOURLY_PERMIT'
-          );
-          return hasShift && !hasAbsence;
-        });
+          )
+        );
 
-        const afternoonPresent = locEmployees.filter(emp => {
-          const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
-          const hasAbsence = weekAbsences.some(abs => 
-            abs.employeeId === emp.id && 
+        const afternoonPresent = weekShifts.filter(s => 
+          s.locationId === loc.id && 
+          s.date === dayStr && 
+          parseISO(s.startTime).getHours() >= 14 &&
+          !weekAbsences.some(abs => 
+            abs.employeeId === s.employeeId && 
             dayStr >= abs.startDate && 
             dayStr <= (abs.endDate || abs.startDate) &&
             abs.type !== 'HOURLY_PERMIT'
-          );
-          return hasShift && !hasAbsence;
-        });
+          )
+        );
 
         if (morningPresent.length === 0) {
           gaps.push({ day: dayStr, dayName: format(day, 'EEEE d MMMM', { locale: it }), location: loc.name, slot: "Mattina" });
@@ -239,7 +241,7 @@ export default function ShiftsPage() {
               const startAM = new Date(targetDay); startAM.setHours(9, 0, 0);
               const endAM = new Date(targetDay); endAM.setHours(amEndHour, 0, 0);
               setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
-                id: idAM, employeeId: emp.id, title: "Turno Mattina", date: dateStr, startTime: startAM.toISOString(), endTime: endAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO"
+                id: idAM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Mattina", date: dateStr, startTime: startAM.toISOString(), endTime: endAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO"
               }, { merge: true });
             }
 
@@ -249,7 +251,7 @@ export default function ShiftsPage() {
               const startPM = new Date(targetDay); startPM.setHours(17, 0, 0);
               const endPM = new Date(targetDay); endPM.setHours(20, 20, 0);
               setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
-                id: idPM, employeeId: emp.id, title: "Turno Pomeriggio", date: dateStr, startTime: startPM.toISOString(), endTime: endPM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
+                id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: startPM.toISOString(), endTime: endPM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
               }, { merge: true });
             }
             continue;
@@ -263,7 +265,7 @@ export default function ShiftsPage() {
               if (!hasM) {
                 const sAM = new Date(targetDay); sAM.setHours(9, 0, 0);
                 const eAM = new Date(targetDay); eAM.setHours(13, 0, 0);
-                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), { id: idAM, employeeId: emp.id, title: "Turno Mattina", date: dateStr, startTime: sAM.toISOString(), endTime: eAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO" }, { merge: true });
+                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), { id: idAM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Mattina", date: dateStr, startTime: sAM.toISOString(), endTime: eAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO" }, { merge: true });
               }
             }
             const pOver = targetDay.getDay().toString() === emp.restDay && (("17:00" < (emp.restEndTime || "00:00") && "20:20" > (emp.restStartTime || "00:00")));
@@ -273,7 +275,7 @@ export default function ShiftsPage() {
               if (!hasP) {
                 const sPM = new Date(targetDay); sPM.setHours(17, 0, 0);
                 const ePM = new Date(targetDay); ePM.setHours(20, 20, 0);
-                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), { id: idPM, employeeId: emp.id, title: "Turno Pomeriggio", date: dateStr, startTime: sPM.toISOString(), endTime: ePM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO" }, { merge: true });
+                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), { id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: sPM.toISOString(), endTime: ePM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO" }, { merge: true });
               }
             }
           } else {
@@ -284,7 +286,7 @@ export default function ShiftsPage() {
               if (!hasP) {
                 const sPT = new Date(targetDay); sPT.setHours(17, 0, 0);
                 const ePT = new Date(targetDay); ePT.setHours(20, 20, 0);
-                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), { id: idPM, employeeId: emp.id, title: "Turno Pomeriggio (PT)", date: dateStr, startTime: sPT.toISOString(), endTime: ePT.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO" }, { merge: true });
+                setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), { id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio (PT)", date: dateStr, startTime: sPT.toISOString(), endTime: ePT.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO" }, { merge: true });
               }
             }
           }
@@ -305,11 +307,23 @@ export default function ShiftsPage() {
   }
 
   const handleSaveManualShift = () => {
-    if (!newManualShift.employeeId || !newManualShift.date) return;
+    if (!newManualShift.employeeId || !newManualShift.date || !newManualShift.locationId) return;
     const id = `shift-man-${Date.now()}`;
     const sObj = new Date(`${newManualShift.date}T${newManualShift.startTime}`);
     const eObj = new Date(`${newManualShift.date}T${newManualShift.endTime}`);
-    setDocumentNonBlocking(doc(db, "employees", newManualShift.employeeId, "shifts", id), { id: id, employeeId: newManualShift.employeeId, title: newManualShift.title, date: newManualShift.date, startTime: sObj.toISOString(), endTime: eObj.toISOString(), status: "SCHEDULED", companyId: "default", slot: sObj.getHours() < 14 ? "MORNING" : "AFTERNOON", type: "MANUAL" }, { merge: true });
+    setDocumentNonBlocking(doc(db, "employees", newManualShift.employeeId, "shifts", id), { 
+      id: id, 
+      employeeId: newManualShift.employeeId, 
+      locationId: newManualShift.locationId,
+      title: newManualShift.title, 
+      date: newManualShift.date, 
+      startTime: sObj.toISOString(), 
+      endTime: eObj.toISOString(), 
+      status: "SCHEDULED", 
+      companyId: "default", 
+      slot: sObj.getHours() < 14 ? "MORNING" : "AFTERNOON", 
+      type: "MANUAL" 
+    }, { merge: true });
     setIsShiftOpen(false);
     toast({ title: "Turno Inserito" });
   }
@@ -318,6 +332,7 @@ export default function ShiftsPage() {
     setEditingShift(shift);
     setNewManualShift({
       employeeId: shift.employeeId,
+      locationId: shift.locationId || "",
       date: shift.date,
       startTime: format(parseISO(shift.startTime), "HH:mm"),
       endTime: format(parseISO(shift.endTime), "HH:mm"),
@@ -334,6 +349,7 @@ export default function ShiftsPage() {
       startTime: sObj.toISOString(),
       endTime: eObj.toISOString(),
       title: newManualShift.title,
+      locationId: newManualShift.locationId,
       type: "MANUAL"
     });
     setIsEditOpen(false);
@@ -427,42 +443,57 @@ export default function ShiftsPage() {
                       {/* Celle Dipendenti */}
                       {displayEmployees.map(emp => {
                         const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
-                        const morningShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() < 14);
-                        const afternoonShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() >= 14);
-                        
                         const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
-                        const morningAbsences = dayAbsences.filter(abs => abs.type !== 'HOURLY_PERMIT' || parseInt(abs.startTime?.split(':')[0] || "0") < 14);
-                        const afternoonAbsences = dayAbsences.filter(abs => abs.type !== 'HOURLY_PERMIT' || parseInt(abs.endTime?.split(':')[0] || "0") >= 14);
                         
+                        // Raggruppa i turni per sede
+                        const shiftsByLocation = dayShifts.reduce((acc, s) => {
+                          const locId = s.locationId || emp.locationId || "default";
+                          if (!acc[locId]) acc[locId] = [];
+                          acc[locId].push(s);
+                          return acc;
+                        }, {} as Record<string, any[]>);
+
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-3 border-r min-h-[160px] flex flex-col gap-4 bg-white">
-                            {/* Morning Slot */}
-                            <div className="flex flex-col gap-1.5">
-                              {morningAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
-                              {morningShifts.map(s => (
-                                <ShiftItem 
-                                  key={s.id} 
-                                  s={s} 
-                                  isMorning={true} 
-                                  onEdit={() => handleEditShift(s)} 
-                                  onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
-                                />
-                              ))}
-                            </div>
+                            {/* Assenze (globali per il dipendente) */}
+                            {dayAbsences.length > 0 && (
+                              <div className="flex flex-col gap-1">
+                                {dayAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
+                              </div>
+                            )}
 
-                            {/* Afternoon Slot */}
-                            <div className="flex flex-col gap-1.5">
-                              {afternoonAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
-                              {afternoonShifts.map(s => (
-                                <ShiftItem 
-                                  key={s.id} 
-                                  s={s} 
-                                  isMorning={false} 
-                                  onEdit={() => handleEditShift(s)} 
-                                  onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
-                                />
-                              ))}
-                            </div>
+                            {/* Blocchi Turni per Sede */}
+                            {Object.entries(shiftsByLocation).map(([locId, locShifts]) => {
+                              const locName = locations?.find(l => l.id === locId)?.name || "Sede";
+                              const morningShifts = locShifts.filter(s => parseISO(s.startTime).getHours() < 14);
+                              const afternoonShifts = locShifts.filter(s => parseISO(s.startTime).getHours() >= 14);
+
+                              return (
+                                <div key={locId} className="flex flex-col gap-2 p-2 rounded-xl bg-slate-50/50 border border-slate-100">
+                                  <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest px-1">{locName}</span>
+                                  <div className="flex flex-col gap-1.5">
+                                    {morningShifts.map(s => (
+                                      <ShiftItem 
+                                        key={s.id} 
+                                        s={s} 
+                                        isMorning={true} 
+                                        onEdit={() => handleEditShift(s)} 
+                                        onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
+                                      />
+                                    ))}
+                                    {afternoonShifts.map(s => (
+                                      <ShiftItem 
+                                        key={s.id} 
+                                        s={s} 
+                                        isMorning={false} 
+                                        onEdit={() => handleEditShift(s)} 
+                                        onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         );
                       })}
@@ -470,19 +501,19 @@ export default function ShiftsPage() {
                       {/* Riepilogo Sedi (Specchietto Destra) */}
                       <div className="min-w-[250px] p-3 border-l-2 border-slate-300 bg-slate-50/50 flex flex-col gap-2 justify-center">
                         {locations?.map(loc => {
-                          const locEmployees = displayEmployees.filter(e => e.locationId === loc.id);
-                          
-                          const morningCount = locEmployees.reduce((acc, emp) => {
-                            const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
-                            const isAbsent = weekAbsences.some(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT');
-                            return acc + (hasShift && !isAbsent ? 1 : 0);
-                          }, 0);
+                          const morningCount = weekShifts.filter(s => 
+                            s.locationId === loc.id && 
+                            s.date === dayStr && 
+                            parseISO(s.startTime).getHours() < 14 &&
+                            !weekAbsences.some(abs => abs.employeeId === s.employeeId && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT')
+                          ).length;
 
-                          const afternoonCount = locEmployees.reduce((acc, emp) => {
-                            const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
-                            const isAbsent = weekAbsences.some(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT');
-                            return acc + (hasShift && !isAbsent ? 1 : 0);
-                          }, 0);
+                          const afternoonCount = weekShifts.filter(s => 
+                            s.locationId === loc.id && 
+                            s.date === dayStr && 
+                            parseISO(s.startTime).getHours() >= 14 &&
+                            !weekAbsences.some(abs => abs.employeeId === s.employeeId && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT')
+                          ).length;
 
                           const isWarning = morningCount === 0 || afternoonCount === 0;
 
@@ -531,6 +562,13 @@ export default function ShiftsPage() {
               </Select>
             </div>
             <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase text-slate-500">Sede</Label>
+              <Select value={newManualShift.locationId} onValueChange={v => setNewManualShift({...newManualShift, locationId: v})}>
+                <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona Sede..." /></SelectTrigger>
+                <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label className="font-bold text-xs uppercase text-slate-500">Data</Label>
               <Input type="date" className="h-11" value={newManualShift.date} onChange={e => setNewManualShift({...newManualShift, date: e.target.value})} />
             </div>
@@ -557,6 +595,13 @@ export default function ShiftsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Modifica Turno</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase text-slate-500">Sede</Label>
+              <Select value={newManualShift.locationId} onValueChange={v => setNewManualShift({...newManualShift, locationId: v})}>
+                <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona Sede..." /></SelectTrigger>
+                <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
             <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Orari</Label>
               <div className="grid grid-cols-2 gap-4">
                 <Input type="time" className="h-11" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
