@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/Sidebar"
 import { Navbar } from "@/components/layout/Navbar"
 import { useUser } from "@/firebase"
 import { Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export default function AdminLayout({
   children,
@@ -13,10 +14,17 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const { user, isUserLoading } = useUser()
+  const router = useRouter()
   const [displayName, setDisplayName] = useState("Amministratore")
   const [role, setRole] = useState<'ADMIN' | 'EMPLOYEE'>('ADMIN')
 
   useEffect(() => {
+    // Se non c'è l'utente e il caricamento è finito, torna al login
+    if (!isUserLoading && !user) {
+      router.replace("/login")
+      return;
+    }
+
     if (user?.displayName) {
       setDisplayName(user.displayName)
     } else {
@@ -28,7 +36,7 @@ export default function AdminLayout({
     if (savedRole) {
       setRole(savedRole.toUpperCase() as 'ADMIN' | 'EMPLOYEE')
     }
-  }, [user])
+  }, [user, isUserLoading, router])
 
   if (isUserLoading) {
     return (
@@ -40,6 +48,9 @@ export default function AdminLayout({
       </div>
     )
   }
+
+  // Non renderizzare se non c'è l'utente (il redirect avverrà in useEffect)
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-background">

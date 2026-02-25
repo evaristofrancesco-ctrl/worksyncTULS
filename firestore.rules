@@ -2,26 +2,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Regola base: permette tutto agli utenti autenticati per la fase di prototipo
+    // Regola base per il prototipo: permette tutto agli utenti autenticati.
+    // Questo copre sia le collezioni standard che i collectionGroup (shifts, timeentries, etc.)
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
     
-    // Regole esplicite per le query collectionGroup (necessarie per evitare errori di permessi)
-    match /{path=**}/timeentries/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /{path=**}/requests/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /{path=**}/shifts/{id} {
-      allow read, write: if request.auth != null;
-    }
-    match /{path=**}/modifications/{id} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Permette la lettura degli impiegati anche in fase di login (necessario per check credenziali)
+    // Permette la lettura degli impiegati anche in fase di login (necessario per check credenziali prima del login completo)
     match /employees/{employeeId} {
       allow read: if true;
     }

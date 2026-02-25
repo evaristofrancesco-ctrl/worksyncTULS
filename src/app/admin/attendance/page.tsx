@@ -55,6 +55,7 @@ export default function AttendancePage() {
     type: "ADMIN"
   })
 
+  // Queries stabili
   const employeesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collection(db, "employees");
@@ -86,7 +87,7 @@ export default function AttendancePage() {
     const mappedRequests = (allRequests || [])
       .filter(req => {
         const status = (req.status || "").toUpperCase();
-        return status === "APPROVATO" || status === "APPROVED";
+        return status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
       })
       .map(req => {
         const start = req.startDate + (req.startTime ? `T${req.startTime}` : "T09:00");
@@ -109,16 +110,21 @@ export default function AttendancePage() {
       .filter(entry => {
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
+        
+        // Se non stiamo vedendo tutto lo storico, limitiamo ai 30gg
         if (!showAllHistory && !filterDate && !searchQuery && entry.checkInTime) {
           const d = new Date(entry.checkInTime);
           if (isValid(d) && d < horizon) return false;
         }
+
         const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
         if (searchQuery && !fullName.includes(searchQuery.toLowerCase())) return false;
+        
         if (filterDate && entry.checkInTime) {
           const entryDate = entry.checkInTime.split('T')[0];
           if (entryDate !== filterDate) return false;
         }
+
         if (filterType !== "all") {
           const type = entry.type || "MANUAL";
           if (filterType === "USER" && type !== "MANUAL" && type !== "USER") return false;
@@ -145,6 +151,7 @@ export default function AttendancePage() {
     return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
   }, [filteredEntries]);
 
+  // Gestione Form
   const handleAddEntry = () => {
     if (!formData.employeeId || !formData.checkInTime) {
       toast({ variant: "destructive", title: "Errore", description: "Seleziona collaboratore e orari." });
@@ -153,9 +160,18 @@ export default function AttendancePage() {
     const id = `entry-adm-${Date.now()}`;
     const checkIn = new Date(`${formData.checkInDate}T${formData.checkInTime}`).toISOString();
     const checkOut = formData.checkOutTime ? new Date(`${formData.checkOutDate}T${formData.checkOutTime}`).toISOString() : null;
+    
     setDocumentNonBlocking(doc(db, "employees", formData.employeeId, "timeentries", id), {
-      id, employeeId: formData.employeeId, companyId: "default", checkInTime: checkIn, checkOutTime: checkOut, type: "ADMIN", status: "PRESENT", isApproved: true
+      id, 
+      employeeId: formData.employeeId, 
+      companyId: "default", 
+      checkInTime: checkIn, 
+      checkOutTime: checkOut, 
+      type: "ADMIN", 
+      status: "PRESENT", 
+      isApproved: true
     }, { merge: true });
+    
     setIsAddOpen(false);
     toast({ title: "Registrato", description: "Timbratura inserita correttamente." });
   }
@@ -164,6 +180,7 @@ export default function AttendancePage() {
     setSelectedEntry(log);
     const cIn = new Date(log.checkInTime);
     const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
+    
     setFormData({
       employeeId: log.employeeId,
       checkInDate: isValid(cIn) ? format(cIn, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
@@ -179,9 +196,13 @@ export default function AttendancePage() {
     if (!selectedEntry || !db) return;
     const checkIn = new Date(`${formData.checkInDate}T${formData.checkInTime}`).toISOString();
     const checkOut = formData.checkOutTime ? new Date(`${formData.checkOutDate}T${formData.checkOutTime}`).toISOString() : null;
+    
     updateDocumentNonBlocking(doc(db, "employees", selectedEntry.employeeId, "timeentries", selectedEntry.id), {
-      checkInTime: checkIn, checkOutTime: checkOut, updatedAt: new Date().toISOString()
+      checkInTime: checkIn, 
+      checkOutTime: checkOut, 
+      updatedAt: new Date().toISOString()
     });
+    
     setIsEditOpen(false);
     toast({ title: "Aggiornato", description: "Modifiche salvate." });
   }
@@ -223,19 +244,34 @@ export default function AttendancePage() {
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="h-10 border-none bg-slate-50"><SelectValue placeholder="Fonte" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutte le fonti</SelectItem><SelectItem value="USER">Utente</SelectItem><SelectItem value="AUTO">Automatiche</SelectItem><SelectItem value="ADMIN">Admin</SelectItem><SelectItem value="ABSENCE">Assenze</SelectItem>
+                <SelectItem value="all">Tutte le fonti</SelectItem>
+                <SelectItem value="USER">Utente</SelectItem>
+                <SelectItem value="AUTO">Automatiche</SelectItem>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="ABSENCE">Assenze</SelectItem>
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-2"><Button variant="ghost" size="sm" className="h-10 font-bold" onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}>Reset</Button>{!showAllHistory && !filterDate && (<Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase" onClick={() => setShowAllHistory(true)}>Mostra Altro</Button>)}</div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-10 font-bold" onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}>Reset</Button>
+              {!showAllHistory && !filterDate && (<Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase" onClick={() => setShowAllHistory(true)}>Mostra Altro</Button>)}
+            </div>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid gap-6">
-        {isLoadingEntries || isLoadingRequests ? (<div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>) : groupedEntries.length > 0 ? groupedEntries.map(([date, dayEntries]) => (
+        {isLoadingEntries || isLoadingRequests ? (
+          <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
+        ) : groupedEntries.length > 0 ? groupedEntries.map(([date, dayEntries]) => (
           <Card key={date} className="border-none shadow-sm bg-white overflow-hidden ring-1 ring-slate-200">
             <CardHeader className="p-4 border-b bg-slate-50/50 flex flex-row items-center justify-between">
-              <div className="flex items-center gap-3"><div className="bg-white p-2 rounded-xl shadow-sm border"><CalendarDays className="h-5 w-5 text-[#227FD8]" /></div><div><CardTitle className="text-sm font-black uppercase text-[#1e293b]">{format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}</CardTitle><p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti</p></div></div>
+              <div className="flex items-center gap-3">
+                <div className="bg-white p-2 rounded-xl shadow-sm border"><CalendarDays className="h-5 w-5 text-[#227FD8]" /></div>
+                <div>
+                  <CardTitle className="text-sm font-black uppercase text-[#1e293b]">{format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}</CardTitle>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti</p>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -247,10 +283,38 @@ export default function AttendancePage() {
                     const isAbsence = log.type === 'ABSENCE';
                     return (
                       <TableRow key={log.id} className="h-14 border-b last:border-0 hover:bg-slate-50/30">
-                        <TableCell className="pl-6 w-[250px]"><div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={emp?.photoUrl} /><AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback></Avatar><div className="flex flex-col"><span className="font-bold text-xs text-[#1e293b] truncate w-32">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</span><span className="text-[9px] font-bold text-slate-400 uppercase">{emp?.jobTitle || "Collaboratore"}</span></div></div></TableCell>
-                        <TableCell><div className="flex items-center gap-2"><span className="text-xs font-black text-[#227FD8]">{cIn && isValid(cIn) ? cIn.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}</span><span className="text-slate-300 text-[10px]">→</span><span className="text-xs font-black text-slate-700">{cOut && isValid(cOut) ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}</span></div></TableCell>
+                        <TableCell className="pl-6 w-[250px]">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={emp?.photoUrl} />
+                              <AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-xs text-[#1e293b] truncate w-32">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</span>
+                              <span className="text-[9px] font-bold text-slate-400 uppercase">{emp?.jobTitle || "Collaboratore"}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-[#227FD8]">{cIn && isValid(cIn) ? cIn.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}</span>
+                            <span className="text-slate-300 text-[10px]">→</span>
+                            <span className="text-xs font-black text-slate-700">{cOut && isValid(cOut) ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}</span>
+                          </div>
+                        </TableCell>
                         <TableCell>{getSourceBadge(log.type)}</TableCell>
-                        <TableCell className="pr-6 text-right"><div className="flex justify-end gap-2">{!isAbsence && (<Button variant="ghost" size="icon" className="h-8 w-8 text-[#227FD8] hover:bg-blue-50" onClick={() => handleEditClick(log)}><Edit className="h-4 w-4" /></Button>)}<Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-50" onClick={() => handleDeleteEntry(log)}><Trash2 className="h-4 w-4" /></Button></div></TableCell>
+                        <TableCell className="pr-6 text-right">
+                          <div className="flex justify-end gap-2">
+                            {!isAbsence && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-[#227FD8] hover:bg-blue-50" onClick={() => handleEditClick(log)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-50" onClick={() => handleDeleteEntry(log)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     )
                   })}
@@ -261,19 +325,82 @@ export default function AttendancePage() {
         )) : (<Card className="py-20 text-center border-dashed border-2"><p className="text-slate-400 font-bold italic">Nessun movimento trovato.</p></Card>)}
       </div>
 
+      {/* Dialog Nuova Timbratura */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-black text-xl uppercase">Nuova Timbratura</DialogTitle><DialogDescription>Inserisci manualmente un record di presenza.</DialogDescription></DialogHeader>
-          <div className="space-y-4 py-4"><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Collaboratore</Label><Select value={formData.employeeId} onValueChange={(v) => setFormData({...formData, employeeId: v})}><SelectTrigger className="h-11"><SelectValue placeholder="Seleziona..." /></SelectTrigger><SelectContent>{employees?.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}</SelectContent></Select></div><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Giorno Inizio</Label><Input type="date" className="h-11" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} /></div><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Ora Inizio</Label><Input type="time" className="h-11" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} /></div></div><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Giorno Fine</Label><Input type="date" className="h-11" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} /></div><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Ora Fine</Label><Input type="time" className="h-11" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} /></div></div></div>
-          <DialogFooter><Button variant="ghost" onClick={() => setIsAddOpen(false)} className="font-bold">Annulla</Button><Button onClick={handleAddEntry} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8">SALVA RECORD</Button></DialogFooter>
+          <DialogHeader>
+            <DialogTitle className="font-black text-xl uppercase">Nuova Timbratura</DialogTitle>
+            <DialogDescription>Inserisci manualmente un record di presenza.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase text-slate-500">Collaboratore</Label>
+              <Select value={formData.employeeId} onValueChange={(v) => setFormData({...formData, employeeId: v})}>
+                <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                <SelectContent>{employees?.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Inizio</Label>
+                <Input type="date" className="h-11" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Ora Inizio</Label>
+                <Input type="time" className="h-11" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Fine</Label>
+                <Input type="date" className="h-11" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Ora Fine</Label>
+                <Input type="time" className="h-11" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="font-bold">Annulla</Button>
+            <Button onClick={handleAddEntry} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8">SALVA RECORD</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Dialog Modifica Timbratura */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-black text-xl uppercase">Modifica Record</DialogTitle><DialogDescription>Correggi gli orari di ingresso o uscita.</DialogDescription></DialogHeader>
-          <div className="space-y-4 py-4"><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Giorno Inizio</Label><Input type="date" className="h-11" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} /></div><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Ora Inizio</Label><Input type="time" className="h-11" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} /></div></div><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Giorno Fine</Label><Input type="date" className="h-11" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} /></div><div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Ora Fine</Label><Input type="time" className="h-11" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} /></div></div></div>
-          <DialogFooter><Button variant="ghost" onClick={() => setIsEditOpen(false)} className="font-bold">Annulla</Button><Button onClick={handleUpdateEntry} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8">AGGIORNA</Button></DialogFooter>
+          <DialogHeader>
+            <DialogTitle className="font-black text-xl uppercase">Modifica Record</DialogTitle>
+            <DialogDescription>Correggi gli orari di ingresso o uscita.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Inizio</Label>
+                <Input type="date" className="h-11" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Ora Inizio</Label>
+                <Input type="time" className="h-11" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Fine</Label>
+                <Input type="date" className="h-11" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Ora Fine</Label>
+                <Input type="time" className="h-11" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="font-bold">Annulla</Button>
+            <Button onClick={handleUpdateEntry} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8">AGGIORNA</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
