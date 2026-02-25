@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { format, parseISO, subDays } from "date-fns"
+import { format, parseISO, subDays, isValid } from "date-fns"
 import { it } from "date-fns/locale"
 
 export default function AttendancePage() {
@@ -86,7 +86,7 @@ export default function AttendancePage() {
     const mappedRequests = (allRequests || [])
       .filter(req => {
         const status = (req.status || "").toUpperCase();
-        return status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
+        return status === "APPROVATO" || status === "APPROVED";
       })
       .map(req => {
         const start = req.startDate + (req.startTime ? `T${req.startTime}` : "T09:00");
@@ -113,14 +113,15 @@ export default function AttendancePage() {
         if (!emp) return false;
 
         if (!showAllHistory && !filterDate && !searchQuery && entry.checkInTime) {
-          if (new Date(entry.checkInTime) < horizon) return false;
+          const d = new Date(entry.checkInTime);
+          if (isValid(d) && d < horizon) return false;
         }
 
         const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
         if (searchQuery && !fullName.includes(searchQuery.toLowerCase())) return false;
 
         if (filterDate && entry.checkInTime) {
-          const entryDate = new Date(entry.checkInTime).toISOString().split('T')[0];
+          const entryDate = entry.checkInTime.split('T')[0];
           if (entryDate !== filterDate) return false;
         }
 
@@ -144,7 +145,7 @@ export default function AttendancePage() {
   const groupedEntries = useMemo(() => {
     const groups: Record<string, any[]> = {};
     for (const entry of filteredEntries) {
-      const dateKey = entry.checkInTime ? new Date(entry.checkInTime).toISOString().split('T')[0] : "no-date";
+      const dateKey = entry.checkInTime ? entry.checkInTime.split('T')[0] : "no-date";
       if (!groups[dateKey]) groups[dateKey] = [];
       groups[dateKey].push(entry);
     }
@@ -153,7 +154,7 @@ export default function AttendancePage() {
 
   const handleAddEntry = () => {
     if (!formData.employeeId || !formData.checkInTime) {
-      toast({ variant: "destructive", title: "Errore", description: "Seleziona dipendente e orari." });
+      toast({ variant: "destructive", title: "Errore", description: "Seleziona collaboratore e orari." });
       return;
     }
 
@@ -183,10 +184,10 @@ export default function AttendancePage() {
     
     setFormData({
       employeeId: log.employeeId,
-      checkInDate: format(cIn, "yyyy-MM-dd"),
-      checkInTime: format(cIn, "HH:mm"),
-      checkOutDate: cOut ? format(cOut, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-      checkOutTime: cOut ? format(cOut, "HH:mm") : "",
+      checkInDate: isValid(cIn) ? format(cIn, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      checkInTime: isValid(cIn) ? format(cIn, "HH:mm") : "09:00",
+      checkOutDate: cOut && isValid(cOut) ? format(cOut, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      checkOutTime: cOut && isValid(cOut) ? format(cOut, "HH:mm") : "",
       type: log.type
     });
     setIsEditOpen(true);
@@ -205,7 +206,7 @@ export default function AttendancePage() {
     });
 
     setIsEditOpen(false);
-    toast({ title: "Aggiornato", description: "Le modifiche sono state salvate." });
+    toast({ title: "Aggiornato", description: "Modifiche salvate." });
   }
 
   const handleDeleteEntry = (log: any) => {
@@ -233,14 +234,12 @@ export default function AttendancePage() {
         <div>
           <h1 className="text-3xl font-black text-[#1e293b] tracking-tight">Registro Presenze</h1>
           <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-            <History className="h-4 w-4" /> Archivio movimenti recenti (max 500).
+            <History className="h-4 w-4" /> Movimenti recenti del team.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setIsAddOpen(true)} className="font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-10 shadow-sm">
-            <Plus className="h-4 w-4 mr-2" /> Inserimento Manuale
-          </Button>
-        </div>
+        <Button variant="default" onClick={() => setIsAddOpen(true)} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-11 px-6 shadow-md">
+          <Plus className="h-5 w-5 mr-2" /> Inserimento Manuale
+        </Button>
       </div>
 
       <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200">
@@ -264,7 +263,7 @@ export default function AttendancePage() {
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" className="h-10 font-bold" onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}>Reset</Button>
               {!showAllHistory && !filterDate && (
-                <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase tracking-tighter" onClick={() => setShowAllHistory(true)}>Carica Altro</Button>
+                <Button variant="outline" size="sm" className="h-10 text-[10px] font-black uppercase" onClick={() => setShowAllHistory(true)}>Mostra Altro</Button>
               )}
             </div>
           </div>
@@ -299,7 +298,7 @@ export default function AttendancePage() {
                     const isAbsence = log.type === 'ABSENCE';
                     
                     return (
-                      <TableRow key={log.id} className="h-14 border-b last:border-0 hover:bg-slate-50/30 group">
+                      <TableRow key={log.id} className="h-14 border-b last:border-0 hover:bg-slate-50/30">
                         <TableCell className="pl-6 w-[250px]">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-8 w-8">
@@ -315,11 +314,11 @@ export default function AttendancePage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-black text-[#227FD8]">
-                              {cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                              {cIn && isValid(cIn) ? cIn.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}
                             </span>
                             <span className="text-slate-300 text-[10px]">→</span>
                             <span className="text-xs font-black text-slate-700">
-                              {cOut ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}
+                              {cOut && isValid(cOut) ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}
                             </span>
                           </div>
                         </TableCell>
@@ -346,11 +345,11 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
         )) : (
-          <Card className="py-20 text-center border-dashed border-2"><p className="text-slate-400 font-bold italic">Nessun movimento trovato per i criteri selezionati.</p></Card>
+          <Card className="py-20 text-center border-dashed border-2"><p className="text-slate-400 font-bold italic">Nessun movimento trovato.</p></Card>
         )}
       </div>
 
-      {/* Dialog Aggiunta */}
+      {/* Dialog Nuova Timbratura */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -395,7 +394,7 @@ export default function AttendancePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Modifica */}
+      {/* Dialog Modifica Timbratura */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>

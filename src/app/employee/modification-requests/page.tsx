@@ -24,7 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, doc } from "firebase/firestore"
+import { collection, query, orderBy, doc, limit } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
@@ -58,24 +58,12 @@ export default function ModificationRequestsPage() {
     if (!db || !employeeId) return null;
     return query(
       collection(db, "employees", employeeId, "modifications"),
-      orderBy("submittedAt", "desc")
+      orderBy("submittedAt", "desc"),
+      limit(100)
     );
   }, [db, employeeId])
 
   const { data: allRequests, isLoading } = useCollection(modificationsQuery)
-
-  useEffect(() => {
-    if (!allRequests || !db || !employeeId) return;
-    const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    allRequests.forEach(req => {
-      const submittedAt = new Date(req.submittedAt);
-      if (submittedAt < oneWeekAgo) {
-        const ref = doc(db, "employees", employeeId, "modifications", req.id);
-        deleteDocumentNonBlocking(ref);
-      }
-    });
-  }, [allRequests, db, employeeId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,7 +84,6 @@ export default function ModificationRequestsPage() {
     const requestRef = doc(db, "employees", employeeId, "modifications", requestId)
     const selectedLocation = locations?.find(l => l.id === form.locationId);
 
-    // Salva la richiesta
     setDocumentNonBlocking(requestRef, {
       id: requestId,
       employeeId,
@@ -116,13 +103,12 @@ export default function ModificationRequestsPage() {
       }
     }, { merge: true })
 
-    // Manda notifica agli ADMIN
     const notifId = `notif-mod-${Date.now()}`;
     setDocumentNonBlocking(doc(db, "notifications", notifId), {
       id: notifId,
       recipientId: "ADMIN",
       title: "Nuova Richiesta Entra/Esce",
-      message: `${displayName} (${selectedLocation?.name}) ha inviato una nuova movimentazione: ${form.entra.name} <-> ${form.esce.name}.`,
+      message: `${displayName} (${selectedLocation?.name}) ha inviato una nuova movimentazione.`,
       type: "MODIFICATION_REQUEST",
       createdAt: new Date().toISOString(),
       isRead: false
@@ -136,7 +122,7 @@ export default function ModificationRequestsPage() {
     
     setTimeout(() => {
       setIsSubmitting(false)
-      toast({ title: "Inviata", description: "La tua richiesta è in attesa di revisione." })
+      toast({ title: "Inviata", description: "La richiesta è in attesa di revisione." })
     }, 500)
   }
 
@@ -148,7 +134,7 @@ export default function ModificationRequestsPage() {
         </div>
         <div>
           <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Entra/Esce</h1>
-          <p className="text-sm text-muted-foreground">Invia le movimentazioni degli articoli per l'approvazione.</p>
+          <p className="text-sm text-muted-foreground">Invia le movimentazioni articoli.</p>
         </div>
       </div>
 
@@ -182,34 +168,25 @@ export default function ModificationRequestsPage() {
                     <span className="font-black uppercase tracking-widest text-xs">COSA ENTRA</span>
                   </div>
                   <div className="grid gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Codice a Barre</Label>
-                      <Input 
-                        placeholder="Scannerizza o digita..." 
-                        className="h-10 text-sm font-mono font-bold border-[#227FD8]/30"
-                        value={form.entra.barcode}
-                        onChange={(e) => setForm({...form, entra: {...form.entra, barcode: e.target.value}})}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Nome Articolo</Label>
-                      <Input 
-                        placeholder="Nome dell'articolo..." 
-                        className="h-10 text-sm"
-                        value={form.entra.name}
-                        onChange={(e) => setForm({...form, entra: {...form.entra, name: e.target.value}})}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Pezzi</Label>
-                      <Input 
-                        type="number" 
-                        placeholder="Quantità" 
-                        className="h-10 text-sm"
-                        value={form.entra.pieces}
-                        onChange={(e) => setForm({...form, entra: {...form.entra, pieces: e.target.value}})}
-                      />
-                    </div>
+                    <Input 
+                      placeholder="Codice a Barre..." 
+                      className="h-10 text-sm font-mono font-bold"
+                      value={form.entra.barcode}
+                      onChange={(e) => setForm({...form, entra: {...form.entra, barcode: e.target.value}})}
+                    />
+                    <Input 
+                      placeholder="Nome Articolo..." 
+                      className="h-10 text-sm"
+                      value={form.entra.name}
+                      onChange={(e) => setForm({...form, entra: {...form.entra, name: e.target.value}})}
+                    />
+                    <Input 
+                      type="number" 
+                      placeholder="Quantità" 
+                      className="h-10 text-sm"
+                      value={form.entra.pieces}
+                      onChange={(e) => setForm({...form, entra: {...form.entra, pieces: e.target.value}})}
+                    />
                   </div>
                 </div>
 
@@ -221,34 +198,25 @@ export default function ModificationRequestsPage() {
                     <span className="font-black uppercase tracking-widest text-xs">COSA ESCE</span>
                   </div>
                   <div className="grid gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Codice a Barre</Label>
-                      <Input 
-                        placeholder="Scannerizza o digita..." 
-                        className="h-10 text-sm font-mono font-bold border-[#227FD8]/30"
-                        value={form.esce.barcode}
-                        onChange={(e) => setForm({...form, esce: {...form.esce, barcode: e.target.value}})}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Nome Articolo</Label>
-                      <Input 
-                        placeholder="Nome dell'articolo..." 
-                        className="h-10 text-sm"
-                        value={form.esce.name}
-                        onChange={(e) => setForm({...form, esce: {...form.esce, name: e.target.value}})}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black uppercase text-muted-foreground">Pezzi</Label>
-                      <Input 
-                        type="number" 
-                        placeholder="Quantità" 
-                        className="h-10 text-sm"
-                        value={form.esce.pieces}
-                        onChange={(e) => setForm({...form, esce: {...form.esce, pieces: e.target.value}})}
-                      />
-                    </div>
+                    <Input 
+                      placeholder="Codice a Barre..." 
+                      className="h-10 text-sm font-mono font-bold"
+                      value={form.esce.barcode}
+                      onChange={(e) => setForm({...form, esce: {...form.esce, barcode: e.target.value}})}
+                    />
+                    <Input 
+                      placeholder="Nome Articolo..." 
+                      className="h-10 text-sm"
+                      value={form.esce.name}
+                      onChange={(e) => setForm({...form, esce: {...form.esce, name: e.target.value}})}
+                    />
+                    <Input 
+                      type="number" 
+                      placeholder="Quantità" 
+                      className="h-10 text-sm"
+                      value={form.esce.pieces}
+                      onChange={(e) => setForm({...form, esce: {...form.esce, pieces: e.target.value}})}
+                    />
                   </div>
                 </div>
 
@@ -263,69 +231,38 @@ export default function ModificationRequestsPage() {
               </form>
             </CardContent>
           </Card>
-          
-          <div className="bg-blue-50/80 p-5 rounded-2xl border border-blue-100 flex gap-4">
-             <AlertCircle className="h-6 w-6 text-blue-600 shrink-0" />
-             <p className="text-xs text-blue-800 leading-relaxed font-medium">
-               I tuoi invii rimarranno visibili per <b>7 giorni</b> prima di essere rimossi automaticamente dall'archivio personale.
-             </p>
-          </div>
         </div>
 
         <div className="lg:col-span-7 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">I Miei Invii Recenti</h2>
-          </div>
-          
+          <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-1">Invii Recenti</h2>
           <div className="space-y-4">
             {isLoading ? (
               <div className="flex justify-center py-20"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
             ) : allRequests && allRequests.length > 0 ? (
-              allRequests.map((req) => {
-                const isPending = req.status === "PENDING";
-                const isApproved = req.status === "APPROVED";
-                return (
-                  <Card key={req.id} className={`border-none shadow-sm transition-all overflow-hidden ${isPending ? 'ring-2 ring-amber-100' : 'opacity-90 bg-white/50'}`}>
-                    <div className={`px-4 py-2 flex justify-between items-center text-[11px] font-bold ${isPending ? 'bg-amber-50' : isApproved ? 'bg-green-50' : 'bg-rose-50'}`}>
-                      <span className="flex items-center gap-2">
-                        <Clock className="h-3.5 w-3.5" /> {new Date(req.submittedAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                        <span className="mx-2 opacity-20">|</span>
-                        <MapPin className="h-3 w-3" /> {req.locationName || "Sede N.D."}
-                      </span>
-                      <Badge className={`h-5 text-[9px] border-none px-2 font-black uppercase tracking-widest ${
-                        isPending ? 'bg-amber-200 text-amber-900' : 
-                        isApproved ? 'bg-green-600 text-white' : 
-                        'bg-rose-600 text-white'
-                      }`}>
-                        {isPending ? 'IN ATTESA' : isApproved ? 'APPROVATA' : 'RIFIUTATA'}
-                      </Badge>
+              allRequests.map((req) => (
+                <Card key={req.id} className="border-none shadow-sm overflow-hidden bg-white">
+                  <div className={`px-4 py-2 flex justify-between items-center text-[11px] font-bold ${req.status === 'PENDING' ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                    <span>{new Date(req.submittedAt).toLocaleString('it-IT')} | {req.locationName}</span>
+                    <Badge className={`h-5 text-[9px] font-black uppercase ${req.status === 'PENDING' ? 'bg-amber-200 text-amber-900' : 'bg-slate-200 text-slate-700'}`}>
+                      {req.status}
+                    </Badge>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 divide-x border-t">
+                    <div className="pr-4">
+                      <p className="text-[10px] font-black uppercase text-green-600">Entra</p>
+                      <p className="text-sm font-bold truncate">{req.entra.name}</p>
+                      <code className="text-xs bg-slate-900 text-white px-2 rounded">{req.entra.barcode} x{req.entra.pieces}</code>
                     </div>
-                    <div className="p-4 grid grid-cols-2 divide-x border-t">
-                      <div className="pr-4">
-                        <p className="text-[10px] font-black uppercase text-green-600 mb-1">Entra</p>
-                        <p className="text-sm font-bold text-[#1e293b] truncate mb-1">{req.entra.name}</p>
-                        <div className="flex justify-between items-center mt-2 bg-slate-50 p-1.5 rounded border border-slate-100">
-                          <code className="text-xs bg-slate-900 text-white px-2 py-0.5 rounded font-mono font-bold shadow-sm">{req.entra.barcode}</code>
-                          <span className="text-xs font-black">x{req.entra.pieces}</span>
-                        </div>
-                      </div>
-                      <div className="pl-4">
-                        <p className="text-[10px] font-black uppercase text-rose-600 mb-1">Esce</p>
-                        <p className="text-sm font-bold text-[#1e293b] truncate mb-1">{req.esce.name}</p>
-                        <div className="flex justify-between items-center mt-2 bg-slate-50 p-1.5 rounded border border-slate-100">
-                          <code className="text-xs bg-slate-900 text-white px-2 py-0.5 rounded font-mono font-bold shadow-sm">{req.esce.barcode}</code>
-                          <span className="text-xs font-black">x{req.esce.pieces}</span>
-                        </div>
-                      </div>
+                    <div className="pl-4">
+                      <p className="text-[10px] font-black uppercase text-rose-600">Esce</p>
+                      <p className="text-sm font-bold truncate">{req.esce.name}</p>
+                      <code className="text-xs bg-slate-900 text-white px-2 rounded">{req.esce.barcode} x{req.esce.pieces}</code>
                     </div>
-                  </Card>
-                )
-              })
+                  </div>
+                </Card>
+              ))
             ) : (
-              <div className="flex flex-col items-center justify-center py-24 bg-muted/20 rounded-3xl border border-dashed opacity-40">
-                <Inbox className="h-12 w-12 mb-4" />
-                <p className="text-sm font-bold uppercase tracking-widest">Nessuna movimentazione inviata</p>
-              </div>
+              <div className="py-20 text-center opacity-40 italic">Nessun invio.</div>
             )}
           </div>
         </div>
