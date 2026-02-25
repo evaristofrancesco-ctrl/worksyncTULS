@@ -25,12 +25,20 @@ Se non hai dimestichezza con Git, puoi scaricare periodicamente l'intero progett
 - Copia la cartella del progetto in una cartella di backup (es. `TU.L.S._Backup_DATA`).
 - In caso di problemi gravi, potrai sovrascrivere i file attuali con quelli della copia di backup.
 
-## 🧠 Glossario Tecnico dell'Interfaccia AI
-L'interfaccia che usi per comunicare con l'assistente AI e sviluppare l'app viene definita in vari modi:
-- **Conversational UI (CUI)**: Interfaccia utente basata sul dialogo naturale.
-- **AI Coding Assistant**: Un partner virtuale che scrive e modifica codice seguendo istruzioni testuali.
-- **Agentic Interface**: Un sistema capace di eseguire azioni complesse (come creare file o configurare database) in autonomia.
-- **Prompt Engineering**: L'arte di formulare le richieste per ottenere il miglior risultato dall'AI.
+## 🧠 Glossario Tecnico e Prestazioni
+
+### Interfaccia e Ruoli
+- **Conversational UI (CUI)**: Interfaccia utente basata sul dialogo naturale (questa chat).
+- **Agentic Interface**: Un sistema (come questo assistente) capace di agire sul codice e sul database autonomamente.
+- **AI Coding Assistant**: Il tuo partner virtuale per lo sviluppo.
+
+### Note sui Tempi di Avvio (Performance)
+L'apertura dell'ambiente di sviluppo può richiedere dai 5 ai 15 minuti a causa di:
+1. **Provisioning Cloud**: Avvio della macchina virtuale Google Cloud che ospita l'ambiente.
+2. **Compilazione JIT**: Il server Next.js deve compilare le pagine "Just-In-Time" alla prima richiesta.
+3. **Hydration**: Il processo in cui React rende interattiva la pagina scaricando i dati da Firestore.
+
+**Consiglio**: Una volta avviato, evita di chiudere la scheda del browser se prevedi di tornare a lavorare entro breve, per mantenere la "Workstation" attiva ed evitare un nuovo ciclo di boot.
 
 ## Come pubblicare il progetto (Deployment)
 
