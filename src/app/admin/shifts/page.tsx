@@ -37,6 +37,7 @@ import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlo
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { 
   format, 
   addDays, 
@@ -60,7 +61,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function ShiftsPage() {
   const db = useFirestore()
@@ -348,7 +348,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-slate-500 font-medium">Agenda settimanale unificata per tutto il team.</p>
+          <p className="text-slate-500 font-medium">Agenda settimanale organizzata per sede.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-11 px-6"><UserMinus className="h-4 w-4 mr-2" /> Assenza</Button>
@@ -392,141 +392,144 @@ export default function ShiftsPage() {
             <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
           ) : (
             <div className="flex flex-col">
-              {/* Header Colonne Dipendenti */}
-              <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
-                <div className="w-[180px] p-4 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
-                {displayEmployees.map(emp => (
-                  <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3">
-                    <Avatar className="h-8 w-8 shadow-sm ring-1 ring-slate-200">
-                      <AvatarImage src={emp.photoUrl} />
-                      <AvatarFallback className="font-bold">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                      <span className="font-bold text-slate-900 text-sm leading-tight">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{emp.locationName || emp.jobTitle}</span>
+              {locations?.map((loc, locIdx) => {
+                const locEmployees = displayEmployees.filter(e => e.locationId === loc.id);
+                if (locEmployees.length === 0) return null;
+
+                return (
+                  <div key={loc.id} className={cn("flex flex-col", locIdx > 0 && "border-t-8 border-slate-900 mt-8")}>
+                    {/* Header Sede */}
+                    <div className="bg-slate-900 text-white p-3 font-black uppercase tracking-widest flex items-center gap-3 sticky top-0 z-40">
+                      <MapPin className="h-4 w-4 text-[#227FD8]" />
+                      {loc.name}
                     </div>
-                  </div>
-                ))}
-                <div className="min-w-[250px] p-4 bg-slate-100/50 flex items-center gap-2 border-l-4 border-slate-300">
-                  <BarChart3 className="h-4 w-4 text-slate-600" />
-                  <span className="font-black text-[10px] uppercase text-slate-600">Coperture Totali</span>
-                </div>
-              </div>
 
-              {/* Righe Giornaliere */}
-              <div className="divide-y">
-                {daysOfVisualizedWeek.map((day) => {
-                  const dayStr = format(day, 'yyyy-MM-dd');
-                  const isSunday = day.getDay() === 0;
-                  if (isSunday) return null;
-
-                  return (
-                    <div key={dayStr} className="flex group hover:bg-slate-50/30">
-                      {/* Cella Data */}
-                      <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
-                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className="text-3xl font-black text-slate-800">{format(day, 'dd')}</div>
+                    {/* Header Colonne Dipendenti Sede */}
+                    <div className="flex sticky top-[40px] z-30 bg-slate-50 border-b shadow-sm">
+                      <div className="w-[180px] p-4 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
+                      {locEmployees.map(emp => (
+                        <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3">
+                          <Avatar className="h-8 w-8 shadow-sm ring-1 ring-slate-200">
+                            <AvatarImage src={emp.photoUrl} />
+                            <AvatarFallback className="font-bold">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-900 text-sm leading-tight">{emp.firstName} {emp.lastName}</span>
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">{emp.jobTitle}</span>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="min-w-[250px] p-4 bg-slate-100/50 flex items-center gap-2 border-l-2 border-slate-300">
+                        <BarChart3 className="h-4 w-4 text-slate-600" />
+                        <span className="font-black text-[10px] uppercase text-slate-600">Copertura {loc.name}</span>
                       </div>
-                      
-                      {/* Celle Dipendenti */}
-                      {displayEmployees.map(emp => {
-                        const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
-                        const morningShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() < 14);
-                        const afternoonShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() >= 14);
-                        
-                        const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
-                        const morningAbsences = dayAbsences.filter(abs => abs.type !== 'HOURLY_PERMIT' || parseInt(abs.startTime?.split(':')[0] || "0") < 14);
-                        const afternoonAbsences = dayAbsences.filter(abs => abs.type !== 'HOURLY_PERMIT' || parseInt(abs.endTime?.split(':')[0] || "0") >= 14);
-                        
-                        return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-2 border-r min-h-[180px] flex flex-col gap-4 bg-white">
-                            {/* Slot Mattina */}
-                            <div className="flex flex-col gap-1.5">
-                              {(morningAbsences.length > 0 || morningShifts.length > 0) && (
-                                <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
-                                  <Sun className="h-2 w-2" /> MATTINA
-                                </div>
-                              )}
-                              {morningAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
-                              {morningShifts.map(s => (
-                                <ShiftItem 
-                                  key={s.id} 
-                                  s={s} 
-                                  isMorning={true} 
-                                  onEdit={() => handleEditShift(s)} 
-                                  onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
-                                />
-                              ))}
-                            </div>
+                    </div>
 
-                            {/* Slot Pomeriggio */}
-                            <div className="flex flex-col gap-1.5">
-                              {(afternoonAbsences.length > 0 || afternoonShifts.length > 0) && (
-                                <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
-                                  <Moon className="h-2 w-2" /> POMERIGGIO
+                    {/* Righe Giornaliere Sede */}
+                    <div className="divide-y">
+                      {daysOfVisualizedWeek.map((day) => {
+                        const dayStr = format(day, 'yyyy-MM-dd');
+                        if (day.getDay() === 0) return null;
+
+                        const morningCount = locEmployees.reduce((acc, emp) => {
+                          const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
+                          const isAbsent = weekAbsences.some(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT');
+                          return acc + (hasShift && !isAbsent ? 1 : 0);
+                        }, 0);
+
+                        const afternoonCount = locEmployees.reduce((acc, emp) => {
+                          const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
+                          const isAbsent = weekAbsences.some(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT');
+                          return acc + (hasShift && !isAbsent ? 1 : 0);
+                        }, 0);
+
+                        return (
+                          <div key={dayStr} className="flex group hover:bg-slate-50/10">
+                            {/* Cella Data */}
+                            <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
+                              <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
+                              <div className="text-3xl font-black text-slate-800">{format(day, 'dd')}</div>
+                            </div>
+                            
+                            {/* Celle Dipendenti Sede */}
+                            {locEmployees.map(emp => {
+                              const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
+                              const morningShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() < 14);
+                              const afternoonShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() >= 14);
+                              
+                              const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
+                              const morningAbsences = dayAbsences.filter(abs => abs.type !== 'HOURLY_PERMIT' || parseInt(abs.startTime?.split(':')[0] || "0") < 14);
+                              const afternoonAbsences = dayAbsences.filter(abs => abs.type !== 'HOURLY_PERMIT' || parseInt(abs.endTime?.split(':')[0] || "0") >= 14);
+                              
+                              return (
+                                <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-2 border-r min-h-[160px] flex flex-col gap-3 bg-white">
+                                  {/* Morning Slot */}
+                                  <div className="flex flex-col gap-1.5 min-h-[60px]">
+                                    {morningAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
+                                    {morningShifts.map(s => (
+                                      <ShiftItem 
+                                        key={s.id} 
+                                        s={s} 
+                                        isMorning={true} 
+                                        onEdit={() => handleEditShift(s)} 
+                                        onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
+                                      />
+                                    ))}
+                                  </div>
+
+                                  {/* Afternoon Slot */}
+                                  <div className="flex flex-col gap-1.5 min-h-[60px]">
+                                    {afternoonAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
+                                    {afternoonShifts.map(s => (
+                                      <ShiftItem 
+                                        key={s.id} 
+                                        s={s} 
+                                        isMorning={false} 
+                                        onEdit={() => handleEditShift(s)} 
+                                        onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
+                                      />
+                                    ))}
+                                  </div>
                                 </div>
-                              )}
-                              {afternoonAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
-                              {afternoonShifts.map(s => (
-                                <ShiftItem 
-                                  key={s.id} 
-                                  s={s} 
-                                  isMorning={false} 
-                                  onEdit={() => handleEditShift(s)} 
-                                  onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} 
-                                />
-                              ))}
+                              );
+                            })}
+
+                            {/* Riepilogo Sede */}
+                            <div className="min-w-[250px] p-3 border-l-2 border-slate-300 bg-slate-50/50 flex flex-col justify-center">
+                              <div className="p-3 rounded-xl bg-white border shadow-sm space-y-3">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase">Mattina</span>
+                                  <Badge className={cn("h-6 px-3 font-black", morningCount > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700 animate-pulse")}>
+                                    {morningCount} PRESENTI
+                                  </Badge>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase">Pomeriggio</span>
+                                  <Badge className={cn("h-6 px-3 font-black", afternoonCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700 animate-pulse")}>
+                                    {afternoonCount} PRESENTI
+                                  </Badge>
+                                </div>
+                                {(morningCount === 0 || afternoonCount === 0) && (
+                                  <div className="pt-2 border-t flex items-center gap-2 text-rose-600 font-bold text-[9px] uppercase">
+                                    <AlertTriangle className="h-3 w-3" /> Sede Scoperta
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
                       })}
-
-                      {/* Riepilogo Sedi */}
-                      <div className="min-w-[250px] p-3 border-l-4 border-slate-300 bg-slate-100/30 flex flex-col gap-2">
-                        {locations?.map(loc => {
-                          const morningCount = displayEmployees.filter(e => e.locationId === loc.id).reduce((acc, emp) => {
-                            const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() < 14);
-                            const isAbsent = weekAbsences.some(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT');
-                            return acc + (hasShift && !isAbsent ? 1 : 0);
-                          }, 0);
-
-                          const afternoonCount = displayEmployees.filter(e => e.locationId === loc.id).reduce((acc, emp) => {
-                            const hasShift = weekShifts.some(s => s.employeeId === emp.id && s.date === dayStr && parseISO(s.startTime).getHours() >= 14);
-                            const isAbsent = weekAbsences.some(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT');
-                            return acc + (hasShift && !isAbsent ? 1 : 0);
-                          }, 0);
-
-                          if (morningCount === 0 && afternoonCount === 0) return null;
-
-                          return (
-                            <div key={loc.id} className="p-2 rounded-lg bg-white border shadow-sm space-y-1">
-                              <p className="text-[9px] font-black text-slate-400 uppercase truncate">{loc.name}</p>
-                              <div className="flex justify-between items-center">
-                                <div className="flex gap-2">
-                                  <div className={cn("px-1.5 py-0.5 rounded text-[10px] font-black", morningCount > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700 animate-pulse")}>
-                                    M: {morningCount}
-                                  </div>
-                                  <div className={cn("px-1.5 py-0.5 rounded text-[10px] font-black", afternoonCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700 animate-pulse")}>
-                                    P: {afternoonCount}
-                                  </div>
-                                </div>
-                                {(morningCount === 0 || afternoonCount === 0) && <AlertTriangle className="h-3 w-3 text-rose-500" />}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      {/* Dialog Nuovo Turno */}
+      {/* Dialogs components remain unchanged but included for file integrity */}
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
@@ -561,7 +564,6 @@ export default function ShiftsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Modifica Turno */}
       <Dialog open={isEditShiftOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Modifica Turno</DialogTitle></DialogHeader>
@@ -580,7 +582,6 @@ export default function ShiftsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Assenza */}
       <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight text-rose-600">Registra Assenza</DialogTitle></DialogHeader>
