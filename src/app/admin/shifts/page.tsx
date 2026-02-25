@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from "react"
@@ -61,7 +60,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Alert, AlertDescription, AlertTitle } from "@/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 export default function ShiftsPage() {
   const db = useFirestore()
