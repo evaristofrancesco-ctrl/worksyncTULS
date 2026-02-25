@@ -29,7 +29,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, doc, collectionGroup, query, limit } from "firebase/firestore"
+import { collection, doc, collectionGroup, query } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
@@ -121,7 +121,7 @@ export default function ShiftsPage() {
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collectionGroup(db, "requests"), limit(500));
+    return collectionGroup(db, "requests");
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
@@ -332,7 +332,7 @@ export default function ShiftsPage() {
                 <div className="w-[180px] p-4 font-black text-xs uppercase text-slate-400 sticky left-0 bg-white border-r z-40">DATA</div>
                 {displayEmployees.map((emp) => (
                   <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3">
-                    <Avatar className="h-8 w-8"><AvatarImage src={emp.photoUrl} /><AvatarFallback>{emp.firstName.charAt(0)}</AvatarFallback></Avatar>
+                    <Avatar className="h-8 w-8 shadow-sm ring-1 ring-slate-100"><AvatarImage src={emp.photoUrl} /><AvatarFallback className="font-bold">{(emp.firstName || "U").charAt(0)}</AvatarFallback></Avatar>
                     <span className="font-bold text-slate-900 text-sm">{emp.firstName}</span>
                   </div>
                 ))}
@@ -346,27 +346,54 @@ export default function ShiftsPage() {
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-50/30">
                       <div className="w-[180px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
-                        <div className="text-xs font-black uppercase text-slate-400">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className="text-2xl font-black">{format(day, 'dd')}</div>
+                        <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
+                        <div className="text-3xl font-black text-slate-800">{format(day, 'dd')}</div>
                       </div>
                       {displayEmployees.map((emp) => {
-                        const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
+                        const dayShifts = weekShifts
+                          .filter(s => s.employeeId === emp.id && s.date === dayStr)
+                          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+                        
                         const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
+                        
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-3 border-r min-h-[120px] flex flex-col gap-2">
-                            {dayAbsences.map(a => <Badge key={a.id} className="bg-rose-50 text-rose-700 border-rose-200">{a.type}</Badge>)}
-                            {dayShifts.map(s => (
-                              <div key={s.id} className="group/item relative p-2 rounded-lg bg-blue-50 border-l-4 border-blue-400 text-blue-900 text-xs shadow-sm">
-                                <div className="flex justify-between items-center mb-1">
-                                  <span className="font-bold uppercase opacity-60 text-[9px]">{s.title || "Turno"}</span>
-                                  <div className="flex gap-1">
-                                    <button onClick={() => handleEditShift(s)} className="text-blue-400 hover:text-blue-700"><Edit className="h-3 w-3" /></button>
-                                    <button onClick={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} className="text-rose-400 hover:text-rose-700"><Trash2 className="h-3 w-3" /></button>
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-3 border-r min-h-[140px] flex flex-col gap-2">
+                            {dayAbsences.map(a => (
+                              <Badge key={a.id} className="bg-rose-100 text-rose-700 border-none font-black text-[9px] uppercase h-6 justify-center">
+                                <Umbrella className="h-3 w-3 mr-1" /> {a.type}
+                              </Badge>
+                            ))}
+                            {dayShifts.map(s => {
+                              const isMorning = parseISO(s.startTime).getHours() < 14;
+                              return (
+                                <div 
+                                  key={s.id} 
+                                  className={cn(
+                                    "group/item relative p-2.5 rounded-xl border-l-4 shadow-sm transition-all hover:scale-[1.02]",
+                                    isMorning 
+                                      ? "bg-amber-50/80 border-amber-400 text-amber-900" 
+                                      : "bg-indigo-50/80 border-indigo-400 text-indigo-900"
+                                  )}
+                                >
+                                  <div className="flex justify-between items-start mb-1.5">
+                                    <div className="flex flex-col">
+                                      <div className="flex items-center gap-1.5">
+                                        {isMorning ? <Sun className="h-3 w-3 text-amber-500" /> : <Moon className="h-3 w-3 text-indigo-500" />}
+                                        <span className="font-black uppercase tracking-tighter text-[9px] opacity-70">{s.title || (isMorning ? "Mattina" : "Pomeriggio")}</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                      <button onClick={() => handleEditShift(s)} className="p-1 hover:bg-black/5 rounded-md"><Edit className="h-3 w-3" /></button>
+                                      <button onClick={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} className="p-1 hover:bg-rose-500/10 rounded-md text-rose-600"><Trash2 className="h-3 w-3" /></button>
+                                    </div>
+                                  </div>
+                                  <div className="font-black text-sm flex items-center gap-1">
+                                    <Clock className="h-3.5 w-3.5 opacity-40" />
+                                    {format(parseISO(s.startTime), 'HH:mm')} - {format(parseISO(s.endTime), 'HH:mm')}
                                   </div>
                                 </div>
-                                <div className="font-black">{format(parseISO(s.startTime), 'HH:mm')} - {format(parseISO(s.endTime), 'HH:mm')}</div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         );
                       })}
@@ -382,60 +409,70 @@ export default function ShiftsPage() {
 
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-black">Nuovo Turno Manuale</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label className="font-bold">Collaboratore</Label>
+              <Label className="font-bold text-xs uppercase text-slate-500">Collaboratore</Label>
               <Select value={newManualShift.employeeId} onValueChange={v => setNewManualShift({...newManualShift, employeeId: v})}>
                 <SelectTrigger className="h-11"><SelectValue placeholder="Scegli..." /></SelectTrigger>
                 <SelectContent>{displayEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="font-bold">Data</Label>
-              <Input type="date" value={newManualShift.date} onChange={e => setNewManualShift({...newManualShift, date: e.target.value})} />
+              <Label className="font-bold text-xs uppercase text-slate-500">Data</Label>
+              <Input type="date" className="h-11" value={newManualShift.date} onChange={e => setNewManualShift({...newManualShift, date: e.target.value})} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input type="time" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
-              <Input type="time" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} />
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Inizio</Label>
+                <Input type="time" className="h-11" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Fine</Label>
+                <Input type="time" className="h-11" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase text-slate-500">Titolo (opzionale)</Label>
+              <Input className="h-11" placeholder="es. Turno Extra" value={newManualShift.title} onChange={e => setNewManualShift({...newManualShift, title: e.target.value})} />
             </div>
           </div>
-          <DialogFooter><Button onClick={handleSaveManualShift} className="bg-[#227FD8] font-black w-full h-11">SALVA TURNO</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleSaveManualShift} className="bg-[#227FD8] font-black w-full h-12 uppercase tracking-widest shadow-lg">SALVA TURNO</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isEditShiftOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-black">Modifica Turno</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Modifica Turno</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2"><Label className="font-bold">Orari</Label>
+            <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Orari</Label>
               <div className="grid grid-cols-2 gap-4">
-                <Input type="time" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
-                <Input type="time" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} />
+                <Input type="time" className="h-11" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
+                <Input type="time" className="h-11" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} />
               </div>
             </div>
-            <div className="space-y-2"><Label className="font-bold">Titolo</Label>
-              <Input value={newManualShift.title} onChange={e => setNewManualShift({...newManualShift, title: e.target.value})} />
+            <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Titolo</Label>
+              <Input className="h-11" value={newManualShift.title} onChange={e => setNewManualShift({...newManualShift, title: e.target.value})} />
             </div>
           </div>
-          <DialogFooter><Button onClick={handleUpdateShift} className="bg-[#227FD8] font-black w-full h-11">AGGIORNA TURNO</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleUpdateShift} className="bg-[#227FD8] font-black w-full h-12 uppercase tracking-widest shadow-lg">AGGIORNA TURNO</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isAbsenceOpen} onOpenChange={setIsAbsenceOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle className="font-black text-rose-600">Registra Assenza</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight text-rose-600">Registra Assenza</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label className="font-bold">Dipendente</Label>
+              <Label className="font-bold text-xs uppercase text-slate-500">Dipendente</Label>
               <Select value={newAbsence.employeeId} onValueChange={v => setNewAbsence({...newAbsence, employeeId: v})}>
                 <SelectTrigger className="h-11"><SelectValue placeholder="Scegli..." /></SelectTrigger>
                 <SelectContent>{displayEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="font-bold">Giorno</Label><Input type="date" value={newAbsence.startDate} onChange={e => setNewAbsence({...newAbsence, startDate: e.target.value})} /></div>
-              <div className="space-y-2"><Label className="font-bold">Tipo</Label>
+              <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Giorno</Label><Input type="date" className="h-11" value={newAbsence.startDate} onChange={e => setNewAbsence({...newAbsence, startDate: e.target.value})} /></div>
+              <div className="space-y-2"><Label className="font-bold text-xs uppercase text-slate-500">Tipo</Label>
                 <Select value={newAbsence.type} onValueChange={v => setNewAbsence({...newAbsence, type: v})}>
                   <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="VACATION">Ferie</SelectItem><SelectItem value="SICK">Malattia</SelectItem><SelectItem value="PERSONAL">Permesso</SelectItem></SelectContent>
@@ -443,7 +480,7 @@ export default function ShiftsPage() {
               </div>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleSaveAbsence} className="bg-rose-600 font-black w-full h-11">CONFERMA</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleSaveAbsence} className="bg-rose-600 font-black w-full h-12 uppercase tracking-widest shadow-lg">CONFERMA ASSENZA</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
