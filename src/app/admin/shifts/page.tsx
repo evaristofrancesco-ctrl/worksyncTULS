@@ -153,7 +153,6 @@ export default function ShiftsPage() {
     });
   }, [allRequests, weekStart]);
 
-  // LOGICA DI COPERTURA: Un dipendente conta come presente solo se ha un turno E NON ha un'assenza (ferie/permessi/malattia)
   const coverageAnalysis = useMemo(() => {
     if (!locations || !weekShifts || !displayEmployees || !daysOfVisualizedWeek || !weekAbsences) return [];
     
@@ -162,10 +161,9 @@ export default function ShiftsPage() {
     daysOfVisualizedWeek.forEach(day => {
       const dayStr = format(day, 'yyyy-MM-dd');
       const dayOfWeek = day.getDay();
-      if (dayOfWeek === 0) return; // Domenica chiuso
+      if (dayOfWeek === 0) return;
 
       locations.forEach(loc => {
-        // Filtriamo i dipendenti di questa sede
         const locEmployees = displayEmployees.filter(e => e.locationId === loc.id);
 
         const actuallyPresentMorning = locEmployees.filter(emp => {
@@ -174,7 +172,7 @@ export default function ShiftsPage() {
             abs.employeeId === emp.id && 
             dayStr >= abs.startDate && 
             dayStr <= (abs.endDate || abs.startDate) &&
-            abs.type !== 'HOURLY_PERMIT' // I permessi orari potrebbero non coprire tutto il turno, ma le ferie/malattia sì
+            abs.type !== 'HOURLY_PERMIT'
           );
           return hasShift && !hasAbsence;
         });
@@ -191,22 +189,10 @@ export default function ShiftsPage() {
         });
 
         if (actuallyPresentMorning.length === 0) {
-          gaps.push({ 
-            day: dayStr, 
-            dayName: format(day, 'EEEE d MMMM', { locale: it }), 
-            location: loc.name, 
-            slot: "Mattina",
-            id: `gap-${dayStr}-${loc.id}-AM`
-          });
+          gaps.push({ day: dayStr, dayName: format(day, 'EEEE d MMMM', { locale: it }), location: loc.name, slot: "Mattina", id: `gap-${dayStr}-${loc.id}-AM` });
         }
         if (actuallyPresentAfternoon.length === 0) {
-          gaps.push({ 
-            day: dayStr, 
-            dayName: format(day, 'EEEE d MMMM', { locale: it }), 
-            location: loc.name, 
-            slot: "Pomeriggio",
-            id: `gap-${dayStr}-${loc.id}-PM`
-          });
+          gaps.push({ day: dayStr, dayName: format(day, 'EEEE d MMMM', { locale: it }), location: loc.name, slot: "Pomeriggio", id: `gap-${dayStr}-${loc.id}-PM` });
         }
       });
     });
@@ -239,10 +225,6 @@ export default function ShiftsPage() {
           const dayOfWeekStr = targetDay.getDay().toString();
           const dateStr = format(targetDay, 'yyyy-MM-dd');
           
-          const isRestDay = dayOfWeekStr === emp.restDay;
-          const rStart = emp.restStartTime || "00:00";
-          const rEnd = emp.restEndTime || "00:00";
-
           const isAbsent = weekAbsences.some(abs => 
             abs.employeeId === emp.id && dateStr >= abs.startDate && dateStr <= (abs.endDate || abs.startDate) && abs.type !== 'HOURLY_PERMIT'
           );
@@ -276,7 +258,7 @@ export default function ShiftsPage() {
           }
 
           if (emp.contractType === "full-time") {
-            const mOver = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
+            const mOver = targetDay.getDay().toString() === emp.restDay && (("09:00" < (emp.restEndTime || "00:00") && "13:00" > (emp.restStartTime || "00:00")));
             if (!mOver) {
               const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
               const hasM = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() < 14);
@@ -286,7 +268,7 @@ export default function ShiftsPage() {
                 setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), { id: idAM, employeeId: emp.id, title: "Turno Mattina", date: dateStr, startTime: sAM.toISOString(), endTime: eAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO" }, { merge: true });
               }
             }
-            const pOver = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
+            const pOver = targetDay.getDay().toString() === emp.restDay && (("17:00" < (emp.restEndTime || "00:00") && "20:20" > (emp.restStartTime || "00:00")));
             if (!pOver) {
               const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
               const hasP = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() >= 14);
@@ -297,7 +279,7 @@ export default function ShiftsPage() {
               }
             }
           } else {
-            const pOver = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
+            const pOver = targetDay.getDay().toString() === emp.restDay && (("17:00" < (emp.restEndTime || "00:00") && "20:20" > (emp.restStartTime || "00:00")));
             if (!pOver) {
               const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
               const hasP = weekShifts.some(s => s.employeeId === emp.id && s.date === dateStr && s.type === 'MANUAL' && parseISO(s.startTime).getHours() >= 14);
@@ -444,24 +426,37 @@ export default function ShiftsPage() {
                         const dayShifts = weekShifts.filter(s => s.employeeId === emp.id && s.date === dayStr);
                         const morningShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() < 14).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
                         const afternoonShifts = dayShifts.filter(s => parseISO(s.startTime).getHours() >= 14).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+                        
                         const dayAbsences = weekAbsences.filter(abs => abs.employeeId === emp.id && dayStr >= abs.startDate && dayStr <= (abs.endDate || abs.startDate));
+                        
+                        // Suddivisione assenze per fascia
+                        const morningAbsences = dayAbsences.filter(abs => {
+                          if (abs.type === 'HOURLY_PERMIT') {
+                            const startH = parseInt(abs.startTime?.split(':')[0] || "0");
+                            return startH < 14;
+                          }
+                          return true; // Ferie/Malattia valgono per tutto il giorno
+                        });
+
+                        const afternoonAbsences = dayAbsences.filter(abs => {
+                          if (abs.type === 'HOURLY_PERMIT') {
+                            const endH = parseInt(abs.endTime?.split(':')[0] || "0");
+                            const startH = parseInt(abs.startTime?.split(':')[0] || "0");
+                            return endH >= 14 || startH >= 14;
+                          }
+                          return true;
+                        });
                         
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-0 border-r min-h-[180px] flex flex-col">
-                            {dayAbsences.length > 0 && (
-                              <div className="p-2 flex flex-col gap-1 bg-rose-50/30">
-                                {dayAbsences.map(a => (
-                                  <Badge key={a.id} className="bg-rose-100 text-rose-700 border-none font-black text-[9px] uppercase h-6 justify-center">
-                                    <Umbrella className="h-3 w-3 mr-1" /> {a.type}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="flex-1 p-2 flex flex-col gap-2 min-h-[80px]">
+                            {/* Fascia Mattina */}
+                            <div className="flex-1 p-2 flex flex-col gap-2 min-h-[90px]">
                               <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
                                 <Sun className="h-2 w-2" /> MATTINA
                               </div>
+                              {morningAbsences.map(a => (
+                                <AbsenceItem key={a.id} a={a} isMorning={true} />
+                              ))}
                               {morningShifts.map(s => (
                                 <ShiftItem key={s.id} s={s} isMorning={true} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                               ))}
@@ -473,10 +468,14 @@ export default function ShiftsPage() {
                               </div>
                             </div>
 
-                            <div className="flex-1 p-2 flex flex-col gap-2 min-h-[80px] bg-slate-50/20">
+                            {/* Fascia Pomeriggio */}
+                            <div className="flex-1 p-2 flex flex-col gap-2 min-h-[90px] bg-slate-50/20">
                               <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest flex items-center gap-1 mb-1">
                                 <Moon className="h-2 w-2" /> POMERIGGIO
                               </div>
+                              {afternoonAbsences.map(a => (
+                                <AbsenceItem key={a.id} a={a} isMorning={false} />
+                              ))}
                               {afternoonShifts.map(s => (
                                 <ShiftItem key={s.id} s={s} isMorning={false} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                               ))}
@@ -485,8 +484,9 @@ export default function ShiftsPage() {
                         );
                       })}
 
+                      {/* Riepilogo Sedi a destra */}
                       <div className="min-w-[250px] p-0 border-l-2 border-slate-300 bg-slate-50/40 flex flex-col">
-                        <div className="flex-1 p-3 flex flex-col gap-1.5 min-h-[80px]">
+                        <div className="flex-1 p-3 flex flex-col gap-1.5 min-h-[90px]">
                           <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                             <Users className="h-2 w-2" /> Conta Mattina
                           </div>
@@ -512,7 +512,7 @@ export default function ShiftsPage() {
 
                         <div className="border-t border-slate-200 h-0" />
 
-                        <div className="flex-1 p-3 flex flex-col gap-1.5 min-h-[80px]">
+                        <div className="flex-1 p-3 flex flex-col gap-1.5 min-h-[90px]">
                           <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                             <Users className="h-2 w-2" /> Conta Pomeriggio
                           </div>
@@ -546,6 +546,7 @@ export default function ShiftsPage() {
         </CardContent>
       </Card>
 
+      {/* Dialogs per gestione turni/assenze */}
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
@@ -651,6 +652,38 @@ function ShiftItem({ s, isMorning, onEdit, onDelete }: { s: any, isMorning: bool
       <div className="font-black text-[11px] flex items-center gap-1">
         <Clock className="h-3 w-3 opacity-40" />
         {format(parseISO(s.startTime), 'HH:mm')} - {format(parseISO(s.endTime), 'HH:mm')}
+      </div>
+    </div>
+  )
+}
+
+function AbsenceItem({ a, isMorning }: { a: any, isMorning: boolean }) {
+  const getIcon = () => {
+    switch(a.type) {
+      case 'VACATION': return <Umbrella className="h-3 w-3" />;
+      case 'SICK': return <Activity className="h-3 w-3" />;
+      case 'HOURLY_PERMIT': return <Timer className="h-3 w-3" />;
+      default: return <UserMinus className="h-3 w-3" />;
+    }
+  }
+
+  const getLabel = () => {
+    switch(a.type) {
+      case 'VACATION': return 'Ferie';
+      case 'SICK': return 'Malattia';
+      case 'HOURLY_PERMIT': return 'Permesso';
+      default: return a.type;
+    }
+  }
+
+  return (
+    <div className="bg-rose-50 border-l-4 border-rose-400 p-2 rounded-lg shadow-sm">
+      <div className="flex items-center gap-1.5 mb-1">
+        {getIcon()}
+        <span className="font-black uppercase tracking-tighter text-[8px] text-rose-700">{getLabel()}</span>
+      </div>
+      <div className="font-black text-[10px] text-rose-900">
+        {a.type === 'HOURLY_PERMIT' ? `${a.startTime} - ${a.endTime}` : 'Tutto il giorno'}
       </div>
     </div>
   )
