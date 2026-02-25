@@ -15,10 +15,9 @@ import {
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { ClockInOut } from "@/components/attendance/ClockInOut"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc, query, orderBy, limit } from "firebase/firestore"
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import {
@@ -28,13 +27,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { cn } from "@/lib/utils"
-import { format, addDays, parseISO, isSunday, subDays, startOfDay } from "date-fns"
+import { format, parseISO, subDays } from "date-fns"
 import { it } from "date-fns/locale"
 
 export default function AttendancePage() {
@@ -46,9 +42,18 @@ export default function AttendancePage() {
   const [filterType, setFilterType] = useState("all")
   const [showAllHistory, setShowAllHistory] = useState(false)
 
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [isForceOpen, setIsForceOpen] = useState(false)
-  const [isAutoOpen, setIsAutoOpen] = useState(false)
+  // Stati per i Dialog
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [selectedEntry, setSelectedEntry] = useState<any>(null)
+  const [formData, setFormData] = useState({
+    employeeId: "",
+    checkInDate: format(new Date(), "yyyy-MM-dd"),
+    checkInTime: "09:00",
+    checkOutDate: format(new Date(), "yyyy-MM-dd"),
+    checkOutTime: "13:00",
+    type: "ADMIN"
+  })
 
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -58,7 +63,6 @@ export default function AttendancePage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // Ottimizzazione: limitiamo a 500 per evitare crash, ordinando per i più recenti
     return query(collectionGroup(db, "timeentries"), orderBy("checkInTime", "desc"), limit(500));
   }, [db])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
@@ -69,15 +73,12 @@ export default function AttendancePage() {
   }, [db])
   const { data: allRequests, isLoading: isLoadingRequests } = useCollection(requestsQuery)
 
-  const activeEmployees = useMemo(() => employees?.filter(e => e.isActive) || [], [employees]);
-
   const employeeMap = useMemo(() => {
     if (!employees) return {};
-    const map: Record<string, any> = {};
-    for (const emp of employees) {
-      map[emp.id] = emp;
-    }
-    return map;
+    return employees.reduce((acc, emp) => {
+      acc[emp.id] = emp;
+      return acc;
+    }, {} as any);
   }, [employees]);
 
   const unifiedEntries = useMemo(() => {
@@ -104,14 +105,13 @@ export default function AttendancePage() {
   }, [entries, allRequests]);
 
   const filteredEntries = useMemo(() => {
-    const horizon = subDays(new Date(), 30); // Mostriamo gli ultimi 30 giorni di default se non filtrato
+    const horizon = subDays(new Date(), 30);
 
     return unifiedEntries
       .filter(entry => {
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
 
-        // Se non abbiamo filtri attivi, limitiamo la vista per performance
         if (!showAllHistory && !filterDate && !searchQuery && entry.checkInTime) {
           if (new Date(entry.checkInTime) < horizon) return false;
         }
@@ -151,6 +151,63 @@ export default function AttendancePage() {
     return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
   }, [filteredEntries]);
 
+  const handleAddEntry = () => {
+    if (!formData.employeeId || !formData.checkInTime) {
+      toast({ variant: "destructive", title: "Errore", description: "Seleziona dipendente e orari." });
+      return;
+    }
+
+    const id = `entry-adm-${Date.now()}`;
+    const checkIn = new Date(`${formData.checkInDate}T${formData.checkInTime}`).toISOString();
+    const checkOut = formData.checkOutTime ? new Date(`${formData.checkOutDate}T${formData.checkOutTime}`).toISOString() : null;
+
+    setDocumentNonBlocking(doc(db, "employees", formData.employeeId, "timeentries", id), {
+      id,
+      employeeId: formData.employeeId,
+      companyId: "default",
+      checkInTime: checkIn,
+      checkOutTime: checkOut,
+      type: "ADMIN",
+      status: "PRESENT",
+      isApproved: true
+    }, { merge: true });
+
+    setIsAddOpen(false);
+    toast({ title: "Registrato", description: "Timbratura inserita correttamente." });
+  }
+
+  const handleEditClick = (log: any) => {
+    setSelectedEntry(log);
+    const cIn = new Date(log.checkInTime);
+    const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
+    
+    setFormData({
+      employeeId: log.employeeId,
+      checkInDate: format(cIn, "yyyy-MM-dd"),
+      checkInTime: format(cIn, "HH:mm"),
+      checkOutDate: cOut ? format(cOut, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+      checkOutTime: cOut ? format(cOut, "HH:mm") : "",
+      type: log.type
+    });
+    setIsEditOpen(true);
+  }
+
+  const handleUpdateEntry = () => {
+    if (!selectedEntry || !db) return;
+
+    const checkIn = new Date(`${formData.checkInDate}T${formData.checkInTime}`).toISOString();
+    const checkOut = formData.checkOutTime ? new Date(`${formData.checkOutDate}T${formData.checkOutTime}`).toISOString() : null;
+
+    updateDocumentNonBlocking(doc(db, "employees", selectedEntry.employeeId, "timeentries", selectedEntry.id), {
+      checkInTime: checkIn,
+      checkOutTime: checkOut,
+      updatedAt: new Date().toISOString()
+    });
+
+    setIsEditOpen(false);
+    toast({ title: "Aggiornato", description: "Le modifiche sono state salvate." });
+  }
+
   const handleDeleteEntry = (log: any) => {
     if (log.type === "ABSENCE") {
       const requestId = log.id.replace("sim-", "");
@@ -180,7 +237,7 @@ export default function AttendancePage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setIsForceOpen(true)} className="font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-10 shadow-sm">
+          <Button variant="outline" onClick={() => setIsAddOpen(true)} className="font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50 h-10 shadow-sm">
             <Plus className="h-4 w-4 mr-2" /> Inserimento Manuale
           </Button>
         </div>
@@ -214,78 +271,165 @@ export default function AttendancePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-12 space-y-6">
-          {isLoadingEntries || isLoadingRequests ? (
-            <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
-          ) : groupedEntries.length > 0 ? groupedEntries.map(([date, dayEntries]) => (
-            <Card key={date} className="border-none shadow-sm bg-white overflow-hidden ring-1 ring-slate-200">
-              <CardHeader className="p-4 border-b bg-slate-50/50 flex flex-row items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-white p-2 rounded-xl shadow-sm border">
-                    <CalendarDays className="h-5 w-5 text-[#227FD8]" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-black uppercase text-[#1e293b]">
-                      {format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}
-                    </CardTitle>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti</p>
-                  </div>
+      <div className="grid gap-6">
+        {isLoadingEntries || isLoadingRequests ? (
+          <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
+        ) : groupedEntries.length > 0 ? groupedEntries.map(([date, dayEntries]) => (
+          <Card key={date} className="border-none shadow-sm bg-white overflow-hidden ring-1 ring-slate-200">
+            <CardHeader className="p-4 border-b bg-slate-50/50 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-white p-2 rounded-xl shadow-sm border">
+                  <CalendarDays className="h-5 w-5 text-[#227FD8]" />
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableBody>
-                    {dayEntries.map((log) => {
-                      const emp = employeeMap[log.employeeId];
-                      const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
-                      const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
-                      
-                      return (
-                        <TableRow key={log.id} className="h-14 border-b last:border-0 hover:bg-slate-50/30 group">
-                          <TableCell className="pl-6 w-[250px]">
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={emp?.photoUrl} />
-                                <AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
-                              </Avatar>
-                              <div className="flex flex-col">
-                                <span className="font-bold text-xs text-[#1e293b] truncate w-32">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</span>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase">{emp?.jobTitle || "Collaboratore"}</span>
-                              </div>
+                <div>
+                  <CardTitle className="text-sm font-black uppercase text-[#1e293b]">
+                    {format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}
+                  </CardTitle>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti</p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableBody>
+                  {dayEntries.map((log) => {
+                    const emp = employeeMap[log.employeeId];
+                    const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
+                    const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
+                    const isAbsence = log.type === 'ABSENCE';
+                    
+                    return (
+                      <TableRow key={log.id} className="h-14 border-b last:border-0 hover:bg-slate-50/30 group">
+                        <TableCell className="pl-6 w-[250px]">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={emp?.photoUrl} />
+                              <AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-xs text-[#1e293b] truncate w-32">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</span>
+                              <span className="text-[9px] font-bold text-slate-400 uppercase">{emp?.jobTitle || "Collaboratore"}</span>
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-black text-[#227FD8]">
-                                {cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                              <span className="text-slate-300 text-[10px]">→</span>
-                              <span className="text-xs font-black text-slate-700">
-                                {cOut ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {getSourceBadge(log.type)}
-                          </TableCell>
-                          <TableCell className="pr-6 text-right">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500 opacity-0 group-hover:opacity-100" onClick={() => handleDeleteEntry(log)}>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-[#227FD8]">
+                              {cIn?.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <span className="text-slate-300 text-[10px]">→</span>
+                            <span className="text-xs font-black text-slate-700">
+                              {cOut ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {getSourceBadge(log.type)}
+                        </TableCell>
+                        <TableCell className="pr-6 text-right">
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {!isAbsence && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500" onClick={() => handleEditClick(log)}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-rose-500" onClick={() => handleDeleteEntry(log)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )) : (
-            <Card className="py-20 text-center border-dashed"><p className="text-slate-400 font-bold italic">Nessun movimento trovato.</p></Card>
-          )}
-        </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )) : (
+          <Card className="py-20 text-center border-dashed"><p className="text-slate-400 font-bold italic">Nessun movimento trovato.</p></Card>
+        )}
       </div>
+
+      {/* Dialog Aggiunta */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black text-xl uppercase">Nuova Timbratura</DialogTitle>
+            <DialogDescription>Inserisci manualmente un record di presenza.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase text-slate-500">Collaboratore</Label>
+              <Select value={formData.employeeId} onValueChange={(v) => setFormData({...formData, employeeId: v})}>
+                <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                <SelectContent>
+                  {employees?.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Inizio</Label>
+                <Input type="date" className="h-11" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Ora Inizio</Label>
+                <Input type="time" className="h-11" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Fine</Label>
+                <Input type="date" className="h-11" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Ora Fine</Label>
+                <Input type="time" className="h-11" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="font-bold">Annulla</Button>
+            <Button onClick={handleAddEntry} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8">SALVA RECORD</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Modifica */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black text-xl uppercase">Modifica Record</DialogTitle>
+            <DialogDescription>Correggi gli orari di ingresso o uscita.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Inizio</Label>
+                <Input type="date" className="h-11" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Ora Inizio</Label>
+                <Input type="time" className="h-11" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Fine</Label>
+                <Input type="date" className="h-11" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label className="font-bold text-xs uppercase text-slate-500">Ora Fine</Label>
+                <Input type="time" className="h-11" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="font-bold">Annulla</Button>
+            <Button onClick={handleUpdateEntry} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8">AGGIORNA</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
