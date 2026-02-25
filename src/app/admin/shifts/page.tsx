@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -31,7 +32,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, doc, collectionGroup, query } from "firebase/firestore"
+import { collection, doc, collectionGroup, query, limit } from "firebase/firestore"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
@@ -125,7 +126,7 @@ export default function ShiftsPage() {
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return collectionGroup(db, "requests");
+    return query(collectionGroup(db, "requests"), limit(200));
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
