@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
-import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { updateDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 
 export default function AdminModificationsPage() {
@@ -34,7 +34,6 @@ export default function AdminModificationsPage() {
 
   const modificationsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    // Rimosso orderBy server-side per evitare errore di indice
     return query(collectionGroup(db, "modifications"), limit(500));
   }, [db])
   const { data: rawModifications, isLoading } = useCollection(modificationsQuery)
@@ -61,10 +60,25 @@ export default function AdminModificationsPage() {
 
   const handleUpdateStatus = (request: any, newStatus: string) => {
     if (!db) return;
-    updateDocumentNonBlocking(doc(db, "employees", request.employeeId, "modifications", request.id), {
+    const requestRef = doc(db, "employees", request.employeeId, "modifications", request.id);
+    
+    updateDocumentNonBlocking(requestRef, {
       status: newStatus,
       updatedAt: new Date().toISOString()
     })
+
+    // Invia notifica di esito al dipendente
+    const notifId = `notif-mod-res-${Date.now()}`;
+    setDocumentNonBlocking(doc(db, "notifications", notifId), {
+      id: notifId,
+      recipientId: request.employeeId,
+      title: "Esito Entra/Esce",
+      message: `La tua richiesta di movimentazione è stata ${newStatus === 'APPROVED' ? 'approvata' : 'rifiutata'} dall'amministrazione.`,
+      type: "MODIFICATION_STATUS",
+      createdAt: new Date().toISOString(),
+      isRead: false
+    }, { merge: true });
+
     toast({ title: newStatus === "APPROVED" ? "Approvata" : "Rifiutata" })
   }
 

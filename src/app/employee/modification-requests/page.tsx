@@ -103,12 +103,13 @@ export default function ModificationRequestsPage() {
       }
     }, { merge: true })
 
+    // Notifica per gli Admin (con recipientId fisso 'ADMIN')
     const notifId = `notif-mod-${Date.now()}`;
     setDocumentNonBlocking(doc(db, "notifications", notifId), {
       id: notifId,
       recipientId: "ADMIN",
-      title: "Nuova Richiesta Entra/Esce",
-      message: `${displayName} (${selectedLocation?.name}) ha inviato una nuova movimentazione.`,
+      title: "Richiesta Entra/Esce",
+      message: `${displayName} ha inviato una nuova movimentazione per ${selectedLocation?.name || 'Sede N.D.'}.`,
       type: "MODIFICATION_REQUEST",
       createdAt: new Date().toISOString(),
       isRead: false

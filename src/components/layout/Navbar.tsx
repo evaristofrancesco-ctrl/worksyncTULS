@@ -66,19 +66,24 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
   const navLinks = isAdmin ? adminLinks : employeeLinks
 
   const notificationsQuery = useMemoFirebase(() => {
-    if (!db || !currentEmployeeId || !role) return null;
-    const recipient = role.toUpperCase() === 'ADMIN' ? 'ADMIN' : currentEmployeeId;
+    if (!db || !role) return null;
+    
+    // Per gli Admin, cerchiamo 'ADMIN' o 'ALL'. Per i dipendenti, il loro ID o 'ALL'.
+    const recipient = isAdmin ? 'ADMIN' : currentEmployeeId;
+    if (!recipient) return null;
+
     return query(
       collection(db, "notifications"),
       where("recipientId", "in", [recipient, "ALL"]),
-      limit(20)
+      limit(50) // Aumentato il limite per evitare che i vecchi messaggi nascondano i nuovi
     );
-  }, [db, currentEmployeeId, role])
+  }, [db, currentEmployeeId, role, isAdmin])
 
   const { data: rawNotifications } = useCollection(notificationsQuery)
 
   const notifications = useMemo(() => {
     if (!rawNotifications) return [];
+    // Ordinamento client-side per garantire che le più recenti siano in alto
     return [...rawNotifications].sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
