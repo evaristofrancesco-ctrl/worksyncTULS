@@ -36,7 +36,6 @@ import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlo
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { 
   format, 
   addDays, 
@@ -153,52 +152,6 @@ export default function ShiftsPage() {
       } catch (e) { return false; }
     });
   }, [allRequests, weekStart]);
-
-  const coverageAnalysis = useMemo(() => {
-    if (!locations || !weekShifts || !displayEmployees || !daysOfVisualizedWeek || !weekAbsences) return [];
-    
-    const gaps: any[] = [];
-    
-    daysOfVisualizedWeek.forEach(day => {
-      const dayStr = format(day, 'yyyy-MM-dd');
-      if (day.getDay() === 0) return;
-
-      locations.forEach(loc => {
-        const morningPresent = weekShifts.filter(s => 
-          s.locationId === loc.id && 
-          s.date === dayStr && 
-          parseISO(s.startTime).getHours() < 14 &&
-          !weekAbsences.some(abs => 
-            abs.employeeId === s.employeeId && 
-            dayStr >= abs.startDate && 
-            dayStr <= (abs.endDate || abs.startDate) &&
-            abs.type !== 'HOURLY_PERMIT'
-          )
-        );
-
-        const afternoonPresent = weekShifts.filter(s => 
-          s.locationId === loc.id && 
-          s.date === dayStr && 
-          parseISO(s.startTime).getHours() >= 14 &&
-          !weekAbsences.some(abs => 
-            abs.employeeId === s.employeeId && 
-            dayStr >= abs.startDate && 
-            dayStr <= (abs.endDate || abs.startDate) &&
-            abs.type !== 'HOURLY_PERMIT'
-          )
-        );
-
-        if (morningPresent.length === 0) {
-          gaps.push({ day: dayStr, dayName: format(day, 'EEEE d MMMM', { locale: it }), location: loc.name, slot: "Mattina" });
-        }
-        if (afternoonPresent.length === 0) {
-          gaps.push({ day: dayStr, dayName: format(day, 'EEEE d MMMM', { locale: it }), location: loc.name, slot: "Pomeriggio" });
-        }
-      });
-    });
-    
-    return gaps;
-  }, [locations, weekShifts, displayEmployees, daysOfVisualizedWeek, weekAbsences]);
 
   const handleAutoGenerate = async () => {
     if (!displayEmployees || displayEmployees.length === 0) {
@@ -369,22 +322,6 @@ export default function ShiftsPage() {
         </div>
       </div>
 
-      {coverageAnalysis.length > 0 && (
-        <Alert variant="destructive" className="bg-rose-50 border-rose-200 shadow-sm">
-          <AlertCircle className="h-5 w-5 text-rose-600" />
-          <AlertTitle className="font-black uppercase tracking-tight text-rose-800">Sedi Scoperte</AlertTitle>
-          <AlertDescription className="text-rose-700 font-medium grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1 mt-2">
-            {coverageAnalysis.map((gap, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
-                <span className="font-black text-rose-900 min-w-[100px]">{gap.dayName}:</span>
-                <span className="bg-rose-200/50 px-1.5 py-0.5 rounded font-bold">{gap.location}</span>
-                <span className="italic">({gap.slot})</span>
-              </div>
-            ))}
-          </AlertDescription>
-        </Alert>
-      )}
-
       <div className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-5 w-5" /></Button>
@@ -454,14 +391,14 @@ export default function ShiftsPage() {
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] p-3 border-r min-h-[160px] flex flex-col gap-4 bg-white">
-                            {/* Assenze (sempre in alto alla cella) */}
+                            {/* Assenze integrate */}
                             {dayAbsences.length > 0 && (
                               <div className="flex flex-col gap-1 border-b border-rose-100 pb-2">
                                 {dayAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
                               </div>
                             )}
 
-                            {/* Blocchi Turni per Sede - STRUTTURA RICHIESTA */}
+                            {/* Blocchi Turni per Sede */}
                             <div className="space-y-4">
                               {Object.entries(shiftsByLocation).map(([locId, locShifts]) => {
                                 const locName = locations?.find(l => l.id === locId)?.name || "Sede";
@@ -502,7 +439,7 @@ export default function ShiftsPage() {
                         );
                       })}
 
-                      {/* Riepilogo Sedi (Specchietto Destra) */}
+                      {/* Riepilogo Sedi */}
                       <div className="min-w-[250px] p-3 border-l-2 border-slate-300 bg-slate-50/50 flex flex-col gap-2 justify-center">
                         {locations?.map(loc => {
                           const morningCount = weekShifts.filter(s => 
@@ -662,11 +599,9 @@ function ShiftItem({ s, isMorning, onEdit, onDelete }: { s: any, isMorning: bool
       )}
     >
       <div className="flex justify-between items-start">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-tight">
-            {isMorning ? <Sun className="h-2.5 w-2.5" /> : <Moon className="h-2.5 w-2.5" />}
-            {start} - {end}
-          </div>
+        <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-tight">
+          {isMorning ? <Sun className="h-2.5 w-2.5" /> : <Moon className="h-2.5 w-2.5" />}
+          {start} - {end}
         </div>
         <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
           <button onClick={onEdit} className="p-0.5 hover:bg-black/5 rounded"><Edit className="h-2.5 w-2.5" /></button>
