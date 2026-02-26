@@ -131,7 +131,9 @@ export default function ShiftsPage() {
       
       Object.values(indexedEvents[dayStr] || {}).flat().forEach(ev => {
         if (ev.type === 'MANUAL') {
-          const hour = parseInt(ev.startTime?.split('T')[1]?.split(':')[0] || "0");
+          const startTime = ev.startTime?.split('T')[1];
+          if (!startTime) return;
+          const hour = parseInt(startTime.split(':')[0]);
           if (hour < 14) amCount++;
           else pmCount++;
         }
@@ -256,7 +258,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Programmazione Settimanale</h1>
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest opacity-70">Monitoraggio Copertura Sedi</p>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest opacity-70">Gestione Sedi Palese e Bisceglie</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button 
@@ -325,6 +327,7 @@ export default function ShiftsPage() {
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
                         const isVittorio = emp.firstName?.toLowerCase() === 'vittorio';
+                        const isWednesday = day.getDay() === 3;
                         
                         const slot1Events = dayEvents.filter(ev => {
                           const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
@@ -341,8 +344,8 @@ export default function ShiftsPage() {
                             <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
                               <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest pointer-events-none">PALESE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
-                                {isVittorio && day.getDay() === 3 && slot1Events.length === 0 ? (
-                                  <div className="p-2.5 rounded-lg border-l-[4px] border-l-slate-400 bg-slate-50 text-slate-600 shadow-sm">
+                                {isVittorio && isWednesday && slot1Events.length === 0 ? (
+                                  <div className="p-2 rounded-lg border-l-[4px] border-l-slate-400 bg-slate-100 text-slate-600 shadow-sm">
                                     <div className="flex items-center justify-between mb-1">
                                       <span className="text-[8px] font-black uppercase tracking-widest opacity-60">RIPOSO</span>
                                       <Coffee className="h-3 w-3" />
