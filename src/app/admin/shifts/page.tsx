@@ -67,14 +67,12 @@ export default function ShiftsPage() {
     type: "MANUAL"
   })
 
-  // Logica Settimana
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
   const weekEnd = addDays(weekStart, 6)
   const daysOfVisualizedWeek = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i))
   }, [weekStart])
 
-  // Dati da Firestore
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
@@ -99,7 +97,6 @@ export default function ShiftsPage() {
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
-  // ORDINE FISSO RICHIESTO: Vittorio, Isa, Rosa, Savino
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
@@ -117,7 +114,6 @@ export default function ShiftsPage() {
       });
   }, [employees]);
 
-  // Indicizzazione turni
   const indexedEvents = useMemo(() => {
     const map: Record<string, Record<string, any[]>> = {};
     if (!shifts) return map;
@@ -138,7 +134,7 @@ export default function ShiftsPage() {
       date,
       startTime: "09:00",
       endTime: "13:00",
-      title: "Turno Lavoro",
+      title: "Nuovo Turno",
       type: "MANUAL"
     });
     setIsShiftOpen(true);
@@ -161,7 +157,7 @@ export default function ShiftsPage() {
 
     setIsShiftOpen(false);
     setIsEditOpen(false);
-    toast({ title: form.id ? "Modifiche salvate" : "Turno creato" });
+    toast({ title: form.id ? "Modifiche salvate" : "Record creato" });
   }
 
   const handleEdit = (event: any) => {
@@ -178,7 +174,6 @@ export default function ShiftsPage() {
     setIsEditOpen(true);
   }
 
-  // DRAG & DROP LOGIC
   const onDragStart = (e: React.DragEvent, shift: any) => {
     setDraggedShift(shift);
     e.dataTransfer.setData("shiftId", shift.id);
@@ -189,7 +184,6 @@ export default function ShiftsPage() {
     e.preventDefault();
     if (!draggedShift || !db) return;
 
-    // Se sto rilasciando nello stesso identico slot, esco
     if (draggedShift.employeeId === targetEmployeeId && 
         draggedShift.date === targetDate && 
         draggedShift.locationId === targetLocationId) {
@@ -197,16 +191,13 @@ export default function ShiftsPage() {
       return;
     }
 
-    // Calcolo nuovi orari mantenendo la fascia oraria originale
     const timeIn = format(parseISO(draggedShift.startTime), "HH:mm:ss");
     const timeOut = format(parseISO(draggedShift.endTime), "HH:mm:ss");
     const newStartTime = `${targetDate}T${timeIn}Z`;
     const newEndTime = `${targetDate}T${timeOut}Z`;
 
-    // Se il dipendente cambia, devo eliminare dal vecchio e creare nel nuovo (Firestore path)
     if (draggedShift.employeeId !== targetEmployeeId) {
       deleteDocumentNonBlocking(doc(db, "employees", draggedShift.employeeId, "shifts", draggedShift.id));
-      
       const newId = `shift-mv-${Date.now()}`;
       setDocumentNonBlocking(doc(db, "employees", targetEmployeeId, "shifts", newId), {
         ...draggedShift,
@@ -219,7 +210,6 @@ export default function ShiftsPage() {
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } else {
-      // Stesso dipendente, aggiorno solo metadati
       updateDocumentNonBlocking(doc(db, "employees", draggedShift.employeeId, "shifts", draggedShift.id), {
         date: targetDate,
         locationId: targetLocationId,
@@ -244,12 +234,10 @@ export default function ShiftsPage() {
         return d >= weekStart && d <= weekEnd;
       }) || [];
 
-      // 1. Pulizia Settimana
       for (const s of weekShifts) {
         deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id));
       }
 
-      // 2. Filtro richieste approvate
       const approvedRequests = allRequests?.filter(r => {
         const status = (r.status || "").toUpperCase();
         return status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
@@ -257,7 +245,6 @@ export default function ShiftsPage() {
 
       const paleseId = locations.find(l => l.name.toLowerCase().includes('palese'))?.id || "palese-id";
 
-      // 3. Generazione Turni
       displayEmployees.forEach((emp) => {
         const name = (emp.firstName || "").toLowerCase();
         
@@ -374,7 +361,6 @@ export default function ShiftsPage() {
             <div className="py-48 text-center"><Loader2 className="h-14 w-14 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-black text-slate-400 uppercase text-base">Inizializzazione Griglia...</p></div>
           ) : (
             <div className="flex flex-col">
-              {/* Header Griglia */}
               <div className="flex sticky top-0 z-30 bg-slate-100 border-b shadow-md">
                 <div className="w-[110px] p-4 font-black text-[12px] uppercase text-slate-400 sticky left-0 bg-slate-100 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
                 {displayEmployees.map(emp => (
@@ -395,7 +381,6 @@ export default function ShiftsPage() {
                 </div>
               </div>
 
-              {/* Corpo Griglia */}
               <div className="divide-y divide-slate-200">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
@@ -405,13 +390,11 @@ export default function ShiftsPage() {
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-100/30 transition-colors">
-                      {/* Colonna Data */}
                       <div className="w-[110px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[3px_0_12px_rgba(0,0,0,0.04)]">
                         <div className="text-[12px] font-black uppercase text-slate-400 mb-1">{format(day, 'EEEE', { locale: it })}</div>
                         <div className="text-[42px] font-black text-slate-800 tracking-tighter leading-none">{format(day, 'dd')}</div>
                       </div>
                       
-                      {/* Celle Dipendenti */}
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
                         
@@ -426,7 +409,6 @@ export default function ShiftsPage() {
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r bg-white flex flex-col p-3 gap-3">
-                            {/* SLOT PALESE */}
                             <div 
                               onDragOver={(e) => e.preventDefault()}
                               onDrop={(e) => onDrop(e, emp.id, dayStr, paleseId)}
@@ -438,7 +420,6 @@ export default function ShiftsPage() {
                                 <button onClick={() => handleOpenAdd(emp.id, dayStr, paleseId)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/palese:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
                               </div>
                             </div>
-                            {/* SLOT BISCEGLIE */}
                             <div 
                               onDragOver={(e) => e.preventDefault()}
                               onDrop={(e) => onDrop(e, emp.id, dayStr, bisceglieId)}
@@ -454,7 +435,6 @@ export default function ShiftsPage() {
                         );
                       })}
 
-                      {/* SPECCHIETTO COPERTURA */}
                       <div className="min-w-[240px] bg-slate-100/50 p-4 border-l-2 border-l-slate-300 flex flex-col gap-4">
                         {locations?.map(loc => {
                           const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE');
@@ -476,18 +456,17 @@ export default function ShiftsPage() {
                               <div className="grid grid-cols-2 gap-3">
                                 <div className={cn("rounded-xl p-2.5 flex flex-col items-center justify-center border-2 shadow-inner", am > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
                                   <span className="text-[10px] font-black uppercase text-slate-400 mb-0.5">AM</span>
-                                  <span className={cn("text-xl font-black", am > 0 ? "text-green-700" : "text-rose-700")}>{am}</span>
+                                  <span className={cn("text-xl font-black", am > 0 ? "text-green-700" : "text-rose-700")}>{am === 0 ? "!!" : am}</span>
                                 </div>
                                 <div className={cn("rounded-xl p-2.5 flex flex-col items-center justify-center border-2 shadow-inner", pm > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
                                   <span className="text-[10px] font-black uppercase text-slate-400 mb-0.5">PM</span>
-                                  <span className={cn("text-xl font-black", pm > 0 ? "text-green-700" : "text-rose-700")}>{pm}</span>
+                                  <span className={cn("text-xl font-black", pm > 0 ? "text-green-700" : "text-rose-700")}>{pm === 0 ? "!!" : pm}</span>
                                 </div>
                               </div>
                             </div>
                           )
                         })}
                       </div>
-
                     </div>
                   );
                 })}
@@ -498,12 +477,11 @@ export default function ShiftsPage() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      {/* Dialog Gestione Turno */}
       <Dialog open={isShiftOpen || isEditOpen} onOpenChange={(o) => { if(!o) { setIsShiftOpen(false); setIsEditOpen(false); } }}>
         <DialogContent className="max-w-md p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
           <DialogHeader className="p-7 bg-[#227FD8] text-white">
             <DialogTitle className="font-black text-2xl uppercase tracking-tighter flex items-center gap-3">
-              <Clock className="h-8 w-8" /> {form.id ? "Modifica Record" : "Nuovo Turno"}
+              <Clock className="h-8 w-8" /> {form.id ? "Modifica Record" : "Nuovo Inserimento"}
             </DialogTitle>
           </DialogHeader>
           <div className="p-7 space-y-6 bg-white">
@@ -519,8 +497,8 @@ export default function ShiftsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Etichetta</Label>
-              <Input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="es. Mattina, Pomeriggio..." className="h-12 font-bold rounded-xl border-slate-200" />
+              <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Etichetta / Nota</Label>
+              <Input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="es. Mattina, Ferie, Permesso..." className="h-12 font-bold rounded-xl border-slate-200" />
             </div>
             <div className="grid grid-cols-2 gap-5">
               <div className="space-y-2">
