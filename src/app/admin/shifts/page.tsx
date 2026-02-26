@@ -319,12 +319,12 @@ export default function ShiftsPage() {
                 <div className="w-[200px] p-5 font-black text-xs uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
                 {displayEmployees.map(emp => (
                   <div key={emp.id} className="min-w-[260px] p-5 border-r flex items-center gap-4 bg-slate-50/50">
-                    <Avatar className="h-12 w-12 shadow-md ring-2 ring-white">
+                    <Avatar className="h-14 w-14 shadow-md ring-2 ring-white">
                       <AvatarImage src={emp.photoUrl} />
-                      <AvatarFallback className="font-black text-lg">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="font-black text-xl">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-lg leading-tight truncate w-32">{emp.firstName} {emp.lastName}</span>
+                      <span className="font-black text-slate-900 text-xl leading-tight truncate w-36">{emp.firstName} {emp.lastName}</span>
                       <span className="text-[11px] font-black uppercase text-slate-400 tracking-widest">{emp.locationName}</span>
                     </div>
                   </div>
@@ -352,60 +352,54 @@ export default function ShiftsPage() {
                         const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
                         const isRestDay = day.getDay().toString() === emp.restDay;
 
-                        // Logica di identificazione sede per Vittorio e colleghi
+                        // Identificazione sede dipendente
                         const empLocName = (emp.locationName || "").toUpperCase();
-                        const isPaleseEmp = empLocName.includes("PALESE");
-                        const isBisceglieEmp = empLocName.includes("BISCEGLIE");
+                        const empWorksAtBisceglie = empLocName.includes("BISCEGLIE");
 
-                        // Funzione robusta per smistare i turni
-                        const filterBySlot = (items: any[], type: 'PALESE' | 'BISCEGLIE') => {
-                          return items.filter(item => {
-                            const itemLocId = item.locationId;
-                            // Se la sede del turno non è specificata, usa quella del dipendente
-                            if (!itemLocId || itemLocId === 'default' || itemLocId === '') {
-                              return type === 'PALESE' ? isPaleseEmp : isBisceglieEmp;
-                            }
-                            // Altrimenti cerca nei nomi delle sedi caricate
-                            const loc = locations?.find(l => l.id === itemLocId);
-                            if (loc) {
-                              return loc.name.toUpperCase().includes(type);
-                            }
-                            // Fallback estremo alla sede del dipendente
-                            return type === 'PALESE' ? isPaleseEmp : isBisceglieEmp;
-                          });
+                        // Funzione Robusta: assegna a Bisceglie solo se esplicitamente indicato, altrimenti a Palese.
+                        const isBisceglieEvent = (item: any) => {
+                          const itemLocId = item.locationId;
+                          if (!itemLocId || itemLocId === 'default' || itemLocId === '') {
+                            return empWorksAtBisceglie;
+                          }
+                          const loc = locations?.find(l => l.id === itemLocId);
+                          if (loc) {
+                            return loc.name.toUpperCase().includes("BISCEGLIE");
+                          }
+                          return empWorksAtBisceglie;
                         };
 
-                        const paleseEvents = filterBySlot(dayShifts, 'PALESE');
-                        const bisceglieEvents = filterBySlot(dayShifts, 'BISCEGLIE');
-                        const paleseAbsences = filterBySlot(dayAbsences, 'PALESE');
-                        const bisceglieAbsences = filterBySlot(dayAbsences, 'BISCEGLIE');
+                        const paleseEvents = dayShifts.filter(s => !isBisceglieEvent(s));
+                        const bisceglieEvents = dayShifts.filter(s => isBisceglieEvent(s));
+                        const paleseAbsences = dayAbsences.filter(a => !isBisceglieEvent(a));
+                        const bisceglieAbsences = dayAbsences.filter(a => isBisceglieEvent(a));
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r flex flex-col bg-white">
                             {/* SLOT PALESE (Sopra) */}
-                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-blue-50/10 border-b border-dashed border-slate-100">
-                              <div className="flex items-center justify-between opacity-30 mb-0.5">
+                            <div className="p-3 min-h-[120px] flex flex-col gap-2 bg-blue-50/10 border-b border-dashed border-slate-100">
+                              <div className="flex items-center justify-between opacity-30">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
                               </div>
                               {paleseAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
                               {paleseEvents.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
                                 <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                               ))}
-                              {isRestDay && isPaleseEmp && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
+                              {isRestDay && !empWorksAtBisceglie && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
                                 <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                               )}
                             </div>
 
                             {/* SLOT BISCEGLIE (Sotto) */}
-                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-emerald-50/10">
-                              <div className="flex items-center justify-between opacity-30 mb-0.5">
+                            <div className="p-3 min-h-[120px] flex flex-col gap-2 bg-emerald-50/10">
+                              <div className="flex items-center justify-between opacity-30">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
                               </div>
                               {bisceglieAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
                               {bisceglieEvents.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
                                 <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                               ))}
-                              {isRestDay && isBisceglieEmp && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
+                              {isRestDay && empWorksAtBisceglie && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
                                 <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                               )}
                             </div>
@@ -424,12 +418,12 @@ export default function ShiftsPage() {
                                 <span className="font-black text-[11px] uppercase text-slate-600 truncate">{loc.name}</span>
                               </div>
                               <div className="flex justify-between items-center text-xs font-black">
-                                <span className="text-slate-400">MATTINA:</span>
-                                <Badge className={cn("h-7 px-3 font-black text-xs", counts.morning > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{counts.morning}</Badge>
+                                <span className="text-slate-400 uppercase">Mattina:</span>
+                                <Badge className={cn("h-7 px-3 font-black text-sm", counts.morning > 0 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700")}>{counts.morning}</Badge>
                               </div>
                               <div className="flex justify-between items-center text-xs font-black">
-                                <span className="text-slate-400">POMERIGGIO:</span>
-                                <Badge className={cn("h-7 px-3 font-black text-xs", counts.afternoon > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700")}>{counts.afternoon}</Badge>
+                                <span className="text-slate-400 uppercase">Pomeriggio:</span>
+                                <Badge className={cn("h-7 px-3 font-black text-sm", counts.afternoon > 0 ? "bg-indigo-100 text-indigo-700" : "bg-rose-100 text-rose-700")}>{counts.afternoon}</Badge>
                               </div>
                             </div>
                           );
@@ -445,7 +439,7 @@ export default function ShiftsPage() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      {/* DIALOGS ... */}
+      {/* DIALOGS */}
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-2xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
@@ -527,7 +521,7 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
   const isMorning = parseISO(s.startTime).getHours() < 14;
   
   return (
-    <div className={cn("group/item relative p-2.5 rounded-lg border-l-4 shadow-sm transition-all bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
+    <div className={cn("group/item relative p-3 rounded-xl border-l-4 shadow-sm transition-all bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
       <div className="flex justify-between items-start">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
@@ -559,7 +553,7 @@ function AbsenceItem({ a }: { a: any }) {
     : "Intera Giornata";
 
   return (
-    <div className="p-2.5 rounded-lg border-l-4 border-rose-600 shadow-sm bg-rose-50 text-rose-900">
+    <div className="p-3 rounded-xl border-l-4 border-rose-600 shadow-sm bg-rose-50 text-rose-900">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
           {getIcon()}
@@ -574,7 +568,7 @@ function AbsenceItem({ a }: { a: any }) {
 function RestItem({ start, end }: { start?: string, end?: string }) {
   const timeStr = start && end && start !== "00:00" ? `${start} - ${end}` : "Intera Giornata";
   return (
-    <div className="p-2.5 rounded-lg border-l-4 border-slate-400 shadow-sm bg-slate-50 text-slate-600">
+    <div className="p-3 rounded-xl border-l-4 border-slate-400 shadow-sm bg-slate-50 text-slate-600">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
           <Coffee className="h-4 w-4 text-slate-400" />
