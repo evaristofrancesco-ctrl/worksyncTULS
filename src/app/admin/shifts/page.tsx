@@ -291,7 +291,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-5xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-lg text-slate-500 font-medium">Visualizzazione a doppio slot (Palese/Bisceglie) ottimizzata.</p>
+          <p className="text-lg text-slate-500 font-medium">Visualizzazione ottimizzata con distinzione cromatica Riposo/Assenze.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-12 px-6 uppercase"><UserMinus className="h-5 w-5 mr-2" /> Assenza</Button>
@@ -356,18 +356,27 @@ export default function ShiftsPage() {
                         const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
                         const isRestDay = day.getDay().toString() === emp.restDay;
 
-                        // Filtraggio eventi per sede con fallback intelligente sulla sede principale
+                        // Determina se il dipendente "appartiene" a una sede specifica
+                        const isEmpPalese = emp.locationName?.toUpperCase().includes("PALESE") || locations?.find(l => l.id === emp.locationId)?.name.toUpperCase().includes("PALESE");
+                        const isEmpBisceglie = emp.locationName?.toUpperCase().includes("BISCEGLIE") || locations?.find(l => l.id === emp.locationId)?.name.toUpperCase().includes("BISCEGLIE");
+
                         const paleseEvents = dayShifts.filter(s => 
                           s.locationId === paleseLoc?.id || 
-                          ((!s.locationId || s.locationId === 'default') && emp.locationId === paleseLoc?.id)
+                          ((!s.locationId || s.locationId === 'default') && isEmpPalese)
                         );
                         const bisceglieEvents = dayShifts.filter(s => 
                           s.locationId === bisceglieLoc?.id || 
-                          ((!s.locationId || s.locationId === 'default') && emp.locationId === bisceglieLoc?.id)
+                          ((!s.locationId || s.locationId === 'default') && isEmpBisceglie)
                         );
                         
-                        const paleseAbsences = dayAbsences.filter(a => !a.locationId || a.locationId === paleseLoc?.id || (emp.locationId === paleseLoc?.id));
-                        const bisceglieAbsences = dayAbsences.filter(a => a.locationId === bisceglieLoc?.id || (emp.locationId === bisceglieLoc?.id && a.locationId === undefined));
+                        const paleseAbsences = dayAbsences.filter(a => 
+                          a.locationId === paleseLoc?.id || 
+                          (!a.locationId && isEmpPalese)
+                        );
+                        const bisceglieAbsences = dayAbsences.filter(a => 
+                          a.locationId === bisceglieLoc?.id || 
+                          (!a.locationId && isEmpBisceglie)
+                        );
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r flex flex-col bg-white">
@@ -377,11 +386,11 @@ export default function ShiftsPage() {
                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
                               </div>
                               <div className="flex flex-col gap-1.5">
-                                {emp.locationId === paleseLoc?.id && paleseAbsences.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
-                                {paleseEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
+                                {paleseAbsences.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
+                                {paleseEvents.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
-                                {isRestDay && emp.locationId === paleseLoc?.id && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
+                                {isRestDay && isEmpPalese && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
                                   <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                                 )}
                               </div>
@@ -393,11 +402,11 @@ export default function ShiftsPage() {
                                 <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
                               </div>
                               <div className="flex flex-col gap-1.5">
-                                {emp.locationId === bisceglieLoc?.id && bisceglieAbsences.map(a => <AbsenceItem key={`b-abs-${a.id}`} a={a} />)}
-                                {bisceglieEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
+                                {bisceglieAbsences.map(a => <AbsenceItem key={`b-abs-${a.id}`} a={a} />)}
+                                {bisceglieEvents.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
-                                {isRestDay && emp.locationId === bisceglieLoc?.id && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
+                                {isRestDay && isEmpBisceglie && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
                                   <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                                 )}
                               </div>
