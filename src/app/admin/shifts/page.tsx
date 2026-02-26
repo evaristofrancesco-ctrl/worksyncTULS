@@ -14,11 +14,8 @@ import {
   Moon,
   Coffee,
   Umbrella,
-  AlertTriangle,
-  CheckCircle2,
   CalendarDays,
-  Building2,
-  Users2
+  Building2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -33,8 +30,7 @@ import {
   addDays, 
   startOfWeek, 
   parseISO, 
-  subDays,
-  isSameDay
+  subDays
 } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -187,6 +183,7 @@ export default function ShiftsPage() {
         return d >= weekStart && d <= weekEnd;
       }) || [];
 
+      // Pulizia precedente
       for (const s of weekShifts) {
         deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id));
       }
@@ -232,7 +229,7 @@ export default function ShiftsPage() {
 
       toast({ title: "Completato" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore" });
+      toast({ variant: "destructive", title: "Errore generazione AI" });
     } finally {
       setIsGenerating(false);
     }
@@ -242,9 +239,9 @@ export default function ShiftsPage() {
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-[32px] font-black text-slate-900 tracking-tighter uppercase leading-none">Pianificazione Turni</h1>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2 mt-1">
-            <CalendarDays className="h-4 w-4 text-[#227FD8]" /> Monitoraggio Copertura Sedi
+          <h1 className="text-[34px] font-black text-slate-900 tracking-tighter uppercase leading-none">Pianificazione Turni</h1>
+          <p className="text-sm text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2 mt-2">
+            <CalendarDays className="h-5 w-5 text-[#227FD8]" /> Monitoraggio Copertura Sedi
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -259,7 +256,7 @@ export default function ShiftsPage() {
           
           <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl shadow-sm border ring-1 ring-slate-200">
             <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-5 w-5" /></Button>
-            <span className="text-xs font-black uppercase min-w-[140px] text-center text-slate-600">
+            <span className="text-sm font-black uppercase min-w-[160px] text-center text-slate-600">
               {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
             </span>
             <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-5 w-5" /></Button>
@@ -267,31 +264,31 @@ export default function ShiftsPage() {
         </div>
       </div>
 
-      <ScrollArea className="w-full h-[750px] border rounded-2xl bg-slate-50 shadow-2xl overflow-hidden ring-1 ring-slate-200">
+      <ScrollArea className="w-full h-[780px] border rounded-2xl bg-slate-50 shadow-2xl overflow-hidden ring-1 ring-slate-200">
         <div className="inline-block min-w-full">
           {isEmployeesLoading || isShiftsLoading ? (
-            <div className="py-40 text-center"><Loader2 className="h-12 w-12 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-bold text-slate-400 uppercase text-sm">Caricamento...</p></div>
+            <div className="py-48 text-center"><Loader2 className="h-14 w-14 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-black text-slate-400 uppercase text-base">Inizializzazione Griglia...</p></div>
           ) : (
             <div className="flex flex-col">
-              {/* Header Dipendenti + Specchietto */}
+              {/* Header Griglia */}
               <div className="flex sticky top-0 z-30 bg-slate-100 border-b shadow-md">
-                <div className="w-[100px] p-4 font-black text-[11px] uppercase text-slate-400 sticky left-0 bg-slate-100 border-r z-40 flex items-center justify-center text-center">DATA</div>
+                <div className="w-[110px] p-4 font-black text-[12px] uppercase text-slate-400 sticky left-0 bg-slate-100 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
                 {displayEmployees.map(emp => (
-                  <div key={emp.id} className="min-w-[240px] p-4 border-r flex items-center gap-3 bg-slate-100/95 backdrop-blur-sm">
-                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                  <div key={emp.id} className="min-w-[260px] p-5 border-r flex items-center gap-4 bg-slate-100/95 backdrop-blur-sm">
+                    <Avatar className="h-12 w-12 border-2 border-white shadow-md">
                       <AvatarImage src={emp.photoUrl} />
-                      <AvatarFallback className="font-black text-xs">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="font-black text-sm">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-sm uppercase leading-none">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[10px] font-bold text-[#227FD8] mt-1">{emp.jobTitle}</span>
+                      <span className="font-black text-slate-900 text-base uppercase leading-none">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[11px] font-bold text-[#227FD8] mt-1 uppercase tracking-wider">{emp.jobTitle}</span>
                     </div>
                   </div>
                 ))}
-                {/* Header Specchietto */}
-                <div className="min-w-[220px] p-4 bg-slate-200/50 flex items-center justify-center gap-2 border-l-2 border-l-slate-300">
-                  <Building2 className="h-5 w-5 text-slate-500" />
-                  <span className="font-black text-xs uppercase text-slate-600 tracking-widest">Copertura Sedi</span>
+                {/* Header Specchietto Copertura */}
+                <div className="min-w-[240px] p-4 bg-slate-200/60 flex items-center justify-center gap-3 border-l-2 border-l-slate-300">
+                  <Building2 className="h-6 w-6 text-slate-500" />
+                  <span className="font-black text-sm uppercase text-slate-600 tracking-tighter">STATO COPERTURA</span>
                 </div>
               </div>
 
@@ -306,14 +303,16 @@ export default function ShiftsPage() {
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-100/30 transition-colors">
                       {/* Colonna Data */}
-                      <div className="w-[100px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[2px_0_10px_rgba(0,0,0,0.03)]">
-                        <div className="text-[11px] font-black uppercase text-slate-400 mb-0.5">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className="text-4xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
+                      <div className="w-[110px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[3px_0_12px_rgba(0,0,0,0.04)]">
+                        <div className="text-[12px] font-black uppercase text-slate-400 mb-1">{format(day, 'EEEE', { locale: it })}</div>
+                        <div className="text-[42px] font-black text-slate-800 tracking-tighter leading-none">{format(day, 'dd')}</div>
                       </div>
                       
-                      {/* Celle Dipendenti */}
+                      {/* Celle Dipendenti con Doppio Slot */}
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
+                        
+                        // Smistamento per slot visuale
                         const paleseEvents = dayEvents.filter(ev => {
                           const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
                           return !locName.toLowerCase().includes('bisceglie');
@@ -324,29 +323,29 @@ export default function ShiftsPage() {
                         });
 
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[240px] border-r bg-white flex flex-col p-2 gap-2">
-                            {/* SLOT PALESE */}
-                            <div className="flex-1 min-h-[100px] border-2 rounded-xl border-dashed border-slate-100 p-1 relative group/palese bg-slate-50/30">
-                              <div className="absolute top-1 right-2 text-[9px] font-black text-slate-300 uppercase pointer-events-none">PALESE</div>
-                              <div className="flex flex-col gap-1.5 relative z-10">
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r bg-white flex flex-col p-3 gap-3">
+                            {/* SLOT PALESE (Superiore) */}
+                            <div className="flex-1 min-h-[110px] border-2 rounded-2xl border-dashed border-slate-100 p-2 relative group/palese bg-slate-50/40">
+                              <div className="absolute top-1.5 right-3 text-[10px] font-black text-slate-300 uppercase pointer-events-none tracking-widest">PALESE</div>
+                              <div className="flex flex-col gap-2 relative z-10">
                                 {paleseEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />)}
-                                <button onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('palese'))?.id)} className="w-full py-2.5 rounded-lg border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/palese:opacity-100 hover:text-[#227FD8] transition-all flex items-center justify-center bg-white/50"><Plus className="h-5 w-5" /></button>
+                                <button onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('palese'))?.id)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/palese:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
                               </div>
                             </div>
-                            {/* SLOT BISCEGLIE */}
-                            <div className="flex-1 min-h-[100px] border-2 rounded-xl border-dashed border-slate-100 p-1 relative group/bisceglie bg-slate-50/30">
-                              <div className="absolute top-1 right-2 text-[9px] font-black text-slate-300 uppercase pointer-events-none">BISCEGLIE</div>
-                              <div className="flex flex-col gap-1.5 relative z-10">
+                            {/* SLOT BISCEGLIE (Inferiore) */}
+                            <div className="flex-1 min-h-[110px] border-2 rounded-2xl border-dashed border-slate-100 p-2 relative group/bisceglie bg-slate-50/40">
+                              <div className="absolute top-1.5 right-3 text-[10px] font-black text-slate-300 uppercase pointer-events-none tracking-widest">BISCEGLIE</div>
+                              <div className="flex flex-col gap-2 relative z-10">
                                 {bisceglieEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />)}
-                                <button onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('bisceglie'))?.id)} className="w-full py-2.5 rounded-lg border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/bisceglie:opacity-100 hover:text-[#227FD8] transition-all flex items-center justify-center bg-white/50"><Plus className="h-5 w-5" /></button>
+                                <button onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('bisceglie'))?.id)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/bisceglie:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
                               </div>
                             </div>
                           </div>
                         );
                       })}
 
-                      {/* SPECCHIETTO COPERTURA (Colonna Destra) */}
-                      <div className="min-w-[220px] bg-slate-50/80 p-3 border-l-2 border-l-slate-200 flex flex-col gap-3">
+                      {/* SPECCHIETTO COPERTURA (Colonna Destra Finale) */}
+                      <div className="min-w-[240px] bg-slate-100/50 p-4 border-l-2 border-l-slate-300 flex flex-col gap-4">
                         {locations?.map(loc => {
                           const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE');
                           let am = 0; let pm = 0;
@@ -357,21 +356,21 @@ export default function ShiftsPage() {
                           });
 
                           return (
-                            <div key={loc.id} className="bg-white rounded-xl border p-3 shadow-sm">
-                              <div className="flex items-center gap-2 mb-2.5 border-b pb-2">
-                                <div className="h-6 w-6 rounded bg-slate-100 flex items-center justify-center">
-                                  <Building2 className="h-4 w-4 text-slate-500" />
+                            <div key={loc.id} className="bg-white rounded-2xl border p-4 shadow-md">
+                              <div className="flex items-center gap-2.5 mb-3.5 border-b pb-2.5">
+                                <div className="h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center">
+                                  <Building2 className="h-4.5 w-4.5 text-slate-500" />
                                 </div>
-                                <span className="font-black text-[11px] uppercase text-slate-700 truncate w-32">{loc.name}</span>
+                                <span className="font-black text-[12px] uppercase text-slate-700 truncate">{loc.name}</span>
                               </div>
-                              <div className="grid grid-cols-2 gap-2.5">
-                                <div className={cn("rounded-lg p-2 flex flex-col items-center justify-center border", am > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
-                                  <span className="text-[9px] font-black uppercase text-slate-400">AM</span>
-                                  <span className={cn("text-base font-black", am > 0 ? "text-green-700" : "text-rose-700")}>{am}</span>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className={cn("rounded-xl p-2.5 flex flex-col items-center justify-center border-2 shadow-inner", am > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
+                                  <span className="text-[10px] font-black uppercase text-slate-400 mb-0.5">AM</span>
+                                  <span className={cn("text-xl font-black", am > 0 ? "text-green-700" : "text-rose-700")}>{am}</span>
                                 </div>
-                                <div className={cn("rounded-lg p-2 flex flex-col items-center justify-center border", pm > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
-                                  <span className="text-[9px] font-black uppercase text-slate-400">PM</span>
-                                  <span className={cn("text-base font-black", pm > 0 ? "text-green-700" : "text-rose-700")}>{pm}</span>
+                                <div className={cn("rounded-xl p-2.5 flex flex-col items-center justify-center border-2 shadow-inner", pm > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
+                                  <span className="text-[10px] font-black uppercase text-slate-400 mb-0.5">PM</span>
+                                  <span className={cn("text-xl font-black", pm > 0 ? "text-green-700" : "text-rose-700")}>{pm}</span>
                                 </div>
                               </div>
                             </div>
@@ -391,54 +390,54 @@ export default function ShiftsPage() {
 
       {/* Dialog Gestione Turno */}
       <Dialog open={isShiftOpen || isEditOpen} onOpenChange={(o) => { if(!o) { setIsShiftOpen(false); setIsEditOpen(false); } }}>
-        <DialogContent className="max-w-md p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
-          <DialogHeader className="p-6 bg-[#227FD8] text-white">
+        <DialogContent className="max-w-md p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
+          <DialogHeader className="p-7 bg-[#227FD8] text-white">
             <DialogTitle className="font-black text-2xl uppercase tracking-tighter flex items-center gap-3">
-              <Clock className="h-7 w-7" /> {form.id ? "Modifica Turno" : "Nuovo Turno"}
+              <Clock className="h-8 w-8" /> {form.id ? "Modifica Record" : "Nuovo Turno"}
             </DialogTitle>
           </DialogHeader>
-          <div className="p-6 space-y-5 bg-white">
-            <div className="space-y-1.5">
-              <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Tipo Evento</Label>
+          <div className="p-7 space-y-6 bg-white">
+            <div className="space-y-2">
+              <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Tipologia</Label>
               <Select value={form.type} onValueChange={v => setForm({...form, type: v})}>
-                <SelectTrigger className="h-12 font-bold rounded-xl border-slate-200 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 font-bold rounded-xl border-slate-200"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="MANUAL">Turno di Lavoro</SelectItem>
-                  <SelectItem value="REST">Riposo Settimanale</SelectItem>
-                  <SelectItem value="ABSENCE">Ferie / Malattia</SelectItem>
+                  <SelectItem value="MANUAL" className="font-bold">Turno Lavorativo</SelectItem>
+                  <SelectItem value="REST" className="font-bold">Riposo Settimanale</SelectItem>
+                  <SelectItem value="ABSENCE" className="font-bold">Assenza / Ferie</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Etichetta Visualizzata</Label>
-              <Input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="es. Mattina, Pomeriggio..." className="h-12 font-bold rounded-xl border-slate-200 text-sm" />
+            <div className="space-y-2">
+              <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Etichetta</Label>
+              <Input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="es. Mattina, Pomeriggio..." className="h-12 font-bold rounded-xl border-slate-200" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+            <div className="grid grid-cols-2 gap-5">
+              <div className="space-y-2">
                 <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Dalle Ore</Label>
-                <Input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className="h-12 font-bold rounded-xl border-slate-200 text-sm" />
+                <Input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className="h-12 font-bold rounded-xl border-slate-200" />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Alle Ore</Label>
-                <Input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className="h-12 font-bold rounded-xl border-slate-200 text-sm" />
+                <Input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className="h-12 font-bold rounded-xl border-slate-200" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Sede Assegnata</Label>
+            <div className="space-y-2">
+              <Label className="font-black text-xs uppercase text-slate-500 tracking-widest">Sede Operativa</Label>
               <Select value={form.locationId} onValueChange={v => setForm({...form, locationId: v})}>
-                <SelectTrigger className="h-12 font-bold rounded-xl border-slate-200 text-sm"><SelectValue placeholder="Seleziona Sede..." /></SelectTrigger>
-                <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-12 font-bold rounded-xl border-slate-200"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
+                <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id} className="font-bold">{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           </div>
-          <DialogFooter className="p-6 bg-slate-50 border-t flex items-center justify-between gap-4">
+          <DialogFooter className="p-7 bg-slate-50 border-t flex items-center justify-between gap-5">
             {form.id && (
-              <Button variant="ghost" onClick={() => { deleteDocumentNonBlocking(doc(db, "employees", form.employeeId, "shifts", form.id)); setIsEditOpen(false); }} className="text-rose-600 font-bold uppercase text-sm h-12 px-6">
-                ELIMINA
+              <Button variant="ghost" onClick={() => { deleteDocumentNonBlocking(doc(db, "employees", form.employeeId, "shifts", form.id)); setIsEditOpen(false); }} className="text-rose-600 font-black uppercase text-xs h-12 px-6 hover:bg-rose-50">
+                <Trash2 className="h-4 w-4 mr-2" /> ELIMINA
               </Button>
             )}
-            <Button onClick={handleSave} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black flex-1 h-12 uppercase tracking-widest shadow-lg rounded-xl text-sm">
-              SALVA RECORD
+            <Button onClick={handleSave} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black flex-1 h-12 uppercase tracking-widest shadow-xl rounded-2xl">
+              SALVA DATI
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -453,36 +452,36 @@ function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
   const isMorning = parseInt(start.split(':')[0]) < 14;
 
   let colorClass = "border-l-amber-500 bg-amber-50 text-amber-900";
-  let icon = <Sun className="h-4 w-4 text-amber-500" />;
+  let icon = <Sun className="h-4.5 w-4.5 text-amber-500" />;
 
   if (ev.type === 'REST') {
     colorClass = "border-l-slate-400 bg-slate-100 text-slate-600";
-    icon = <Coffee className="h-4 w-4 text-slate-400" />;
+    icon = <Coffee className="h-4.5 w-4.5 text-slate-400" />;
   } else if (ev.type === 'ABSENCE') {
     colorClass = "border-l-rose-600 bg-rose-50 text-rose-900";
-    icon = <Umbrella className="h-4 w-4 text-rose-600" />;
+    icon = <Umbrella className="h-4.5 w-4.5 text-rose-600" />;
   } else if (!isMorning) {
     colorClass = "border-l-indigo-600 bg-indigo-50 text-indigo-900";
-    icon = <Moon className="h-4 w-4 text-indigo-600" />;
+    icon = <Moon className="h-4.5 w-4.5 text-indigo-600" />;
   }
 
   return (
     <div 
       onClick={(e) => { e.stopPropagation(); onEdit(); }}
       className={cn(
-        "group relative p-3 rounded-xl border-l-[5px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full border border-slate-100",
+        "group relative p-4 rounded-2xl border-l-[6px] shadow-sm cursor-pointer hover:shadow-lg transition-all w-full border border-slate-100/50",
         colorClass
       )}
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
+          <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
             {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : 'LAVORO'}
           </span>
           {icon}
         </div>
-        <div className="text-[11px] font-black tracking-tight">{start} - {end}</div>
-        <div className="text-[10px] font-bold uppercase truncate opacity-80">{ev.title || 'Turno'}</div>
+        <div className="text-[13px] font-black tracking-tighter leading-none">{start} - {end}</div>
+        <div className="text-[11px] font-bold uppercase truncate opacity-80">{ev.title || 'Turno'}</div>
       </div>
     </div>
   )
