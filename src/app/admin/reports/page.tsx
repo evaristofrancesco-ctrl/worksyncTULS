@@ -241,6 +241,36 @@ export default function ReportsPage() {
     setTimeout(() => setIsRefreshing(false), 800)
   }
 
+  const handleExportCSV = () => {
+    if (!reportData.length) return;
+
+    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Ore Nette"];
+    const rows = reportData.map(r => [
+      r.name,
+      r.jobTitle,
+      r.expectedHoursFormatted,
+      r.vacationHoursFormatted,
+      r.sickHoursFormatted,
+      r.permitHoursFormatted,
+      r.totalHoursFormatted
+    ]);
+
+    const csvContent = [
+      headers.join(";"),
+      ...rows.map(e => e.join(";"))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Report_Ore_${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const isLoading = employeesLoading || entriesLoading || requestsLoading || isRefreshing;
 
   return (
@@ -269,6 +299,9 @@ export default function ReportsPage() {
           <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
           <Button variant="ghost" size="sm" className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50" onClick={handleRefresh} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} /> Ricalcola
+          </Button>
+          <Button variant="outline" size="sm" className="h-10 gap-2 font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50" onClick={handleExportCSV} disabled={isLoading || reportData.length === 0}>
+            <Download className="h-4 w-4" /> Esporta CSV
           </Button>
         </div>
       </div>
