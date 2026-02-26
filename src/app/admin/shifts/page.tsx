@@ -350,7 +350,7 @@ export default function ShiftsPage() {
                         const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
                         const isRestDay = day.getDay().toString() === emp.restDay;
 
-                        // Filtraggio eventi per sede con fallback sulla sede principale del dipendente se il turno è generico
+                        // Filtraggio eventi per sede con fallback sulla sede principale del dipendente
                         const paleseEvents = dayShifts.filter(s => 
                           s.locationId === paleseLoc?.id || 
                           ((!s.locationId || s.locationId === 'default') && emp.locationId === paleseLoc?.id)
@@ -360,13 +360,14 @@ export default function ShiftsPage() {
                           ((!s.locationId || s.locationId === 'default') && emp.locationId === bisceglieLoc?.id)
                         );
                         
+                        // Assenze associate per sede
                         const paleseAbsences = dayAbsences.filter(a => !a.locationId || a.locationId === paleseLoc?.id);
                         const bisceglieAbsences = dayAbsences.filter(a => a.locationId === bisceglieLoc?.id);
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r flex flex-col bg-white">
-                            {/* SLOT FISSO PALESE */}
-                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-blue-50/10 border-b border-dashed border-slate-100 relative group/slot">
+                            {/* SLOT PALESE */}
+                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-blue-50/10 border-b border-dashed border-slate-100 relative">
                               <div className="flex items-center justify-between opacity-30 mb-0.5">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
                               </div>
@@ -381,8 +382,8 @@ export default function ShiftsPage() {
                               </div>
                             </div>
 
-                            {/* SLOT FISSO BISCEGLIE */}
-                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-emerald-50/10 relative group/slot">
+                            {/* SLOT BISCEGLIE */}
+                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-emerald-50/10 relative">
                               <div className="flex items-center justify-between opacity-30 mb-0.5">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
                               </div>
