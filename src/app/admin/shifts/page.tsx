@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, doc, collectionGroup, query, limit } from "firebase/firestore"
-import { setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -54,6 +54,7 @@ export default function ShiftsPage() {
   
   const [isShiftOpen, setIsShiftOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [draggedShift, setDraggedShift] = useState<any>(null)
 
   const [form, setForm] = useState({
     id: "",
@@ -177,6 +178,61 @@ export default function ShiftsPage() {
     setIsEditOpen(true);
   }
 
+  // DRAG & DROP LOGIC
+  const onDragStart = (e: React.DragEvent, shift: any) => {
+    setDraggedShift(shift);
+    e.dataTransfer.setData("shiftId", shift.id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const onDrop = (e: React.DragEvent, targetEmployeeId: string, targetDate: string, targetLocationId: string) => {
+    e.preventDefault();
+    if (!draggedShift || !db) return;
+
+    // Se sto rilasciando nello stesso identico slot, esco
+    if (draggedShift.employeeId === targetEmployeeId && 
+        draggedShift.date === targetDate && 
+        draggedShift.locationId === targetLocationId) {
+      setDraggedShift(null);
+      return;
+    }
+
+    // Calcolo nuovi orari mantenendo la fascia oraria originale
+    const timeIn = format(parseISO(draggedShift.startTime), "HH:mm:ss");
+    const timeOut = format(parseISO(draggedShift.endTime), "HH:mm:ss");
+    const newStartTime = `${targetDate}T${timeIn}Z`;
+    const newEndTime = `${targetDate}T${timeOut}Z`;
+
+    // Se il dipendente cambia, devo eliminare dal vecchio e creare nel nuovo (Firestore path)
+    if (draggedShift.employeeId !== targetEmployeeId) {
+      deleteDocumentNonBlocking(doc(db, "employees", draggedShift.employeeId, "shifts", draggedShift.id));
+      
+      const newId = `shift-mv-${Date.now()}`;
+      setDocumentNonBlocking(doc(db, "employees", targetEmployeeId, "shifts", newId), {
+        ...draggedShift,
+        id: newId,
+        employeeId: targetEmployeeId,
+        date: targetDate,
+        locationId: targetLocationId,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } else {
+      // Stesso dipendente, aggiorno solo metadati
+      updateDocumentNonBlocking(doc(db, "employees", draggedShift.employeeId, "shifts", draggedShift.id), {
+        date: targetDate,
+        locationId: targetLocationId,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    setDraggedShift(null);
+    toast({ title: "Turno spostato fisicamente" });
+  };
+
   const handleGenerateAI = async () => {
     if (!employees || !locations || employees.length === 0) return;
     setIsGenerating(true);
@@ -193,7 +249,7 @@ export default function ShiftsPage() {
         deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id));
       }
 
-      // 2. Filtro richieste approvate per la settimana
+      // 2. Filtro richieste approvate
       const approvedRequests = allRequests?.filter(r => {
         const status = (r.status || "").toUpperCase();
         return status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
@@ -201,21 +257,18 @@ export default function ShiftsPage() {
 
       const paleseId = locations.find(l => l.name.toLowerCase().includes('palese'))?.id || "palese-id";
 
-      // 3. Generazione Turni per ogni dipendente visualizzato
+      // 3. Generazione Turni
       displayEmployees.forEach((emp) => {
         const name = (emp.firstName || "").toLowerCase();
         
         daysOfVisualizedWeek.forEach((day) => {
-          const dayOfWeek = day.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
-          if (dayOfWeek === 0) return; // No Domenica
+          const dayOfWeek = day.getDay();
+          if (dayOfWeek === 0) return;
 
           const dStr = format(day, 'yyyy-MM-dd');
-          
-          // Verifica se c'è un permesso approvato per questo giorno
           const request = approvedRequests.find(r => r.employeeId === emp.id && r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
 
           if (request) {
-            // Crea badge assenza invece del lavoro
             const absId = `abs-${emp.id}-${dStr}`;
             setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", absId), {
               id: absId,
@@ -229,25 +282,22 @@ export default function ShiftsPage() {
               companyId: "default",
               status: "SCHEDULED"
             }, { merge: true });
-            return; // Salta i turni di lavoro per questo giorno
+            return;
           }
 
-          // REGOLE SPECIFICHE LAVORO
           let amSlot = { start: "09:00", end: "13:00", isRest: false };
           let pmSlot = { start: "17:00", end: "20:20", isRest: false };
 
           if (name.includes('vittorio')) {
-            if (dayOfWeek === 3) amSlot.isRest = true; // Mercoledì Riposo
+            if (dayOfWeek === 3) amSlot.isRest = true;
           } else if (name.includes('isa') || name.includes('rosa')) {
-            if (dayOfWeek === 4) amSlot.isRest = true; // Giovedì Riposo
+            if (dayOfWeek === 4) amSlot.isRest = true;
           } else if (name.includes('savino')) {
-            // Regole Savino Mattina
-            if (dayOfWeek === 4) amSlot.end = "13:00"; // Gio 4h
-            else if (dayOfWeek === 6) amSlot.end = "11:00"; // Sab 2h
-            else amSlot.end = "10:00"; // Altri 1h
+            if (dayOfWeek === 4) amSlot.end = "13:00";
+            else if (dayOfWeek === 6) amSlot.end = "11:00";
+            else amSlot.end = "10:00";
           }
 
-          // Inserimento Mattina
           const amId = `am-${emp.id}-${dStr}`;
           setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", amId), {
             id: amId,
@@ -262,7 +312,6 @@ export default function ShiftsPage() {
             status: "SCHEDULED"
           }, { merge: true });
 
-          // Inserimento Pomeriggio
           const pmId = `pm-${emp.id}-${dStr}`;
           setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", pmId), {
             id: pmId,
@@ -286,6 +335,9 @@ export default function ShiftsPage() {
       setIsGenerating(false);
     }
   }
+
+  const paleseId = locations?.find(l => l.name.toLowerCase().includes('palese'))?.id || "palese";
+  const bisceglieId = locations?.find(l => l.name.toLowerCase().includes('bisceglie'))?.id || "bisceglie";
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
@@ -337,7 +389,6 @@ export default function ShiftsPage() {
                     </div>
                   </div>
                 ))}
-                {/* Header Specchietto Copertura */}
                 <div className="min-w-[240px] p-4 bg-slate-200/60 flex items-center justify-center gap-3 border-l-2 border-l-slate-300">
                   <Building2 className="h-6 w-6 text-slate-500" />
                   <span className="font-black text-sm uppercase text-slate-600 tracking-tighter">COPERTURA SEDI</span>
@@ -360,11 +411,10 @@ export default function ShiftsPage() {
                         <div className="text-[42px] font-black text-slate-800 tracking-tighter leading-none">{format(day, 'dd')}</div>
                       </div>
                       
-                      {/* Celle Dipendenti con Doppio Slot */}
+                      {/* Celle Dipendenti */}
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
                         
-                        // Smistamento per slot visuale
                         const paleseEvents = dayEvents.filter(ev => {
                           const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
                           return !locName.toLowerCase().includes('bisceglie');
@@ -376,27 +426,35 @@ export default function ShiftsPage() {
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r bg-white flex flex-col p-3 gap-3">
-                            {/* SLOT PALESE (Superiore) */}
-                            <div className="flex-1 min-h-[110px] border-2 rounded-2xl border-dashed border-slate-100 p-2 relative group/palese bg-slate-50/40">
+                            {/* SLOT PALESE */}
+                            <div 
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => onDrop(e, emp.id, dayStr, paleseId)}
+                              className="flex-1 min-h-[110px] border-2 rounded-2xl border-dashed border-slate-100 p-2 relative group/palese bg-slate-50/40 hover:border-[#227FD8]/20 transition-colors"
+                            >
                               <div className="absolute top-1.5 right-3 text-[10px] font-black text-slate-300 uppercase pointer-events-none tracking-widest">PALESE</div>
                               <div className="flex flex-col gap-2 relative z-10">
-                                {paleseEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />)}
-                                <button onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('palese'))?.id)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/palese:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
+                                {paleseEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} onDragStart={(e) => onDragStart(e, ev)} />)}
+                                <button onClick={() => handleOpenAdd(emp.id, dayStr, paleseId)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/palese:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
                               </div>
                             </div>
-                            {/* SLOT BISCEGLIE (Inferiore) */}
-                            <div className="flex-1 min-h-[110px] border-2 rounded-2xl border-dashed border-slate-100 p-2 relative group/bisceglie bg-slate-50/40">
+                            {/* SLOT BISCEGLIE */}
+                            <div 
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => onDrop(e, emp.id, dayStr, bisceglieId)}
+                              className="flex-1 min-h-[110px] border-2 rounded-2xl border-dashed border-slate-100 p-2 relative group/bisceglie bg-slate-50/40 hover:border-[#227FD8]/20 transition-colors"
+                            >
                               <div className="absolute top-1.5 right-3 text-[10px] font-black text-slate-300 uppercase pointer-events-none tracking-widest">BISCEGLIE</div>
                               <div className="flex flex-col gap-2 relative z-10">
-                                {bisceglieEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />)}
-                                <button onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('bisceglie'))?.id)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/bisceglie:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
+                                {bisceglieEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} onDragStart={(e) => onDragStart(e, ev)} />)}
+                                <button onClick={() => handleOpenAdd(emp.id, dayStr, bisceglieId)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/bisceglie:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
                               </div>
                             </div>
                           </div>
                         );
                       })}
 
-                      {/* SPECCHIETTO COPERTURA (Colonna Destra Finale) */}
+                      {/* SPECCHIETTO COPERTURA */}
                       <div className="min-w-[240px] bg-slate-100/50 p-4 border-l-2 border-l-slate-300 flex flex-col gap-4">
                         {locations?.map(loc => {
                           const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE');
@@ -498,7 +556,7 @@ export default function ShiftsPage() {
   )
 }
 
-function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
+function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, onDragStart: (e: any) => void }) {
   const start = ev.startTime ? format(parseISO(ev.startTime), 'HH:mm') : "00:00";
   const end = ev.endTime ? format(parseISO(ev.endTime), 'HH:mm') : "00:00";
   const isMorning = parseInt(start.split(':')[0]) < 14;
@@ -519,13 +577,15 @@ function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
 
   return (
     <div 
+      draggable
+      onDragStart={onDragStart}
       onClick={(e) => { e.stopPropagation(); onEdit(); }}
       className={cn(
-        "group relative p-4 rounded-2xl border-l-[6px] shadow-sm cursor-pointer hover:shadow-lg transition-all w-full border border-slate-100/50",
+        "group relative p-4 rounded-2xl border-l-[6px] shadow-sm cursor-grab active:cursor-grabbing hover:shadow-lg transition-all w-full border border-slate-100/50",
         colorClass
       )}
     >
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 pointer-events-none">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
             {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : 'LAVORO'}
