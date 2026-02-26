@@ -331,27 +331,27 @@ export default function ShiftsPage() {
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-[34px] font-black text-slate-900 tracking-tighter uppercase leading-none">Pianificazione Turni</h1>
-          <p className="text-sm text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2 mt-2">
-            <CalendarDays className="h-5 w-5 text-[#227FD8]" /> Monitoraggio Copertura Sedi
+          <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none">Pianificazione Turni</h1>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2 mt-2">
+            <CalendarDays className="h-4 w-4 text-[#227FD8]" /> Monitoraggio Copertura Sedi
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button 
             onClick={handleGenerateAI} 
             disabled={isGenerating}
-            className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-widest shadow-lg h-12 px-8"
+            className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-widest shadow-lg h-11 px-6"
           >
-            {isGenerating ? <Loader2 className="h-6 w-6 animate-spin" /> : <Sparkles className="h-6 w-6 mr-2" />}
+            {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5 mr-2" />}
             GENERA TURNI AI
           </Button>
           
-          <div className="flex items-center gap-2 bg-white p-1.5 rounded-xl shadow-sm border ring-1 ring-slate-200">
-            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-5 w-5" /></Button>
-            <span className="text-sm font-black uppercase min-w-[160px] text-center text-slate-600">
+          <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border ring-1 ring-slate-200">
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-4 w-4" /></Button>
+            <span className="text-[13px] font-black uppercase min-w-[150px] text-center text-slate-600">
               {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
             </span>
-            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-5 w-5" /></Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       </div>
@@ -362,24 +362,23 @@ export default function ShiftsPage() {
             <div className="py-48 text-center"><Loader2 className="h-14 w-14 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-black text-slate-400 uppercase text-base">Inizializzazione Griglia...</p></div>
           ) : (
             <div className="flex flex-col">
-              {/* Header con larghezze fisse e allineate */}
               <div className="flex sticky top-0 z-30 bg-slate-100 border-b shadow-md">
-                <div className="w-[110px] shrink-0 p-4 font-black text-[12px] uppercase text-slate-400 sticky left-0 bg-slate-100 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
+                <div className="w-[110px] shrink-0 p-4 font-black text-[11px] uppercase text-slate-400 sticky left-0 bg-slate-100 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
                 {displayEmployees.map(emp => (
                   <div key={emp.id} className="w-[260px] shrink-0 p-5 border-r flex items-center gap-4 bg-slate-100/95 backdrop-blur-sm">
-                    <Avatar className="h-12 w-12 border-2 border-white shadow-md">
+                    <Avatar className="h-11 w-11 border-2 border-white shadow-md">
                       <AvatarImage src={emp.photoUrl} />
-                      <AvatarFallback className="font-black text-sm">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="font-black text-xs">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-lg uppercase leading-none">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[11px] font-bold text-[#227FD8] mt-1 uppercase tracking-wider">{emp.jobTitle}</span>
+                      <span className="font-black text-slate-900 text-base uppercase leading-none">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[10px] font-bold text-[#227FD8] mt-1 uppercase tracking-wider">{emp.jobTitle}</span>
                     </div>
                   </div>
                 ))}
                 <div className="w-[240px] shrink-0 p-4 bg-slate-200/60 flex items-center justify-center gap-3 border-l-2 border-l-slate-300">
-                  <Building2 className="h-6 w-6 text-slate-500" />
-                  <span className="font-black text-sm uppercase text-slate-600 tracking-tighter">COPERTURA SEDI</span>
+                  <Building2 className="h-5 w-5 text-slate-500" />
+                  <span className="font-black text-[13px] uppercase text-slate-600 tracking-tighter">COPERTURA SEDI</span>
                 </div>
               </div>
 
@@ -392,13 +391,11 @@ export default function ShiftsPage() {
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-100/30 transition-colors">
-                      {/* Colonna Giorno */}
                       <div className="w-[110px] shrink-0 p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[3px_0_12px_rgba(0,0,0,0.04)]">
-                        <div className="text-[12px] font-black uppercase text-slate-400 mb-1">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className="text-[42px] font-black text-slate-800 tracking-tighter leading-none">{format(day, 'dd')}</div>
+                        <div className="text-[11px] font-black uppercase text-slate-400 mb-1">{format(day, 'EEEE', { locale: it })}</div>
+                        <div className="text-[38px] font-black text-slate-800 tracking-tighter leading-none">{format(day, 'dd')}</div>
                       </div>
                       
-                      {/* Colonne Dipendenti */}
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
                         
@@ -418,10 +415,10 @@ export default function ShiftsPage() {
                               onDrop={(e) => onDrop(e, emp.id, dayStr, paleseId)}
                               className="flex-1 min-h-[110px] border-2 rounded-2xl border-dashed border-slate-100 p-2 relative group/palese bg-slate-50/40 hover:border-[#227FD8]/20 transition-colors"
                             >
-                              <div className="absolute top-1.5 right-3 text-[10px] font-black text-slate-300 uppercase pointer-events-none tracking-widest">PALESE</div>
+                              <div className="absolute top-1.5 right-3 text-[9px] font-black text-slate-300 uppercase pointer-events-none tracking-widest">PALESE</div>
                               <div className="flex flex-col gap-2 relative z-10">
                                 {paleseEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} onDragStart={(e) => onDragStart(e, ev)} />)}
-                                <button onClick={() => handleOpenAdd(emp.id, dayStr, paleseId)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/palese:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
+                                <button onClick={() => handleOpenAdd(emp.id, dayStr, paleseId)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/palese:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-5 w-5" /></button>
                               </div>
                             </div>
                             <div 
@@ -429,17 +426,16 @@ export default function ShiftsPage() {
                               onDrop={(e) => onDrop(e, emp.id, dayStr, bisceglieId)}
                               className="flex-1 min-h-[110px] border-2 rounded-2xl border-dashed border-slate-100 p-2 relative group/bisceglie bg-slate-50/40 hover:border-[#227FD8]/20 transition-colors"
                             >
-                              <div className="absolute top-1.5 right-3 text-[10px] font-black text-slate-300 uppercase pointer-events-none tracking-widest">BISCEGLIE</div>
+                              <div className="absolute top-1.5 right-3 text-[9px] font-black text-slate-300 uppercase pointer-events-none tracking-widest">BISCEGLIE</div>
                               <div className="flex flex-col gap-2 relative z-10">
                                 {bisceglieEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} onDragStart={(e) => onDragStart(e, ev)} />)}
-                                <button onClick={() => handleOpenAdd(emp.id, dayStr, bisceglieId)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/bisceglie:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-6 w-6" /></button>
+                                <button onClick={() => handleOpenAdd(emp.id, dayStr, bisceglieId)} className="w-full py-3.5 rounded-xl border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/bisceglie:opacity-100 hover:text-[#227FD8] hover:border-[#227FD8]/30 transition-all flex items-center justify-center bg-white/60"><Plus className="h-5 w-5" /></button>
                               </div>
                             </div>
                           </div>
                         );
                       })}
 
-                      {/* Colonna Copertura Sedi */}
                       <div className="w-[240px] shrink-0 bg-slate-100/50 p-4 border-l-2 border-l-slate-300 flex flex-col gap-4">
                         {locations?.map(loc => {
                           const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE');
@@ -453,19 +449,19 @@ export default function ShiftsPage() {
                           return (
                             <div key={loc.id} className="bg-white rounded-2xl border p-4 shadow-md">
                               <div className="flex items-center gap-2.5 mb-3.5 border-b pb-2.5">
-                                <div className="h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                                  <Building2 className="h-4.5 w-4.5 text-slate-500" />
+                                <div className="h-6 w-6 rounded-lg bg-slate-100 flex items-center justify-center">
+                                  <Building2 className="h-4 w-4 text-slate-500" />
                                 </div>
-                                <span className="font-black text-[12px] uppercase text-slate-700 truncate">{loc.name}</span>
+                                <span className="font-black text-[11px] uppercase text-slate-700 truncate">{loc.name}</span>
                               </div>
                               <div className="grid grid-cols-2 gap-3">
                                 <div className={cn("rounded-xl p-2.5 flex flex-col items-center justify-center border-2 shadow-inner", am > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
-                                  <span className="text-[10px] font-black uppercase text-slate-400 mb-0.5">AM</span>
-                                  <span className={cn("text-xl font-black", am > 0 ? "text-green-700" : "text-rose-700")}>{am === 0 ? "!!" : am}</span>
+                                  <span className="text-[9px] font-black uppercase text-slate-400 mb-0.5">AM</span>
+                                  <span className={cn("text-lg font-black", am > 0 ? "text-green-700" : "text-rose-700")}>{am === 0 ? "!!" : am}</span>
                                 </div>
                                 <div className={cn("rounded-xl p-2.5 flex flex-col items-center justify-center border-2 shadow-inner", pm > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
-                                  <span className="text-[10px] font-black uppercase text-slate-400 mb-0.5">PM</span>
-                                  <span className={cn("text-xl font-black", pm > 0 ? "text-green-700" : "text-rose-700")}>{pm === 0 ? "!!" : pm}</span>
+                                  <span className="text-[9px] font-black uppercase text-slate-400 mb-0.5">PM</span>
+                                  <span className={cn("text-lg font-black", pm > 0 ? "text-green-700" : "text-rose-700")}>{pm === 0 ? "!!" : pm}</span>
                                 </div>
                               </div>
                             </div>
@@ -545,17 +541,17 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
   const isMorning = parseInt(start.split(':')[0]) < 14;
 
   let colorClass = "border-l-amber-500 bg-amber-50 text-amber-900";
-  let icon = <Sun className="h-4.5 w-4.5 text-amber-500" />;
+  let icon = <Sun className="h-4 w-4 text-amber-500" />;
 
   if (ev.type === 'REST') {
-    colorClass = "border-l-slate-400 bg-slate-100 text-slate-600";
-    icon = <Coffee className="h-4.5 w-4.5 text-slate-400" />;
+    colorClass = "border-l-slate-600 bg-slate-200 text-slate-800";
+    icon = <Coffee className="h-4 w-4 text-slate-500" />;
   } else if (ev.type === 'ABSENCE') {
     colorClass = "border-l-rose-600 bg-rose-50 text-rose-900";
-    icon = <Umbrella className="h-4.5 w-4.5 text-rose-600" />;
+    icon = <Umbrella className="h-4 w-4 text-rose-600" />;
   } else if (!isMorning) {
     colorClass = "border-l-indigo-600 bg-indigo-50 text-indigo-900";
-    icon = <Moon className="h-4.5 w-4.5 text-indigo-600" />;
+    icon = <Moon className="h-4 w-4 text-indigo-600" />;
   }
 
   return (
@@ -568,15 +564,15 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
         colorClass
       )}
     >
-      <div className="flex flex-col gap-1.5 pointer-events-none">
+      <div className="flex flex-col gap-1 pointer-events-none">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
+          <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
             {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : 'LAVORO'}
           </span>
           {icon}
         </div>
-        <div className="text-[13px] font-black tracking-tighter leading-none">{start} - {end}</div>
-        <div className="text-[11px] font-bold uppercase truncate opacity-80">{ev.title || 'Turno'}</div>
+        <div className="text-[12px] font-black tracking-tighter leading-none">{start} - {end}</div>
+        <div className="text-[10px] font-bold uppercase truncate opacity-80">{ev.title || 'Turno'}</div>
       </div>
     </div>
   )
