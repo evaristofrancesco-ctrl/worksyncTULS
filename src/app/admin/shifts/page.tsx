@@ -207,16 +207,15 @@ export default function ShiftsPage() {
         for (let i = 0; i < 6; i++) {
           const targetDay = addDays(weekStart, i);
           const dateStr = format(targetDay, 'yyyy-MM-dd');
-          const dayIdx = targetDay.getDay();
           
           if (isSavino) {
+            const dayIdx = targetDay.getDay();
             let amEndHour = 10;
-            let amEndMin = 0;
             if (dayIdx === 4) amEndHour = 13;
-            else if (dayIdx === 6) { amEndHour = 11; amEndMin = 0; }
+            else if (dayIdx === 6) amEndHour = 11;
 
             const sAM = new Date(targetDay); sAM.setHours(9, 0, 0);
-            const eAM = new Date(targetDay); eAM.setHours(amEndHour, amEndMin, 0);
+            const eAM = new Date(targetDay); eAM.setHours(amEndHour, 0, 0);
             const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
             setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
               id: idAM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Mattina", date: dateStr, startTime: sAM.toISOString(), endTime: eAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO"
@@ -283,18 +282,15 @@ export default function ShiftsPage() {
     toast({ title: "Turno Aggiornato" });
   }
 
-  const paleseLoc = locations?.find(l => l.name.toUpperCase().includes("PALESE"));
-  const bisceglieLoc = locations?.find(l => l.name.toUpperCase().includes("BISCEGLIE"));
-
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-5xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-lg text-slate-500 font-medium">Visualizzazione ottimizzata con distinzione cromatica Riposo/Assenze.</p>
+          <p className="text-lg text-slate-500 font-medium">Visualizzazione fissa: Palese (Sopra), Bisceglie (Sotto).</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-12 px-6 uppercase"><UserMinus className="h-5 w-5 mr-2" /> Assenza</Button>
+          <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-rose-200 text-rose-700 bg-rose-50 h-12 px-6 uppercase"><UserMinus className="h-5 w-5 mr-2" /> Assenza</Button>
           <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="font-bold border-blue-200 text-[#227FD8] h-12 px-6 uppercase">{isGenerating ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Sparkles className="h-5 w-5 mr-2" />} Genera</Button>
           <Button onClick={() => setIsShiftOpen(true)} className="bg-[#227FD8] font-black h-12 px-8 shadow-lg uppercase"><Plus className="h-5 w-5 mr-2" /> Nuovo Turno</Button>
         </div>
@@ -356,60 +352,62 @@ export default function ShiftsPage() {
                         const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
                         const isRestDay = day.getDay().toString() === emp.restDay;
 
-                        // Determina se il dipendente "appartiene" a una sede specifica
-                        const isEmpPalese = emp.locationName?.toUpperCase().includes("PALESE") || locations?.find(l => l.id === emp.locationId)?.name.toUpperCase().includes("PALESE");
-                        const isEmpBisceglie = emp.locationName?.toUpperCase().includes("BISCEGLIE") || locations?.find(l => l.id === emp.locationId)?.name.toUpperCase().includes("BISCEGLIE");
+                        // Logica di identificazione sede per Vittorio e colleghi
+                        const empLocName = (emp.locationName || "").toUpperCase();
+                        const isPaleseEmp = empLocName.includes("PALESE");
+                        const isBisceglieEmp = empLocName.includes("BISCEGLIE");
 
-                        const paleseEvents = dayShifts.filter(s => 
-                          s.locationId === paleseLoc?.id || 
-                          ((!s.locationId || s.locationId === 'default') && isEmpPalese)
-                        );
-                        const bisceglieEvents = dayShifts.filter(s => 
-                          s.locationId === bisceglieLoc?.id || 
-                          ((!s.locationId || s.locationId === 'default') && isEmpBisceglie)
-                        );
-                        
-                        const paleseAbsences = dayAbsences.filter(a => 
-                          a.locationId === paleseLoc?.id || 
-                          (!a.locationId && isEmpPalese)
-                        );
-                        const bisceglieAbsences = dayAbsences.filter(a => 
-                          a.locationId === bisceglieLoc?.id || 
-                          (!a.locationId && isEmpBisceglie)
-                        );
+                        // Funzione robusta per smistare i turni
+                        const filterBySlot = (items: any[], type: 'PALESE' | 'BISCEGLIE') => {
+                          return items.filter(item => {
+                            const itemLocId = item.locationId;
+                            // Se la sede del turno non è specificata, usa quella del dipendente
+                            if (!itemLocId || itemLocId === 'default' || itemLocId === '') {
+                              return type === 'PALESE' ? isPaleseEmp : isBisceglieEmp;
+                            }
+                            // Altrimenti cerca nei nomi delle sedi caricate
+                            const loc = locations?.find(l => l.id === itemLocId);
+                            if (loc) {
+                              return loc.name.toUpperCase().includes(type);
+                            }
+                            // Fallback estremo alla sede del dipendente
+                            return type === 'PALESE' ? isPaleseEmp : isBisceglieEmp;
+                          });
+                        };
+
+                        const paleseEvents = filterBySlot(dayShifts, 'PALESE');
+                        const bisceglieEvents = filterBySlot(dayShifts, 'BISCEGLIE');
+                        const paleseAbsences = filterBySlot(dayAbsences, 'PALESE');
+                        const bisceglieAbsences = filterBySlot(dayAbsences, 'BISCEGLIE');
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r flex flex-col bg-white">
-                            {/* SLOT PALESE */}
-                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-blue-50/10 border-b border-dashed border-slate-100 relative">
+                            {/* SLOT PALESE (Sopra) */}
+                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-blue-50/10 border-b border-dashed border-slate-100">
                               <div className="flex items-center justify-between opacity-30 mb-0.5">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
                               </div>
-                              <div className="flex flex-col gap-1.5">
-                                {paleseAbsences.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
-                                {paleseEvents.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
-                                  <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
-                                ))}
-                                {isRestDay && isEmpPalese && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
-                                  <RestItem start={emp.restStartTime} end={emp.restEndTime} />
-                                )}
-                              </div>
+                              {paleseAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
+                              {paleseEvents.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
+                                <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
+                              ))}
+                              {isRestDay && isPaleseEmp && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
+                                <RestItem start={emp.restStartTime} end={emp.restEndTime} />
+                              )}
                             </div>
 
-                            {/* SLOT BISCEGLIE */}
-                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-emerald-50/10 relative">
+                            {/* SLOT BISCEGLIE (Sotto) */}
+                            <div className="p-3 min-h-[110px] flex flex-col gap-1.5 bg-emerald-50/10">
                               <div className="flex items-center justify-between opacity-30 mb-0.5">
                                 <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
                               </div>
-                              <div className="flex flex-col gap-1.5">
-                                {bisceglieAbsences.map(a => <AbsenceItem key={`b-abs-${a.id}`} a={a} />)}
-                                {bisceglieEvents.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
-                                  <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
-                                ))}
-                                {isRestDay && isEmpBisceglie && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
-                                  <RestItem start={emp.restStartTime} end={emp.restEndTime} />
-                                )}
-                              </div>
+                              {bisceglieAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
+                              {bisceglieEvents.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
+                                <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
+                              ))}
+                              {isRestDay && isBisceglieEmp && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
+                                <RestItem start={emp.restStartTime} end={emp.restEndTime} />
+                              )}
                             </div>
                           </div>
                         );
@@ -420,7 +418,7 @@ export default function ShiftsPage() {
                           const counts = dailyLocationCounts[dayStr]?.[loc.id] || { morning: 0, afternoon: 0 };
                           const isWarning = counts.morning === 0 || counts.afternoon === 0;
                           return (
-                            <div key={loc.id} className={cn("p-3 rounded-2xl bg-white border shadow-md space-y-2", isWarning && "ring-2 ring-rose-200 animate-pulse")}>
+                            <div key={loc.id} className={cn("p-3 rounded-2xl bg-white border shadow-md space-y-2", isWarning && "ring-2 ring-rose-200")}>
                               <div className="flex items-center gap-2 mb-1">
                                 <MapPin className={cn("h-5 w-5", isWarning ? "text-rose-500" : "text-slate-400")} />
                                 <span className="font-black text-[11px] uppercase text-slate-600 truncate">{loc.name}</span>
@@ -447,6 +445,7 @@ export default function ShiftsPage() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
+      {/* DIALOGS ... */}
       <Dialog open={isShiftOpen} onOpenChange={setIsShiftOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-2xl uppercase tracking-tight">Nuovo Turno Manuale</DialogTitle></DialogHeader>
@@ -528,16 +527,14 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
   const isMorning = parseISO(s.startTime).getHours() < 14;
   
   return (
-    <div className={cn("group/item relative p-2.5 rounded-lg border-l-4 shadow-sm transition-all hover:scale-[1.02] bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
+    <div className={cn("group/item relative p-2.5 rounded-lg border-l-4 shadow-sm transition-all bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
       <div className="flex justify-between items-start">
         <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-tight">
+          <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
             {isMorning ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-500" />}
             {start} - {end}
           </div>
-          {s.title && s.title !== 'Turno Mattina' && s.title !== 'Turno Pomeriggio' && (
-            <span className="text-[10px] font-black text-slate-400 truncate w-40 uppercase tracking-tighter">{s.title}</span>
-          )}
+          <span className="text-[10px] font-black text-slate-400 truncate w-40 uppercase tracking-tighter">{s.title || 'Turno'}</span>
         </div>
         <div className="flex gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
           <button onClick={onEdit} className="p-1 hover:bg-black/5 rounded"><Edit className="h-4 w-4" /></button>
@@ -564,7 +561,7 @@ function AbsenceItem({ a }: { a: any }) {
   return (
     <div className="p-2.5 rounded-lg border-l-4 border-rose-600 shadow-sm bg-rose-50 text-rose-900">
       <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-tight">
+        <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
           {getIcon()}
           {timeStr}
         </div>
@@ -579,7 +576,7 @@ function RestItem({ start, end }: { start?: string, end?: string }) {
   return (
     <div className="p-2.5 rounded-lg border-l-4 border-slate-400 shadow-sm bg-slate-50 text-slate-600">
       <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-tight">
+        <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
           <Coffee className="h-4 w-4 text-slate-400" />
           {timeStr}
         </div>
