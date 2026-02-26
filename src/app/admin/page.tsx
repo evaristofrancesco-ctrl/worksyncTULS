@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList, AlertTriangle, BellRing, ArrowRight } from "lucide-react"
+import { Users, Calendar, Clock, FileText, Loader2, Info, Gift, ClipboardList, AlertTriangle, BellRing, ArrowRight, Zap, Coffee } from "lucide-react"
 import { StatCard } from "@/components/dashboard/StatCard"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -79,13 +79,11 @@ export default function AdminDashboard() {
     return allShifts.filter(shift => {
       if (shift.date !== todayStr) return false;
       
-      // ESCLUDI RIPOSI E ASSENZE DALL'ALLERTA RITARDO
       if (shift.type === 'REST' || shift.type === 'ABSENCE') return false;
       
       const emp = employeeMap[shift.employeeId];
       if (!emp) return false;
 
-      // Escludi Francesco Evaristo come da regola precedente
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       if (isFrancesco) return false;
 
@@ -96,14 +94,13 @@ export default function AdminDashboard() {
         
         const entryHour = new Date(entry.checkInTime).getHours();
         const shiftHour = new Date(shift.startTime).getHours();
-        // Se ha timbrato entro 3 ore dall'inizio previsto, consideralo presente
         return Math.abs(entryHour - shiftHour) <= 3;
       });
 
       if (hasEntry) return false;
 
       const startTime = new Date(shift.startTime);
-      const limitTime = addMinutes(startTime, 15); // Allerta dopo 15 minuti di ritardo
+      const limitTime = addMinutes(startTime, 15);
       
       return isAfter(now, limitTime);
     }).map(s => ({
@@ -220,6 +217,25 @@ export default function AdminDashboard() {
 
       <div className="grid gap-8 lg:grid-cols-12">
         <div className="lg:col-span-8 space-y-10">
+          {/* Box Anti-Standby */}
+          <Card className="border-none shadow-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white overflow-hidden relative">
+            <div className="absolute right-[-20px] top-[-20px] opacity-10">
+              <Coffee className="h-40 w-40" />
+            </div>
+            <CardContent className="p-6 flex items-center gap-6 relative z-10">
+              <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-md">
+                <Zap className="h-8 w-8 text-white fill-current" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black uppercase tracking-tight">Evita l'attesa di 45 minuti</h3>
+                <p className="text-white/90 font-medium leading-tight mt-1">
+                  Il sistema va in standby se chiudi questa scheda. <br />
+                  <b>Appunta la scheda (Pin)</b> nel browser e lasciala aperta per un accesso istantaneo.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-6 md:grid-cols-4">
             <StatCard title="Team" value={employees?.length || 0} description="Totali" icon={Users} />
             <StatCard title="Attivi" value={allEntries?.filter(e => !e.checkOutTime).length || 0} description="In servizio" icon={Clock} />
