@@ -113,6 +113,7 @@ export default function ShiftsPage() {
 
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
+    // Ordine specifico richiesto: vittorio, isa, rosa, savino
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
     
     return employees
@@ -369,7 +370,7 @@ export default function ShiftsPage() {
                                 {paleseEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
-                                {isRestDay && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
+                                {isRestDay && emp.locationId === paleseLoc?.id && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
                                   <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                                 )}
                               </div>
@@ -385,7 +386,7 @@ export default function ShiftsPage() {
                                 {bisceglieEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
-                                {isRestDay && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
+                                {isRestDay && emp.locationId === bisceglieLoc?.id && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
                                   <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                                 )}
                               </div>
@@ -554,12 +555,13 @@ function AbsenceItem({ a }: { a: any }) {
 }
 
 function RestItem({ start, end }: { start?: string, end?: string }) {
+  const timeStr = start && end && start !== "00:00" ? `${start} - ${end}` : "Intera Giornata";
   return (
     <div className="p-2.5 rounded-lg border-l-4 border-slate-400 shadow-sm bg-slate-50 text-slate-600">
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-tight">
           <Coffee className="h-4 w-4 text-slate-400" />
-          {start && end && start !== "00:00" ? `${start} - ${end}` : "Intera Giornata"}
+          {timeStr}
         </div>
         <span className="text-[10px] font-black uppercase tracking-widest opacity-70">RIPOSO SETTIMANALE</span>
       </div>
