@@ -370,7 +370,7 @@ export default function ShiftsPage() {
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
                                 {isRestDay && paleseEvents.length === 0 && paleseAbsences.length === 0 && (
-                                  <RestItem />
+                                  <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                                 )}
                               </div>
                             </div>
@@ -386,7 +386,7 @@ export default function ShiftsPage() {
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
                                 {isRestDay && bisceglieEvents.length === 0 && bisceglieAbsences.length === 0 && (
-                                  <RestItem />
+                                  <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                                 )}
                               </div>
                             </div>
@@ -536,24 +536,33 @@ function AbsenceItem({ a }: { a: any }) {
       default: return <UserMinus className="h-4 w-4" />;
     }
   }
+  const timeStr = a.type === 'HOURLY_PERMIT' && a.startTime && a.endTime 
+    ? `${a.startTime} - ${a.endTime}` 
+    : "Intera Giornata";
+
   return (
-    <div className="bg-rose-100 border-l-4 border-rose-600 p-2.5 rounded-lg shadow-sm">
-      <div className="flex items-center gap-2">
-        {getIcon()}
-        <span className="font-black uppercase tracking-widest text-[10px] text-rose-700">{a.type}</span>
-      </div>
-      <div className="font-black text-[10px] text-rose-900 mt-1 uppercase">
-        {a.type === 'HOURLY_PERMIT' ? `${a.startTime} - ${a.endTime}` : 'Giornaliera'}
+    <div className="p-2.5 rounded-lg border-l-4 border-rose-600 shadow-sm bg-rose-50 text-rose-900">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-tight">
+          {getIcon()}
+          {timeStr}
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-widest opacity-70">{a.type}</span>
       </div>
     </div>
   )
 }
 
-function RestItem() {
+function RestItem({ start, end }: { start?: string, end?: string }) {
   return (
-    <div className="bg-slate-100 border-l-4 border-slate-400 p-2.5 rounded-lg shadow-sm flex items-center gap-2">
-      <Coffee className="h-4 w-4 text-slate-500" />
-      <span className="font-black uppercase tracking-widest text-[10px] text-slate-500">RIPOSO SETTIMANALE</span>
+    <div className="p-2.5 rounded-lg border-l-4 border-slate-400 shadow-sm bg-slate-50 text-slate-600">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-tight">
+          <Coffee className="h-4 w-4 text-slate-400" />
+          {start && end && start !== "00:00" ? `${start} - ${end}` : "Intera Giornata"}
+        </div>
+        <span className="text-[10px] font-black uppercase tracking-widest opacity-70">RIPOSO SETTIMANALE</span>
+      </div>
     </div>
   )
 }
