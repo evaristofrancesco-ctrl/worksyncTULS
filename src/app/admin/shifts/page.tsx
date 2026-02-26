@@ -52,17 +52,14 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 export default function ShiftsPage() {
   const db = useFirestore()
   const { toast } = useToast()
   const [currentDate, setCurrentDate] = useState(new Date())
   
-  // States per i Dialogs
   const [isShiftOpen, setIsShiftOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const [editingShift, setEditingShift] = useState<any>(null)
 
   const [form, setForm] = useState({
     id: "",
@@ -72,7 +69,7 @@ export default function ShiftsPage() {
     startTime: "09:00",
     endTime: "13:00",
     title: "Turno Lavoro",
-    type: "MANUAL" // MANUAL (Lavoro), REST (Riposo), ABSENCE (Assenza)
+    type: "MANUAL"
   })
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
@@ -98,7 +95,6 @@ export default function ShiftsPage() {
   }, [db])
   const { data: locations } = useCollection(locationsQuery)
 
-  // Ordine fisso richiesto: Vittorio, Isa, Rosa, Savino
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
@@ -128,11 +124,11 @@ export default function ShiftsPage() {
     return map;
   }, [shifts]);
 
-  const handleOpenAdd = (employeeId: string, date: string) => {
+  const handleOpenAdd = (employeeId: string, date: string, locId?: string) => {
     setForm({
       id: "",
       employeeId,
-      locationId: employees?.find(e => e.id === employeeId)?.locationId || "",
+      locationId: locId || employees?.find(e => e.id === employeeId)?.locationId || "",
       date,
       startTime: "09:00",
       endTime: "13:00",
@@ -176,80 +172,110 @@ export default function ShiftsPage() {
     setIsEditOpen(true);
   }
 
-  const handleDelete = (event: any) => {
-    deleteDocumentNonBlocking(doc(db, "employees", event.employeeId, "shifts", event.id));
-    toast({ title: "Eliminato" });
-  }
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pianificazione Libera</h1>
-          <p className="text-sm text-slate-500 font-medium italic">Gestione manuale dei badge: clicca sul "+" per aggiungere, sull'evento per modificare.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Programmazione Settimanale</h1>
+          <p className="text-sm text-slate-500 font-medium italic">Layout fisso: Slot Palese (Su), Slot Bisceglie (Giù).</p>
         </div>
-        <div className="flex items-center gap-4 bg-white p-3 rounded-xl shadow-sm border">
+        <div className="flex items-center gap-4 bg-white p-2 rounded-xl shadow-sm border ring-1 ring-slate-200">
           <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-5 w-5" /></Button>
-          <span className="text-lg font-black uppercase tracking-tight min-w-[180px] text-center">
+          <span className="text-sm font-black uppercase tracking-widest min-w-[180px] text-center">
             {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
           </span>
           <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-5 w-5" /></Button>
         </div>
       </div>
 
-      <ScrollArea className="w-full h-[700px] border rounded-2xl bg-white shadow-xl">
+      <ScrollArea className="w-full h-[750px] border rounded-2xl bg-white shadow-2xl">
         <div className="inline-block min-w-full">
           {isEmployeesLoading || isShiftsLoading ? (
             <div className="py-32 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
           ) : (
             <div className="flex flex-col">
-              {/* HEADER DIPENDENTI */}
               <div className="flex sticky top-0 z-30 bg-slate-50 border-b">
-                <div className="w-[100px] p-4 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center">DATA</div>
+                <div className="w-[100px] p-4 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center justify-center">DATA</div>
                 {displayEmployees.map(emp => (
-                  <div key={emp.id} className="min-w-[250px] p-4 border-r flex items-center gap-3 bg-slate-50/90 backdrop-blur-sm">
+                  <div key={emp.id} className="min-w-[280px] p-4 border-r flex items-center gap-3 bg-slate-50/90 backdrop-blur-sm">
                     <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
                       <AvatarImage src={emp.photoUrl} />
                       <AvatarFallback className="font-black text-xs bg-slate-200">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-lg leading-none">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[9px] font-black uppercase text-[#227FD8] tracking-widest mt-1">{emp.locationName || "Sede N.D."}</span>
+                      <span className="font-black text-slate-900 text-lg leading-none uppercase">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[9px] font-black uppercase text-[#227FD8] tracking-widest mt-1">H: {emp.weeklyHours}h/sett</span>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* GRIGLIA GIORNI */}
               <div className="divide-y divide-slate-100">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
-                  if (day.getDay() === 0) return null; // Salta Domenica
+                  if (day.getDay() === 0) return null;
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-50/20 transition-colors">
                       <div className="w-[100px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
-                        <div className="text-[10px] font-black uppercase text-slate-400 mb-0.5">{format(day, 'EEE', { locale: it })}</div>
-                        <div className="text-3xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
+                        <div className="text-[10px] font-black uppercase text-slate-400 mb-0.5">{format(day, 'EEEE', { locale: it })}</div>
+                        <div className="text-4xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
                       </div>
                       
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
+                        const isVittorioWednesday = emp.firstName?.toLowerCase() === 'vittorio' && day.getDay() === 3;
                         
+                        const slot1Events = dayEvents.filter(ev => {
+                          const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
+                          return !locName.toLowerCase().includes('bisceglie');
+                        });
+                        const slot2Events = dayEvents.filter(ev => {
+                          const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
+                          return locName.toLowerCase().includes('bisceglie');
+                        });
+
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[250px] border-r p-2 bg-white relative group/cell">
-                            <div className="flex flex-col gap-2">
-                              {dayEvents.map(ev => (
-                                <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} onDelete={() => handleDelete(ev)} />
-                              ))}
-                              
-                              {/* Pulsante aggiunta veloce */}
-                              <button 
-                                onClick={() => handleOpenAdd(emp.id, dayStr)}
-                                className="w-full py-2 rounded-lg border-2 border-dashed border-slate-100 text-slate-300 opacity-0 group-hover/cell:opacity-100 hover:border-blue-200 hover:text-blue-400 transition-all flex items-center justify-center"
-                              >
-                                <Plus className="h-5 w-5" />
-                              </button>
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[280px] border-r bg-white flex flex-col p-1.5 gap-1.5">
+                            {/* SLOT 1 - PALESE */}
+                            <div className="flex-1 min-h-[85px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
+                              <div className="absolute top-1 right-1 text-[8px] font-black text-slate-200 uppercase tracking-widest">PALESE</div>
+                              <div className="flex flex-col gap-1.5 relative z-10">
+                                {isVittorioWednesday && slot1Events.length === 0 ? (
+                                  <div className="p-3 rounded-lg border-l-[6px] border-l-slate-400 bg-slate-50 text-slate-600 shadow-sm">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-[9px] font-black uppercase tracking-widest opacity-60">RIPOSO</span>
+                                      <Coffee className="h-3 w-3" />
+                                    </div>
+                                    <div className="text-sm font-black tracking-tight">09:00 - 13:00</div>
+                                    <div className="text-[10px] font-bold uppercase truncate">Riposo Settimanale</div>
+                                  </div>
+                                ) : slot1Events.map(ev => (
+                                  <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />
+                                ))}
+                                <button 
+                                  onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('palese'))?.id)}
+                                  className="w-full py-2 rounded-lg border-2 border-dashed border-slate-50 text-slate-200 opacity-0 group-hover/slot:opacity-100 hover:border-blue-100 hover:text-blue-300 transition-all flex items-center justify-center"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* SLOT 2 - BISCEGLIE */}
+                            <div className="flex-1 min-h-[85px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot2">
+                              <div className="absolute top-1 right-1 text-[8px] font-black text-slate-200 uppercase tracking-widest">BISCEGLIE</div>
+                              <div className="flex flex-col gap-1.5 relative z-10">
+                                {slot2Events.map(ev => (
+                                  <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />
+                                ))}
+                                <button 
+                                  onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('bisceglie'))?.id)}
+                                  className="w-full py-2 rounded-lg border-2 border-dashed border-slate-50 text-slate-200 opacity-0 group-hover/slot2:opacity-100 hover:border-blue-100 hover:text-blue-300 transition-all flex items-center justify-center"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -268,13 +294,13 @@ export default function ShiftsPage() {
       <Dialog open={isShiftOpen || isEditOpen} onOpenChange={(o) => { if(!o) { setIsShiftOpen(false); setIsEditOpen(false); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-black text-xl uppercase">{form.id ? "Modifica" : "Nuovo"} Badge</DialogTitle>
+            <DialogTitle className="font-black text-xl uppercase tracking-tighter">{form.id ? "Modifica" : "Nuovo"} Badge Turno</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1">
               <Label className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Tipo di Badge</Label>
               <Select value={form.type} onValueChange={v => setForm({...form, type: v})}>
-                <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 font-bold"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MANUAL">Turno Lavoro (Colorato)</SelectItem>
                   <SelectItem value="REST">Riposo Settimanale (Grigio)</SelectItem>
@@ -284,22 +310,22 @@ export default function ShiftsPage() {
             </div>
             <div className="space-y-1">
               <Label className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Etichetta Badge</Label>
-              <Input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="es. Mattina, Riposo, Ferie..." className="h-11 font-bold" />
+              <Input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="es. Mattina, Pomeriggio..." className="h-11 font-bold" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Inizio</Label>
-                <Input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className="h-11" />
+                <Input type="time" value={form.startTime} onChange={e => setForm({...form, startTime: e.target.value})} className="h-11 font-bold" />
               </div>
               <div className="space-y-1">
                 <Label className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Fine</Label>
-                <Input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className="h-11" />
+                <Input type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} className="h-11 font-bold" />
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Sede (opzionale)</Label>
+              <Label className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Assegnazione Sede</Label>
               <Select value={form.locationId} onValueChange={v => setForm({...form, locationId: v})}>
-                <SelectTrigger className="h-11"><SelectValue placeholder="Sede..." /></SelectTrigger>
+                <SelectTrigger className="h-11 font-bold"><SelectValue placeholder="Sede..." /></SelectTrigger>
                 <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
@@ -316,45 +342,45 @@ export default function ShiftsPage() {
   )
 }
 
-function EventBadge({ ev, onEdit, onDelete }: { ev: any, onEdit: () => void, onDelete: () => void }) {
+function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
   const start = format(parseISO(ev.startTime), 'HH:mm');
   const end = format(parseISO(ev.endTime), 'HH:mm');
   const isMorning = parseISO(ev.startTime).getHours() < 14;
 
   let colorClass = "border-l-[#227FD8] bg-blue-50/30 text-blue-900";
-  let icon = <Sun className="h-3.5 w-3.5 text-blue-500" />;
+  let icon = <Sun className="h-3 w-3 text-blue-500" />;
 
   if (ev.type === 'REST') {
     colorClass = "border-l-slate-400 bg-slate-100 text-slate-600";
-    icon = <Coffee className="h-3.5 w-3.5 text-slate-400" />;
+    icon = <Coffee className="h-3 w-3 text-slate-400" />;
   } else if (ev.type === 'ABSENCE') {
     colorClass = "border-l-rose-600 bg-rose-50 text-rose-900";
-    icon = <Umbrella className="h-3.5 w-3.5 text-rose-600" />;
+    icon = <Umbrella className="h-3 w-3 text-rose-600" />;
   } else if (!isMorning) {
     colorClass = "border-l-indigo-600 bg-indigo-50/30 text-indigo-900";
-    icon = <Moon className="h-3.5 w-3.5 text-indigo-600" />;
+    icon = <Moon className="h-3 w-3 text-indigo-600" />;
   } else {
     colorClass = "border-l-amber-500 bg-amber-50/30 text-amber-900";
-    icon = <Sun className="h-3.5 w-3.5 text-amber-500" />;
+    icon = <Sun className="h-3 w-3 text-amber-500" />;
   }
 
   return (
     <div 
-      onClick={onEdit}
+      onClick={(e) => { e.stopPropagation(); onEdit(); }}
       className={cn(
-        "group relative p-3 rounded-xl border-l-[6px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
+        "group relative p-2.5 rounded-lg border-l-[5px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
         colorClass
       )}
     >
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
+          <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
             {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : 'LAVORO'}
           </span>
           {icon}
         </div>
-        <div className="text-sm font-black tracking-tight">{start} - {end}</div>
-        <div className="text-[11px] font-bold uppercase truncate">{ev.title || 'Turno'}</div>
+        <div className="text-xs font-black tracking-tighter">{start} - {end}</div>
+        <div className="text-[10px] font-bold uppercase truncate">{ev.title || 'Turno'}</div>
       </div>
     </div>
   )
