@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -21,6 +22,7 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 export default function AdminModificationsPage() {
   const db = useFirestore()
@@ -173,14 +175,18 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
             </div>
           </div>
           <div className="flex items-center gap-4 text-[10px] font-black uppercase">
-            <div className="flex flex-col items-end">
-              <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded mb-0.5">IN: {req.entra.name} ({req.entra.pieces})</span>
-              <code className="text-[9px] font-mono font-black bg-slate-900 text-white px-1.5 rounded">{req.entra.barcode}</code>
-            </div>
-            <div className="flex flex-col items-end border-l pl-4">
-              <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded mb-0.5">OUT: {req.esce.name} (-{req.esce.pieces})</span>
-              <code className="text-[9px] font-mono font-black bg-slate-900 text-white px-1.5 rounded">{req.esce.barcode}</code>
-            </div>
+            {req.entra && (
+              <div className="flex flex-col items-end">
+                <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded mb-0.5">IN: {req.entra.name} ({req.entra.pieces})</span>
+                <code className="text-[9px] font-mono font-black bg-slate-900 text-white px-1.5 rounded">{req.entra.barcode}</code>
+              </div>
+            )}
+            {req.esce && (
+              <div className={cn("flex flex-col items-end", req.entra && "border-l pl-4")}>
+                <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded mb-0.5">OUT: {req.esce.name} (-{req.esce.pieces})</span>
+                <code className="text-[9px] font-mono font-black bg-slate-900 text-white px-1.5 rounded">{req.esce.barcode}</code>
+              </div>
+            )}
           </div>
           <Badge className={`h-6 text-[10px] font-black uppercase tracking-tight ${isApproved ? "bg-green-100 text-green-800" : "bg-rose-100 text-rose-800"}`}>
             {req.status === 'APPROVED' ? 'Approvata' : 'Rifiutata'}
@@ -214,35 +220,39 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
             <Button size="sm" className="h-9 px-6 bg-green-600 hover:bg-green-700 font-black text-xs shadow-sm" onClick={() => onUpdate(req, "APPROVED")}>APPROVA</Button>
           </div>
         </div>
-        <div className="grid grid-cols-2 divide-x">
-          <div className="p-4 bg-green-50/20">
-            <div className="flex items-center gap-2 text-green-600 mb-2">
-              <ArrowDownLeft className="h-4 w-4" />
-              <span className="text-xs font-black uppercase tracking-widest">ENTRA</span>
-            </div>
-            <p className="text-sm font-black text-[#1e293b] truncate mb-2">{req.entra.name}</p>
-            <div className="flex justify-between items-center bg-white p-2 rounded-lg border shadow-sm">
-              <div className="flex items-center gap-2">
-                <Barcode className="h-4 w-4 text-slate-400" />
-                <code className="text-sm font-black font-mono text-white bg-slate-900 px-2 py-0.5 rounded tracking-wider">{req.entra.barcode}</code>
+        <div className={cn("grid divide-y md:divide-y-0 md:divide-x", req.entra && req.esce ? "grid-cols-2" : "grid-cols-1")}>
+          {req.entra && (
+            <div className="p-4 bg-green-50/20">
+              <div className="flex items-center gap-2 text-green-600 mb-2">
+                <ArrowDownLeft className="h-4 w-4" />
+                <span className="text-xs font-black uppercase tracking-widest">ENTRA</span>
               </div>
-              <span className="text-sm font-black text-green-700">Qta: {req.entra.pieces}</span>
-            </div>
-          </div>
-          <div className="p-4 bg-rose-50/20">
-            <div className="flex items-center gap-2 text-rose-600 mb-2">
-              <ArrowUpRight className="h-4 w-4" />
-              <span className="text-xs font-black uppercase tracking-widest">ESCE</span>
-            </div>
-            <p className="text-sm font-black text-[#1e293b] truncate mb-2">{req.esce.name}</p>
-            <div className="flex justify-between items-center bg-white p-2 rounded-lg border shadow-sm">
-              <div className="flex items-center gap-2">
-                <Barcode className="h-4 w-4 text-slate-400" />
-                <code className="text-sm font-black font-mono text-white bg-slate-900 px-2 py-0.5 rounded tracking-wider">{req.esce.barcode}</code>
+              <p className="text-sm font-black text-[#1e293b] truncate mb-2">{req.entra.name}</p>
+              <div className="flex justify-between items-center bg-white p-2 rounded-lg border shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Barcode className="h-4 w-4 text-slate-400" />
+                  <code className="text-sm font-black font-mono text-white bg-slate-900 px-2 py-0.5 rounded tracking-wider">{req.entra.barcode}</code>
+                </div>
+                <span className="text-sm font-black text-green-700">Qta: {req.entra.pieces}</span>
               </div>
-              <span className="text-sm font-black text-rose-700">Qta: -{req.esce.pieces}</span>
             </div>
-          </div>
+          )}
+          {req.esce && (
+            <div className="p-4 bg-rose-50/20">
+              <div className="flex items-center gap-2 text-rose-600 mb-2">
+                <ArrowUpRight className="h-4 w-4" />
+                <span className="text-xs font-black uppercase tracking-widest">ESCE</span>
+              </div>
+              <p className="text-sm font-black text-[#1e293b] truncate mb-2">{req.esce.name}</p>
+              <div className="flex justify-between items-center bg-white p-2 rounded-lg border shadow-sm">
+                <div className="flex items-center gap-2">
+                  <Barcode className="h-4 w-4 text-slate-400" />
+                  <code className="text-sm font-black font-mono text-white bg-slate-900 px-2 py-0.5 rounded tracking-wider">{req.esce.barcode}</code>
+                </div>
+                <span className="text-sm font-black text-rose-700">Qta: -{req.esce.pieces}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Card>

@@ -69,12 +69,23 @@ export default function ModificationRequestsPage() {
     e.preventDefault()
     if (!employeeId || !db) return
 
-    if (!form.locationId || !form.entra.barcode || !form.entra.name || !form.entra.pieces ||
-        !form.esce.barcode || !form.esce.name || !form.esce.pieces) {
+    const hasEntra = form.entra.barcode && form.entra.name && form.entra.pieces;
+    const hasEsce = form.esce.barcode && form.esce.name && form.esce.pieces;
+
+    if (!form.locationId) {
       toast({
         variant: "destructive",
-        title: "Campi Mancanti",
-        description: "Compila tutti i campi richiesti, inclusa la sede."
+        title: "Sede mancante",
+        description: "Seleziona la sede di riferimento."
+      })
+      return
+    }
+
+    if (!hasEntra && !hasEsce) {
+      toast({
+        variant: "destructive",
+        title: "Richiesta vuota",
+        description: "Compila almeno una sezione (Entra o Esce) per inviare la richiesta."
       })
       return
     }
@@ -91,25 +102,29 @@ export default function ModificationRequestsPage() {
       status: "PENDING",
       locationId: form.locationId,
       locationName: selectedLocation?.name || "Nessuna",
-      entra: {
+      entra: hasEntra ? {
         barcode: form.entra.barcode,
         name: form.entra.name,
         pieces: Number(form.entra.pieces)
-      },
-      esce: {
+      } : null,
+      esce: hasEsce ? {
         barcode: form.esce.barcode,
         name: form.esce.name,
         pieces: Number(form.esce.pieces)
-      }
+      } : null
     }, { merge: true })
 
-    // Notifica per gli Admin (con recipientId fisso 'ADMIN')
+    // Notifica dinamica per gli Admin
     const notifId = `notif-mod-${Date.now()}`;
+    let typeMsg = "una movimentazione";
+    if (hasEntra && !hasEsce) typeMsg = "un'entrata articoli";
+    if (!hasEntra && hasEsce) typeMsg = "un'uscita articoli";
+
     setDocumentNonBlocking(doc(db, "notifications", notifId), {
       id: notifId,
       recipientId: "ADMIN",
       title: "Richiesta Entra/Esce",
-      message: `${displayName} ha inviato una nuova movimentazione per ${selectedLocation?.name || 'Sede N.D.'}.`,
+      message: `${displayName} ha inviato ${typeMsg} per ${selectedLocation?.name || 'Sede N.D.'}.`,
       type: "MODIFICATION_REQUEST",
       createdAt: new Date().toISOString(),
       isRead: false
@@ -248,17 +263,21 @@ export default function ModificationRequestsPage() {
                       {req.status}
                     </Badge>
                   </div>
-                  <div className="p-4 grid grid-cols-2 divide-x border-t">
-                    <div className="pr-4">
-                      <p className="text-[10px] font-black uppercase text-green-600">Entra</p>
-                      <p className="text-sm font-bold truncate">{req.entra.name}</p>
-                      <code className="text-xs bg-slate-900 text-white px-2 rounded">{req.entra.barcode} x{req.entra.pieces}</code>
-                    </div>
-                    <div className="pl-4">
-                      <p className="text-[10px] font-black uppercase text-rose-600">Esce</p>
-                      <p className="text-sm font-bold truncate">{req.esce.name}</p>
-                      <code className="text-xs bg-slate-900 text-white px-2 rounded">{req.esce.barcode} x{req.esce.pieces}</code>
-                    </div>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x border-t gap-4 md:gap-0">
+                    {req.entra && (
+                      <div className="md:pr-4">
+                        <p className="text-[10px] font-black uppercase text-green-600">Entra</p>
+                        <p className="text-sm font-bold truncate">{req.entra.name}</p>
+                        <code className="text-xs bg-slate-900 text-white px-2 rounded">{req.entra.barcode} x{req.entra.pieces}</code>
+                      </div>
+                    )}
+                    {req.esce && (
+                      <div className={`${req.entra ? 'md:pl-4 pt-4 md:pt-0' : ''}`}>
+                        <p className="text-[10px] font-black uppercase text-rose-600">Esce</p>
+                        <p className="text-sm font-bold truncate">{req.esce.name}</p>
+                        <code className="text-xs bg-slate-900 text-white px-2 rounded">{req.esce.barcode} x{req.esce.pieces}</code>
+                      </div>
+                    )}
                   </div>
                 </Card>
               ))
