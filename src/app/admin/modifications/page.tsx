@@ -84,6 +84,13 @@ export default function AdminModificationsPage() {
     toast({ title: newStatus === "APPROVED" ? "Approvata" : "Rifiutata" })
   }
 
+  const handleDeleteRequest = (request: any) => {
+    if (!db) return;
+    const requestRef = doc(db, "employees", request.employeeId, "modifications", request.id);
+    deleteDocumentNonBlocking(requestRef);
+    toast({ title: "Richiesta eliminata", description: "Il record è stato rimosso dal sistema." });
+  }
+
   const handleDeleteRejected = () => {
     const rejected = historyRequests.filter(req => req.status === "REJECTED");
     if (rejected.length === 0) {
@@ -124,7 +131,14 @@ export default function AdminModificationsPage() {
             <div className="flex justify-center py-20"><Loader2 className="h-10 w-10 animate-spin text-[#227FD8]" /></div>
           ) : pendingRequests.length > 0 ? (
             pendingRequests.map((req) => (
-              <ModificationCard key={req.id} req={req} emp={employeeMap[req.employeeId]} onUpdate={handleUpdateStatus} isPending={true} />
+              <ModificationCard 
+                key={req.id} 
+                req={req} 
+                emp={employeeMap[req.employeeId]} 
+                onUpdate={handleUpdateStatus} 
+                onDelete={handleDeleteRequest}
+                isPending={true} 
+              />
             ))
           ) : (
             <div className="py-20 text-center flex flex-col items-center gap-4 text-muted-foreground">
@@ -146,7 +160,14 @@ export default function AdminModificationsPage() {
             </Button>
           </div>
           {historyRequests.map((req) => (
-            <ModificationCard key={req.id} req={req} emp={employeeMap[req.employeeId]} onUpdate={handleUpdateStatus} isPending={false} />
+            <ModificationCard 
+              key={req.id} 
+              req={req} 
+              emp={employeeMap[req.employeeId]} 
+              onUpdate={handleUpdateStatus} 
+              onDelete={handleDeleteRequest}
+              isPending={false} 
+            />
           ))}
         </TabsContent>
       </Tabs>
@@ -154,7 +175,7 @@ export default function AdminModificationsPage() {
   )
 }
 
-function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: any, onUpdate: any, isPending: boolean }) {
+function ModificationCard({ req, emp, onUpdate, onDelete, isPending }: { req: any, emp: any, onUpdate: any, onDelete: any, isPending: boolean }) {
   const isApproved = req.status === "APPROVED";
   
   if (!isPending) {
@@ -188,9 +209,14 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
               </div>
             )}
           </div>
-          <Badge className={`h-6 text-[10px] font-black uppercase tracking-tight ${isApproved ? "bg-green-100 text-green-800" : "bg-rose-100 text-rose-800"}`}>
-            {req.status === 'APPROVED' ? 'Approvata' : 'Rifiutata'}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge className={`h-6 text-[10px] font-black uppercase tracking-tight ${isApproved ? "bg-green-100 text-green-800" : "bg-rose-100 text-rose-800"}`}>
+              {req.status === 'APPROVED' ? 'Approvata' : 'Rifiutata'}
+            </Badge>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive" onClick={() => onDelete(req)}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </Card>
     );
@@ -216,6 +242,9 @@ function ModificationCard({ req, emp, onUpdate, isPending }: { req: any, emp: an
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-destructive mr-2" onClick={() => onDelete(req)}>
+              <Trash2 className="h-5 w-5" />
+            </Button>
             <Button variant="outline" size="sm" className="h-9 px-4 text-destructive border-destructive/20 hover:bg-destructive/5 font-black text-xs" onClick={() => onUpdate(req, "REJECTED")}>RIFIUTA</Button>
             <Button size="sm" className="h-9 px-6 bg-green-600 hover:bg-green-700 font-black text-xs shadow-sm" onClick={() => onUpdate(req, "APPROVED")}>APPROVA</Button>
           </div>
