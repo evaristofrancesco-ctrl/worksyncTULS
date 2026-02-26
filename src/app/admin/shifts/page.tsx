@@ -143,7 +143,6 @@ export default function ShiftsPage() {
   const handleSave = () => {
     if (!form.employeeId || !form.date) return;
     const id = form.id || `shift-${Date.now()}`;
-    // Usiamo il costruttore Date locale per evitare shift di fuso orario
     const sObj = new Date(`${form.date}T${form.startTime}`);
     const eObj = new Date(`${form.date}T${form.endTime}`);
     
@@ -195,7 +194,6 @@ export default function ShiftsPage() {
     const timeIn = format(parseISO(draggedShift.startTime), "HH:mm:ss");
     const timeOut = format(parseISO(draggedShift.endTime), "HH:mm:ss");
     
-    // Creiamo date locali per evitare slittamenti
     const newStartTime = new Date(`${targetDate}T${timeIn}`).toISOString();
     const newEndTime = new Date(`${targetDate}T${timeOut}`).toISOString();
 
@@ -364,21 +362,22 @@ export default function ShiftsPage() {
             <div className="py-48 text-center"><Loader2 className="h-14 w-14 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-black text-slate-400 uppercase text-base">Inizializzazione Griglia...</p></div>
           ) : (
             <div className="flex flex-col">
+              {/* Header con larghezze fisse e allineate */}
               <div className="flex sticky top-0 z-30 bg-slate-100 border-b shadow-md">
-                <div className="w-[110px] p-4 font-black text-[12px] uppercase text-slate-400 sticky left-0 bg-slate-100 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
+                <div className="w-[110px] shrink-0 p-4 font-black text-[12px] uppercase text-slate-400 sticky left-0 bg-slate-100 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
                 {displayEmployees.map(emp => (
-                  <div key={emp.id} className="min-w-[260px] p-5 border-r flex items-center gap-4 bg-slate-100/95 backdrop-blur-sm">
+                  <div key={emp.id} className="w-[260px] shrink-0 p-5 border-r flex items-center gap-4 bg-slate-100/95 backdrop-blur-sm">
                     <Avatar className="h-12 w-12 border-2 border-white shadow-md">
                       <AvatarImage src={emp.photoUrl} />
                       <AvatarFallback className="font-black text-sm">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-xl uppercase leading-none">{emp.firstName} {emp.lastName}</span>
+                      <span className="font-black text-slate-900 text-lg uppercase leading-none">{emp.firstName} {emp.lastName}</span>
                       <span className="text-[11px] font-bold text-[#227FD8] mt-1 uppercase tracking-wider">{emp.jobTitle}</span>
                     </div>
                   </div>
                 ))}
-                <div className="min-w-[240px] p-4 bg-slate-200/60 flex items-center justify-center gap-3 border-l-2 border-l-slate-300">
+                <div className="w-[240px] shrink-0 p-4 bg-slate-200/60 flex items-center justify-center gap-3 border-l-2 border-l-slate-300">
                   <Building2 className="h-6 w-6 text-slate-500" />
                   <span className="font-black text-sm uppercase text-slate-600 tracking-tighter">COPERTURA SEDI</span>
                 </div>
@@ -393,11 +392,13 @@ export default function ShiftsPage() {
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-100/30 transition-colors">
-                      <div className="w-[110px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[3px_0_12px_rgba(0,0,0,0.04)]">
+                      {/* Colonna Giorno */}
+                      <div className="w-[110px] shrink-0 p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[3px_0_12px_rgba(0,0,0,0.04)]">
                         <div className="text-[12px] font-black uppercase text-slate-400 mb-1">{format(day, 'EEEE', { locale: it })}</div>
                         <div className="text-[42px] font-black text-slate-800 tracking-tighter leading-none">{format(day, 'dd')}</div>
                       </div>
                       
+                      {/* Colonne Dipendenti */}
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
                         
@@ -411,7 +412,7 @@ export default function ShiftsPage() {
                         });
 
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r bg-white flex flex-col p-3 gap-3">
+                          <div key={`${dayStr}-${emp.id}`} className="w-[260px] shrink-0 border-r bg-white flex flex-col p-3 gap-3">
                             <div 
                               onDragOver={(e) => e.preventDefault()}
                               onDrop={(e) => onDrop(e, emp.id, dayStr, paleseId)}
@@ -438,7 +439,8 @@ export default function ShiftsPage() {
                         );
                       })}
 
-                      <div className="min-w-[240px] bg-slate-100/50 p-4 border-l-2 border-l-slate-300 flex flex-col gap-4">
+                      {/* Colonna Copertura Sedi */}
+                      <div className="w-[240px] shrink-0 bg-slate-100/50 p-4 border-l-2 border-l-slate-300 flex flex-col gap-4">
                         {locations?.map(loc => {
                           const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE');
                           let am = 0; let pm = 0;
