@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -121,7 +122,6 @@ export default function ShiftsPage() {
     return map;
   }, [shifts]);
 
-  // Calcolo Copertura Sedi
   const coverageData = useMemo(() => {
     const dailyCoverage: Record<string, { am: number, pm: number }> = {};
     daysOfVisualizedWeek.forEach(day => {
@@ -191,12 +191,10 @@ export default function ShiftsPage() {
 
   const handleGenerateAI = async () => {
     if (!employees || !locations || employees.length === 0) return;
-    
     setIsGenerating(true);
     toast({ title: "AI in azione", description: "Ottimizzazione copertura in corso..." });
     
     try {
-      // 1. CANCELLAZIONE RAPIDA
       const weekShifts = shifts?.filter(s => {
         const d = parseISO(s.date);
         return d >= weekStart && d <= weekEnd;
@@ -206,15 +204,12 @@ export default function ShiftsPage() {
         deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id));
       }
 
-      // 2. PREPARAZIONE SLOT (2 Mattina, 2 Pomeriggio per giorno)
       const slotsToCover: any[] = [];
       daysOfVisualizedWeek.forEach(day => {
         if (day.getDay() === 0) return;
         const dStr = format(day, 'yyyy-MM-dd');
         slotsToCover.push({ id: `am1-${dStr}`, name: 'Mattina', startTime: `${dStr}T09:00:00Z`, endTime: `${dStr}T13:00:00Z` });
-        slotsToCover.push({ id: `am2-${dStr}`, name: 'Mattina', startTime: `${dStr}T09:00:00Z`, endTime: `${dStr}T13:00:00Z` });
         slotsToCover.push({ id: `pm1-${dStr}`, name: 'Pomeriggio', startTime: `${dStr}T17:00:00Z`, endTime: `${dStr}T20:20:00Z` });
-        slotsToCover.push({ id: `pm2-${dStr}`, name: 'Pomeriggio', startTime: `${dStr}T17:00:00Z`, endTime: `${dStr}T20:20:00Z` });
       });
 
       const aiInput = {
@@ -227,8 +222,6 @@ export default function ShiftsPage() {
       };
 
       const result = await aiShiftOptimization(aiInput);
-
-      // 3. INSERIMENTO (Tutti sotto Palese come base)
       const paleseId = locations.find(l => l.name.toLowerCase().includes('palese'))?.id || "palese-id";
 
       result.optimizedAssignments.forEach((asn, idx) => {
@@ -250,7 +243,7 @@ export default function ShiftsPage() {
         }, { merge: true });
       });
 
-      toast({ title: "Generazione Completata", description: "Turni inseriti nello slot Palese." });
+      toast({ title: "Generazione Completata", description: "Turni inseriti." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Errore AI", description: "Riprova tra poco." });
     } finally {
@@ -262,8 +255,8 @@ export default function ShiftsPage() {
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest opacity-70">Monitoraggio Copertura Sedi</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Programmazione Settimanale</h1>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest opacity-70">Monitoraggio Copertura Sedi</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button 
@@ -285,16 +278,16 @@ export default function ShiftsPage() {
         </div>
       </div>
 
-      <ScrollArea className="w-full h-[750px] border rounded-2xl bg-white shadow-2xl">
+      <ScrollArea className="w-full h-[700px] border rounded-2xl bg-white shadow-2xl overflow-hidden">
         <div className="inline-block min-w-full">
           {isEmployeesLoading || isShiftsLoading ? (
             <div className="py-32 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
           ) : (
             <div className="flex flex-col">
               <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
-                <div className="w-[100px] p-4 font-black text-[9px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center justify-center">DATA</div>
+                <div className="w-[100px] p-4 font-black text-[9px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center justify-center text-center">DATA</div>
                 {displayEmployees.map(emp => (
-                  <div key={emp.id} className="min-w-[240px] p-4 border-r flex items-center gap-3 bg-slate-50/90 backdrop-blur-sm">
+                  <div key={emp.id} className="min-w-[220px] p-4 border-r flex items-center gap-3 bg-slate-50/90 backdrop-blur-sm">
                     <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
                       <AvatarImage src={emp.photoUrl} />
                       <AvatarFallback className="font-black text-xs bg-slate-200">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
@@ -319,7 +312,6 @@ export default function ShiftsPage() {
                         <div className="text-[9px] font-black uppercase text-slate-400 mb-0.5">{format(day, 'EEE', { locale: it })}</div>
                         <div className="text-4xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
                         
-                        {/* Indicatori Copertura */}
                         <div className="mt-3 space-y-1">
                           <div className={cn("text-[7px] font-black py-0.5 rounded flex items-center justify-center gap-1", cov.am > 0 ? "bg-green-100 text-green-700" : "bg-rose-100 text-rose-700")}>
                             {cov.am > 0 ? <CheckCircle2 className="h-2 w-2" /> : <AlertTriangle className="h-2 w-2" />} AM: {cov.am}
@@ -344,9 +336,9 @@ export default function ShiftsPage() {
                         });
 
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[240px] border-r bg-white flex flex-col p-1.5 gap-1.5">
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] border-r bg-white flex flex-col p-1.5 gap-1.5">
                             {/* SLOT 1 - PALESE */}
-                            <div className="flex-1 min-h-[100px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
+                            <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
                               <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest pointer-events-none">PALESE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
                                 {isVittorio && day.getDay() === 3 && slot1Events.length === 0 ? (
@@ -371,7 +363,7 @@ export default function ShiftsPage() {
                             </div>
 
                             {/* SLOT 2 - BISCEGLIE */}
-                            <div className="flex-1 min-h-[100px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot2">
+                            <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot2">
                               <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest pointer-events-none">BISCEGLIE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
                                 {slot2Events.map(ev => (
@@ -475,7 +467,7 @@ function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
     <div 
       onClick={(e) => { e.stopPropagation(); onEdit(); }}
       className={cn(
-        "group relative p-2.5 rounded-lg border-l-[4px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
+        "group relative p-2 rounded-lg border-l-[4px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
         colorClass
       )}
     >
