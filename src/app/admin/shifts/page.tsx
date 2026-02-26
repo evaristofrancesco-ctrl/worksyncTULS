@@ -45,7 +45,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { aiShiftOptimization } from "@/ai/flows/ai-shift-optimization-flow"
 
 export default function ShiftsPage() {
   const db = useFirestore()
@@ -92,6 +91,12 @@ export default function ShiftsPage() {
     return collection(db, "companies", "default", "locations");
   }, [db])
   const { data: locations } = useCollection(locationsQuery)
+
+  const requestsQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collectionGroup(db, "requests");
+  }, [db])
+  const { data: allRequests } = useCollection(requestsQuery)
 
   // ORDINE FISSO RICHIESTO: Vittorio, Isa, Rosa, Savino
   const displayEmployees = useMemo(() => {
@@ -175,7 +180,7 @@ export default function ShiftsPage() {
   const handleGenerateAI = async () => {
     if (!employees || !locations || employees.length === 0) return;
     setIsGenerating(true);
-    toast({ title: "Generazione Iniziata", description: "Applicazione regole Vittorio e ottimizzazione team..." });
+    toast({ title: "Sincronizzazione...", description: "Applicazione regole team e verifica permessi approvati..." });
     
     try {
       const weekShifts = shifts?.filter(s => {
@@ -188,94 +193,93 @@ export default function ShiftsPage() {
         deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id));
       }
 
+      // 2. Filtro richieste approvate per la settimana
+      const approvedRequests = allRequests?.filter(r => {
+        const status = (r.status || "").toUpperCase();
+        return status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
+      }) || [];
+
       const paleseId = locations.find(l => l.name.toLowerCase().includes('palese'))?.id || "palese-id";
 
-      // 2. REGOLE FISSE VITTORIO (Richiesta Utente)
-      const vittorio = displayEmployees.find(e => e.firstName?.toLowerCase().includes('vittorio'));
-      if (vittorio) {
+      // 3. Generazione Turni per ogni dipendente visualizzato
+      displayEmployees.forEach((emp) => {
+        const name = (emp.firstName || "").toLowerCase();
+        
         daysOfVisualizedWeek.forEach((day) => {
           const dayOfWeek = day.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
           if (dayOfWeek === 0) return; // No Domenica
 
           const dStr = format(day, 'yyyy-MM-dd');
           
-          // Mattina (Mercoledì Riposo, gli altri lavoro)
-          const amId = `vitt-am-${dStr}`;
-          const isWedRest = dayOfWeek === 3;
-          
-          setDocumentNonBlocking(doc(db, "employees", vittorio.id, "shifts", amId), {
+          // Verifica se c'è un permesso approvato per questo giorno
+          const request = approvedRequests.find(r => r.employeeId === emp.id && r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
+
+          if (request) {
+            // Crea badge assenza invece del lavoro
+            const absId = `abs-${emp.id}-${dStr}`;
+            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", absId), {
+              id: absId,
+              employeeId: emp.id,
+              locationId: paleseId,
+              date: dStr,
+              startTime: `${dStr}T09:00:00Z`,
+              endTime: `${dStr}T20:20:00Z`,
+              title: request.type === 'VACATION' ? 'FERIE' : 'PERMESSO',
+              type: "ABSENCE",
+              companyId: "default",
+              status: "SCHEDULED"
+            }, { merge: true });
+            return; // Salta i turni di lavoro per questo giorno
+          }
+
+          // REGOLE SPECIFICHE LAVORO
+          let amSlot = { start: "09:00", end: "13:00", isRest: false };
+          let pmSlot = { start: "17:00", end: "20:20", isRest: false };
+
+          if (name.includes('vittorio')) {
+            if (dayOfWeek === 3) amSlot.isRest = true; // Mercoledì Riposo
+          } else if (name.includes('isa') || name.includes('rosa')) {
+            if (dayOfWeek === 4) amSlot.isRest = true; // Giovedì Riposo
+          } else if (name.includes('savino')) {
+            // Regole Savino Mattina
+            if (dayOfWeek === 4) amSlot.end = "13:00"; // Gio 4h
+            else if (dayOfWeek === 6) amSlot.end = "11:00"; // Sab 2h
+            else amSlot.end = "10:00"; // Altri 1h
+          }
+
+          // Inserimento Mattina
+          const amId = `am-${emp.id}-${dStr}`;
+          setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", amId), {
             id: amId,
-            employeeId: vittorio.id,
+            employeeId: emp.id,
             locationId: paleseId,
             date: dStr,
-            startTime: `${dStr}T09:00:00Z`,
-            endTime: `${dStr}T13:00:00Z`,
-            title: isWedRest ? "Riposo Settimanale" : "Mattina",
-            type: isWedRest ? "REST" : "MANUAL",
+            startTime: `${dStr}T${amSlot.start}:00Z`,
+            endTime: `${dStr}T${amSlot.end}:00Z`,
+            title: amSlot.isRest ? "Riposo Settimanale" : "Mattina",
+            type: amSlot.isRest ? "REST" : "MANUAL",
             companyId: "default",
             status: "SCHEDULED"
           }, { merge: true });
 
-          // Pomeriggio (Sempre lavoro Lun-Sab)
-          const pmId = `vitt-pm-${dStr}`;
-          setDocumentNonBlocking(doc(db, "employees", vittorio.id, "shifts", pmId), {
+          // Inserimento Pomeriggio
+          const pmId = `pm-${emp.id}-${dStr}`;
+          setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", pmId), {
             id: pmId,
-            employeeId: vittorio.id,
+            employeeId: emp.id,
             locationId: paleseId,
             date: dStr,
-            startTime: `${dStr}T17:00:00Z`,
-            endTime: `${dStr}T20:20:00Z`,
+            startTime: `${dStr}T${pmSlot.start}:00Z`,
+            endTime: `${dStr}T${pmSlot.end}:00Z`,
             title: "Pomeriggio",
             type: "MANUAL",
             companyId: "default",
             status: "SCHEDULED"
           }, { merge: true });
         });
-      }
+      });
 
-      // 3. GENERAZIONE AI PER GLI ALTRI
-      const otherEmployees = displayEmployees.filter(e => !e.firstName?.toLowerCase().includes('vittorio'));
-      if (otherEmployees.length > 0) {
-        const slotsToCover: any[] = [];
-        daysOfVisualizedWeek.forEach(day => {
-          if (day.getDay() === 0) return;
-          const dStr = format(day, 'yyyy-MM-dd');
-          slotsToCover.push({ id: `am-${dStr}`, name: 'Mattina', startTime: `${dStr}T09:00:00Z`, endTime: `${dStr}T13:00:00Z` });
-          slotsToCover.push({ id: `pm-${dStr}`, name: 'Pomeriggio', startTime: `${dStr}T17:00:00Z`, endTime: `${dStr}T20:20:00Z` });
-        });
-
-        const aiInput = {
-          employees: otherEmployees.map(e => ({
-            id: e.id,
-            name: `${e.firstName} ${e.lastName}`,
-            availability: e.restDay || "0"
-          })),
-          shifts: slotsToCover
-        };
-
-        const result = await aiShiftOptimization(aiInput);
-
-        result.optimizedAssignments.forEach((asn, idx) => {
-          const targetSlot = slotsToCover.find(s => s.id === asn.shiftId);
-          if (!targetSlot) return;
-
-          const id = `ai-${Date.now()}-${idx}`;
-          setDocumentNonBlocking(doc(db, "employees", asn.employeeId, "shifts", id), {
-            id,
-            employeeId: asn.employeeId,
-            locationId: paleseId,
-            date: targetSlot.startTime.split('T')[0],
-            startTime: targetSlot.startTime,
-            endTime: targetSlot.endTime,
-            title: targetSlot.name,
-            type: "MANUAL",
-            companyId: "default",
-            status: "SCHEDULED"
-          }, { merge: true });
-        });
-      }
-
-      toast({ title: "Completato", description: "Programma settimanale aggiornato correttamente." });
+      toast({ title: "Operazione Completata", description: "Programma aggiornato con turni e permessi." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Errore Generazione" });
     } finally {
@@ -328,7 +332,7 @@ export default function ShiftsPage() {
                       <AvatarFallback className="font-black text-sm">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-base uppercase leading-none">{emp.firstName} {emp.lastName}</span>
+                      <span className="font-black text-slate-900 text-xl uppercase leading-none">{emp.firstName} {emp.lastName}</span>
                       <span className="text-[11px] font-bold text-[#227FD8] mt-1 uppercase tracking-wider">{emp.jobTitle}</span>
                     </div>
                   </div>
