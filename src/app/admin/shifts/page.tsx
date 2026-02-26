@@ -93,6 +93,7 @@ export default function ShiftsPage() {
   }, [db])
   const { data: locations } = useCollection(locationsQuery)
 
+  // ORDINE FISSO: Vittorio, Isa, Rosa, Savino
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
@@ -245,7 +246,7 @@ export default function ShiftsPage() {
         }, { merge: true });
       });
 
-      toast({ title: "Generazione Completata", description: "Turni inseriti." });
+      toast({ title: "Generazione Completata", description: "Turni inseriti correttamente." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Errore AI", description: "Riprova tra poco." });
     } finally {
@@ -329,6 +330,7 @@ export default function ShiftsPage() {
                         const isVittorio = emp.firstName?.toLowerCase() === 'vittorio';
                         const isWednesday = day.getDay() === 3;
                         
+                        // Smistamento per sede (Palese sopra, Bisceglie sotto)
                         const slot1Events = dayEvents.filter(ev => {
                           const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
                           return !locName.toLowerCase().includes('bisceglie');
@@ -340,7 +342,7 @@ export default function ShiftsPage() {
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[220px] border-r bg-white flex flex-col p-1.5 gap-1.5">
-                            {/* SLOT 1 - PALESE */}
+                            {/* SLOT 1 - PALESE (Sempre in alto) */}
                             <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
                               <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest pointer-events-none">PALESE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
@@ -365,7 +367,7 @@ export default function ShiftsPage() {
                               </div>
                             </div>
 
-                            {/* SLOT 2 - BISCEGLIE */}
+                            {/* SLOT 2 - BISCEGLIE (Sempre in basso) */}
                             <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot2">
                               <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest pointer-events-none">BISCEGLIE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
