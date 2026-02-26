@@ -111,9 +111,9 @@ export default function ShiftsPage() {
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
+  // ORDINE RICHIESTO: Vittorio, Isa, Rosa, Savino
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
-    // ORDINE RICHIESTO: Vittorio, Isa, Rosa, Savino
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
     
     return employees
