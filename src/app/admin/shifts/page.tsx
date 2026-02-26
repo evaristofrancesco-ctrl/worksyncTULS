@@ -20,6 +20,7 @@ import {
   Activity,
   Umbrella,
   Timer,
+  RefreshCw,
   BarChart3,
   Coffee
 } from "lucide-react"
@@ -101,7 +102,7 @@ export default function ShiftsPage() {
 
   const shiftsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return query(collectionGroup(db, "shifts"), limit(1000));
+    return query(collectionGroup(db, "shifts"), limit(1500));
   }, [db])
   const { data: shifts, isLoading: isShiftsLoading } = useCollection(shiftsQuery)
 
@@ -140,9 +141,10 @@ export default function ShiftsPage() {
     const map: Record<string, Record<string, any[]>> = {};
     if (!shifts) return map;
     shifts.forEach(s => {
-      if (!map[s.date]) map[s.date] = {};
-      if (!map[s.date][s.employeeId]) map[s.date][s.employeeId] = [];
-      map[s.date][s.employeeId].push(s);
+      const dateKey = s.date;
+      if (!map[dateKey]) map[dateKey] = {};
+      if (!map[dateKey][s.employeeId]) map[dateKey][s.employeeId] = [];
+      map[dateKey][s.employeeId].push(s);
     });
     return map;
   }, [shifts]);
@@ -259,58 +261,60 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-5xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-lg text-slate-500 font-medium">Visualizzazione fissa: Palese (Sopra), Bisceglie (Sotto).</p>
+          <p className="text-lg text-slate-500 font-medium">Layout Fisso: Palese (Sopra), Bisceglie (Sotto).</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-rose-200 text-rose-700 bg-rose-50 h-12 px-6 uppercase"><UserMinus className="h-5 w-5 mr-2" /> Assenza</Button>
-          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="font-bold border-blue-200 text-[#227FD8] h-12 px-6 uppercase">{isGenerating ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Sparkles className="h-5 w-5 mr-2" />} Genera</Button>
+          <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-rose-200 text-rose-700 bg-rose-50 h-12 px-6 uppercase shadow-sm"><UserMinus className="h-5 w-5 mr-2" /> Assenza</Button>
+          <Button variant="outline" onClick={handleAutoGenerate} disabled={isGenerating} className="font-bold border-blue-200 text-[#227FD8] h-12 px-6 uppercase shadow-sm">{isGenerating ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Sparkles className="h-5 w-5 mr-2" />} Genera</Button>
           <Button onClick={() => setIsShiftOpen(true)} className="bg-[#227FD8] font-black h-12 px-8 shadow-lg uppercase"><Plus className="h-5 w-5 mr-2" /> Nuovo Turno</Button>
         </div>
       </div>
 
       <div className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border ring-1 ring-slate-100">
         <div className="flex items-center gap-6">
-          <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-6 w-6" /></Button>
+          <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-6 w-6 text-slate-400" /></Button>
           <div className="text-center min-w-[250px]">
             <span className="text-3xl font-black text-slate-900 uppercase tracking-tight">
               {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
             </span>
           </div>
-          <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-6 w-6" /></Button>
+          <Button variant="ghost" size="icon" className="h-12 w-12" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-6 w-6 text-slate-400" /></Button>
         </div>
-        <Button variant="secondary" className="font-black uppercase px-6 h-10 tracking-widest" onClick={() => setCurrentDate(new Date())}>Oggi</Button>
+        <Button variant="secondary" className="font-black uppercase px-6 h-10 tracking-widest bg-slate-100 text-slate-600 hover:bg-slate-200" onClick={() => setCurrentDate(new Date())}>Oggi</Button>
       </div>
 
-      <ScrollArea className="w-full h-[850px] border rounded-3xl bg-white shadow-md">
+      <ScrollArea className="w-full h-[850px] border rounded-3xl bg-white shadow-xl">
         <div className="inline-block min-w-full">
           {isEmployeesLoading || isShiftsLoading ? (
-            <div className="py-32 text-center"><Loader2 className="h-12 w-12 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-bold text-slate-400">Caricamento dati...</p></div>
+            <div className="py-32 text-center"><Loader2 className="h-12 w-12 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-bold text-slate-400 uppercase tracking-widest">Sincronizzazione Cloud...</p></div>
           ) : (
             <div className="flex flex-col">
-              <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
-                <div className="w-[200px] p-5 font-black text-xs uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40">DATA</div>
+              {/* HEADER DIPENDENTI */}
+              <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-md">
+                <div className="w-[180px] p-5 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center">CALENDARIO</div>
                 {displayEmployees.map(emp => (
-                  <div key={emp.id} className="min-w-[300px] p-5 border-r flex items-center gap-4 bg-slate-50/50">
-                    <Avatar className="h-16 w-16 shadow-md ring-2 ring-white">
+                  <div key={emp.id} className="min-w-[320px] p-6 border-r flex items-center gap-5 bg-slate-50/80 backdrop-blur-sm">
+                    <Avatar className="h-16 w-16 shadow-lg ring-4 ring-white">
                       <AvatarImage src={emp.photoUrl} />
-                      <AvatarFallback className="font-black text-2xl">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="font-black text-2xl bg-slate-200">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-2xl leading-tight truncate w-40">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-xs font-black uppercase text-slate-400 tracking-widest">{emp.locationName}</span>
+                      <span className="font-black text-slate-900 text-2xl leading-none truncate w-44">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[10px] font-black uppercase text-[#227FD8] tracking-[0.2em] mt-1">{emp.locationName}</span>
                     </div>
                   </div>
                 ))}
               </div>
 
+              {/* GRIGLIA GIORNI */}
               <div className="divide-y divide-slate-100">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
-                  if (day.getDay() === 0) return null;
+                  if (day.getDay() === 0) return null; // Salta Domenica
 
                   return (
-                    <div key={dayStr} className="flex group hover:bg-slate-50/10 transition-colors">
-                      <div className="w-[200px] p-5 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
+                    <div key={dayStr} className="flex group hover:bg-slate-50/30 transition-colors">
+                      <div className="w-[180px] p-5 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                         <div className="text-xs font-black uppercase text-slate-400 tracking-widest mb-1">{format(day, 'EEEE', { locale: it })}</div>
                         <div className="text-5xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
                       </div>
@@ -318,12 +322,13 @@ export default function ShiftsPage() {
                       {displayEmployees.map(emp => {
                         const dayShifts = (indexedShifts[dayStr] || {})[emp.id] || [];
                         const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
-                        const isRestDay = day.getDay().toString() === emp.restDay;
-                        const empWorksAtBisceglie = (emp.locationName || "").toUpperCase().includes("BISCEGLIE");
+                        const isRestDay = String(day.getDay()) === String(emp.restDay);
+                        const empDefaultBisceglie = (emp.locationName || "").toUpperCase().includes("BISCEGLIE");
 
                         const checkIsBisceglie = (item: any) => {
-                          const locName = locations?.find(l => l.id === item.locationId)?.name || "";
-                          if (locName === "") return empWorksAtBisceglie;
+                          const locId = item.locationId || "";
+                          const locName = locations?.find(l => l.id === locId)?.name || "";
+                          if (locName === "") return empDefaultBisceglie;
                           return locName.toUpperCase().includes("BISCEGLIE");
                         };
 
@@ -333,31 +338,31 @@ export default function ShiftsPage() {
                         const bisceglieAbsences = dayAbsences.filter(a => checkIsBisceglie(a));
 
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[300px] border-r flex flex-col bg-white">
-                            {/* SLOT PALESE (Sopra) */}
-                            <div className="p-3 min-h-[140px] flex flex-col gap-3 bg-blue-50/10 border-b border-dashed border-slate-100">
-                              <div className="flex items-center justify-between opacity-30">
-                                <span className="text-[11px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[320px] border-r flex flex-col bg-white/50">
+                            {/* SLOT SUPERIORE (PALESE) */}
+                            <div className="p-4 min-h-[160px] flex flex-col gap-3 bg-blue-50/5 border-b border-dashed border-slate-100">
+                              <div className="flex items-center justify-between opacity-20">
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#227FD8]">PALESE</span>
                               </div>
                               {paleseAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
                               {paleseShifts.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
                                 <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                               ))}
-                              {isRestDay && !empWorksAtBisceglie && paleseShifts.length === 0 && paleseAbsences.length === 0 && (
+                              {isRestDay && !empDefaultBisceglie && paleseShifts.length === 0 && paleseAbsences.length === 0 && (
                                 <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                               )}
                             </div>
 
-                            {/* SLOT BISCEGLIE (Sotto) */}
-                            <div className="p-3 min-h-[140px] flex flex-col gap-3 bg-emerald-50/10">
-                              <div className="flex items-center justify-between opacity-30">
-                                <span className="text-[11px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
+                            {/* SLOT INFERIORE (BISCEGLIE) */}
+                            <div className="p-4 min-h-[160px] flex flex-col gap-3 bg-emerald-50/5">
+                              <div className="flex items-center justify-between opacity-20">
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-600">BISCEGLIE</span>
                               </div>
                               {bisceglieAbsences.map(a => <AbsenceItem key={a.id} a={a} />)}
                               {bisceglieShifts.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
                                 <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                               ))}
-                              {isRestDay && empWorksAtBisceglie && bisceglieShifts.length === 0 && bisceglieAbsences.length === 0 && (
+                              {isRestDay && empDefaultBisceglie && bisceglieShifts.length === 0 && bisceglieAbsences.length === 0 && (
                                 <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                               )}
                             </div>
@@ -438,7 +443,7 @@ export default function ShiftsPage() {
               <div className="space-y-2"><Label className="font-black text-xs uppercase text-slate-500">Tipo</Label>
                 <Select value={newAbsence.type} onValueChange={v => setNewAbsence({...newAbsence, type: v})}>
                   <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="VACATION">Ferie</SelectItem><SelectItem value="SICK">Malattia</SelectItem><SelectItem value="PERSONAL">Permesso</SelectItem></SelectContent>
+                  <SelectContent><SelectItem value="VACATION">Ferie</SelectItem><SelectItem value="SICK">Malattia</SelectItem><SelectItem value="PERSONAL">Permesso</SelectItem><SelectItem value="HOURLY_PERMIT">Permesso Orario</SelectItem></SelectContent>
                 </Select>
               </div>
             </div>
@@ -456,18 +461,18 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
   const isMorning = parseISO(s.startTime).getHours() < 14;
   
   return (
-    <div className={cn("group/item relative p-3 rounded-xl border-l-4 shadow-md transition-all bg-white", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-400 text-indigo-900")}>
+    <div className={cn("group/item relative p-3.5 rounded-xl border-l-[6px] shadow-lg transition-all bg-white w-full", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-500 text-indigo-900")}>
       <div className="flex justify-between items-start">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
-            {isMorning ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-500" />}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 text-sm font-black uppercase tracking-tight">
+            {isMorning ? <Sun className="h-4 w-4 text-amber-500 fill-current" /> : <Moon className="h-4 w-4 text-indigo-500 fill-current" />}
             {start} - {end}
           </div>
-          <span className="text-[11px] font-black text-slate-400 truncate w-44 uppercase tracking-tighter">{s.title || 'Turno'}</span>
+          <span className="text-[10px] font-black text-slate-400 truncate w-48 uppercase tracking-[0.1em]">{s.title || 'Turno'}</span>
         </div>
-        <div className="flex gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
-          <button onClick={onEdit} className="p-1.5 hover:bg-black/5 rounded"><Edit className="h-4 w-4 text-slate-400" /></button>
-          <button onClick={onDelete} className="p-1.5 hover:bg-rose-500/10 rounded text-rose-600"><Trash2 className="h-4 w-4" /></button>
+        <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+          <button onClick={onEdit} className="p-1.5 hover:bg-black/5 rounded-lg"><Edit className="h-4 w-4 text-slate-400" /></button>
+          <button onClick={onDelete} className="p-1.5 hover:bg-rose-500/10 rounded-lg text-rose-600"><Trash2 className="h-4 w-4" /></button>
         </div>
       </div>
     </div>
@@ -487,14 +492,21 @@ function AbsenceItem({ a }: { a: any }) {
     ? `${a.startTime} - ${a.endTime}` 
     : "Intera Giornata";
 
+  const typeLabels: Record<string, string> = {
+    'VACATION': 'FERIE',
+    'SICK': 'MALATTIA',
+    'PERSONAL': 'PERMESSO',
+    'HOURLY_PERMIT': 'PERMESSO ORARIO'
+  };
+
   return (
-    <div className="p-3 rounded-xl border-l-4 border-rose-600 shadow-md bg-rose-50 text-rose-900">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
+    <div className="p-3.5 rounded-xl border-l-[6px] border-rose-600 shadow-lg bg-rose-50 text-rose-900 w-full animate-pulse">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2 text-sm font-black uppercase tracking-tight">
           {getIcon()}
           {timeStr}
         </div>
-        <span className="text-[11px] font-black uppercase tracking-widest opacity-70">{a.type}</span>
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{typeLabels[a.type] || a.type}</span>
       </div>
     </div>
   )
@@ -503,13 +515,13 @@ function AbsenceItem({ a }: { a: any }) {
 function RestItem({ start, end }: { start?: string, end?: string }) {
   const timeStr = start && end && start !== "00:00" ? `${start} - ${end}` : "Intera Giornata";
   return (
-    <div className="p-3 rounded-xl border-l-4 border-slate-400 shadow-md bg-slate-50 text-slate-600">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-1.5 text-sm font-black uppercase tracking-tight">
+    <div className="p-3.5 rounded-xl border-l-[6px] border-slate-400 shadow-lg bg-slate-50 text-slate-600 w-full">
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-2 text-sm font-black uppercase tracking-tight">
           <Coffee className="h-4 w-4 text-slate-400" />
           {timeStr}
         </div>
-        <span className="text-[11px] font-black uppercase tracking-widest opacity-70">RIPOSO SETTIMANALE</span>
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">RIPOSO SETTIMANALE</span>
       </div>
     </div>
   )
