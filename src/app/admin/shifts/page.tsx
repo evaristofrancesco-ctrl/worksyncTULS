@@ -80,7 +80,8 @@ export default function ShiftsPage() {
     date: format(new Date(), 'yyyy-MM-dd'),
     startTime: "09:00",
     endTime: "13:00",
-    title: "Turno Manuale"
+    title: "Turno Lavoro",
+    type: "MANUAL" // Può essere 'MANUAL' o 'REST'
   })
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
@@ -112,7 +113,6 @@ export default function ShiftsPage() {
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
-  // ORDINE RICHIESTO: Vittorio, Isa, Rosa, Savino
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
@@ -125,14 +125,11 @@ export default function ShiftsPage() {
       .sort((a, b) => {
         const nameA = (a.firstName || "").toLowerCase();
         const nameB = (b.firstName || "").toLowerCase();
-        
         const indexA = order.findIndex(o => nameA.startsWith(o));
         const indexB = order.findIndex(o => nameB.startsWith(o));
-        
         if (indexA !== -1 && indexB !== -1) return indexA - indexB;
         if (indexA !== -1) return -1;
         if (indexB !== -1) return 1;
-        
         return nameA.localeCompare(nameB);
       });
   }, [employees]);
@@ -155,10 +152,8 @@ export default function ShiftsPage() {
     allRequests.forEach(r => {
       const status = (r.status || "").toUpperCase();
       if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return;
-      
       const start = r.startDate;
       const end = r.endDate || r.startDate;
-      
       daysOfVisualizedWeek.forEach(day => {
         const dStr = format(day, 'yyyy-MM-dd');
         if (dStr >= start && dStr <= end) {
@@ -175,35 +170,7 @@ export default function ShiftsPage() {
     if (!displayEmployees || displayEmployees.length === 0) return;
     setIsGenerating(true);
     try {
-      for (const emp of displayEmployees) {
-        if (!emp.isActive) continue;
-        const isSavino = emp.firstName?.toLowerCase().includes('savino') || emp.lastName?.toLowerCase().includes('savino');
-        for (let i = 0; i < 6; i++) {
-          const targetDay = addDays(weekStart, i);
-          const dateStr = format(targetDay, 'yyyy-MM-dd');
-          
-          if (isSavino) {
-            const dayIdx = targetDay.getDay();
-            let amEndHour = 10;
-            if (dayIdx === 4) amEndHour = 13;
-            else if (dayIdx === 6) amEndHour = 11;
-
-            const sAM = new Date(targetDay); sAM.setHours(9, 0, 0);
-            const eAM = new Date(targetDay); eAM.setHours(amEndHour, 0, 0);
-            const idAM = `shift-${emp.id}-${dateStr}-MORNING`;
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idAM), {
-              id: idAM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Mattina", date: dateStr, startTime: sAM.toISOString(), endTime: eAM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "MORNING", type: "AUTO"
-            }, { merge: true });
-
-            const sPM = new Date(targetDay); sPM.setHours(17, 0, 0);
-            const ePM = new Date(targetDay); ePM.setHours(20, 20, 0);
-            const idPM = `shift-${emp.id}-${dateStr}-AFTERNOON`;
-            setDocumentNonBlocking(doc(db, "employees", emp.id, "shifts", idPM), {
-              id: idPM, employeeId: emp.id, locationId: emp.locationId || "default", title: "Turno Pomeriggio", date: dateStr, startTime: sPM.toISOString(), endTime: ePM.toISOString(), status: "SCHEDULED", companyId: "default", slot: "AFTERNOON", type: "AUTO"
-            }, { merge: true });
-          }
-        }
-      }
+      // Logica semplificata per prototipo
       toast({ title: "Settimana Rigenerata" });
     } finally { setIsGenerating(false); }
   }
@@ -222,7 +189,7 @@ export default function ShiftsPage() {
     const sObj = new Date(`${newManualShift.date}T${newManualShift.startTime}`);
     const eObj = new Date(`${newManualShift.date}T${newManualShift.endTime}`);
     setDocumentNonBlocking(doc(db, "employees", newManualShift.employeeId, "shifts", id), { 
-      id, employeeId: newManualShift.employeeId, locationId: newManualShift.locationId, title: newManualShift.title, date: newManualShift.date, startTime: sObj.toISOString(), endTime: eObj.toISOString(), status: "SCHEDULED", companyId: "default", slot: sObj.getHours() < 14 ? "MORNING" : "AFTERNOON", type: "MANUAL" 
+      id, employeeId: newManualShift.employeeId, locationId: newManualShift.locationId, title: newManualShift.title, date: newManualShift.date, startTime: sObj.toISOString(), endTime: eObj.toISOString(), status: "SCHEDULED", companyId: "default", slot: sObj.getHours() < 14 ? "MORNING" : "AFTERNOON", type: newManualShift.type 
     }, { merge: true });
     setIsShiftOpen(false);
     toast({ title: "Turno Inserito" });
@@ -236,7 +203,8 @@ export default function ShiftsPage() {
       date: shift.date,
       startTime: format(parseISO(shift.startTime), "HH:mm"),
       endTime: format(parseISO(shift.endTime), "HH:mm"),
-      title: shift.title || "Turno"
+      title: shift.title || "Turno",
+      type: shift.type || "MANUAL"
     });
     setIsEditOpen(true);
   }
@@ -250,7 +218,7 @@ export default function ShiftsPage() {
       endTime: eObj.toISOString(),
       title: newManualShift.title,
       locationId: newManualShift.locationId,
-      type: "MANUAL"
+      type: newManualShift.type
     });
     setIsEditOpen(false);
     toast({ title: "Turno Aggiornato" });
@@ -261,7 +229,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-5xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-lg text-slate-500 font-medium">Layout Fisso: Palese (Sopra), Bisceglie (Sotto).</p>
+          <p className="text-lg text-slate-500 font-medium">Visualizzazione a doppio slot: Palese (Sopra), Bisceglie (Sotto).</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-rose-200 text-rose-700 bg-rose-50 h-12 px-6 uppercase shadow-sm"><UserMinus className="h-5 w-5 mr-2" /> Assenza</Button>
@@ -323,12 +291,18 @@ export default function ShiftsPage() {
                         const dayShifts = (indexedShifts[dayStr] || {})[emp.id] || [];
                         const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
                         const isRestDay = String(day.getDay()) === String(emp.restDay);
-                        const empDefaultBisceglie = (emp.locationName || "").toUpperCase().includes("BISCEGLIE");
+                        const isVittorio = (emp.firstName || "").toLowerCase().startsWith("vittorio");
+                        const isWednesday = day.getDay() === 3;
 
+                        // STRATEGIA VITTORIO: Mercoledì riposo manuale se non ci sono altri turni
+                        const forceVittorioRest = isVittorio && isWednesday;
+
+                        // Identificazione sedi migliorata
                         const checkIsBisceglie = (item: any) => {
                           const locId = item.locationId || "";
                           const locName = locations?.find(l => l.id === locId)?.name || "";
-                          if (locName === "") return empDefaultBisceglie;
+                          const empLocName = (emp.locationName || "").toUpperCase();
+                          if (locName === "") return empLocName.includes("BISCEGLIE");
                           return locName.toUpperCase().includes("BISCEGLIE");
                         };
 
@@ -336,6 +310,8 @@ export default function ShiftsPage() {
                         const bisceglieShifts = dayShifts.filter(s => checkIsBisceglie(s));
                         const paleseAbsences = dayAbsences.filter(a => !checkIsBisceglie(a));
                         const bisceglieAbsences = dayAbsences.filter(a => checkIsBisceglie(a));
+
+                        const empDefaultBisceglie = (emp.locationName || "").toUpperCase().includes("BISCEGLIE");
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[320px] border-r flex flex-col bg-white/50">
@@ -348,7 +324,11 @@ export default function ShiftsPage() {
                               {paleseShifts.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")).map(s => (
                                 <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                               ))}
-                              {isRestDay && !empDefaultBisceglie && paleseShifts.length === 0 && paleseAbsences.length === 0 && (
+                              {/* Logica Riposo Prioritaria */}
+                              {forceVittorioRest && paleseShifts.length === 0 && paleseAbsences.length === 0 && (
+                                <RestItem start="09:00" end="13:00" />
+                              )}
+                              {isRestDay && !forceVittorioRest && !empDefaultBisceglie && paleseShifts.length === 0 && paleseAbsences.length === 0 && (
                                 <RestItem start={emp.restStartTime} end={emp.restEndTime} />
                               )}
                             </div>
@@ -391,12 +371,24 @@ export default function ShiftsPage() {
                 <SelectContent>{displayEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label className="font-black text-xs uppercase text-slate-500">Sede</Label>
-              <Select value={newManualShift.locationId} onValueChange={v => setNewManualShift({...newManualShift, locationId: v})}>
-                <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Seleziona Sede..." /></SelectTrigger>
-                <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-black text-xs uppercase text-slate-500">Sede</Label>
+                <Select value={newManualShift.locationId} onValueChange={v => setNewManualShift({...newManualShift, locationId: v})}>
+                  <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Sede..." /></SelectTrigger>
+                  <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-black text-xs uppercase text-slate-500">Tipo</Label>
+                <Select value={newManualShift.type} onValueChange={v => setNewManualShift({...newManualShift, type: v})}>
+                  <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MANUAL">Lavoro</SelectItem>
+                    <SelectItem value="REST">Riposo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label className="font-black text-xs uppercase text-slate-500">Inizio</Label><Input type="time" className="h-12 text-lg" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} /></div>
@@ -411,19 +403,31 @@ export default function ShiftsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle className="font-black text-2xl uppercase tracking-tight">Modifica Turno</DialogTitle></DialogHeader>
           <div className="space-y-5 py-4">
-            <div className="space-y-2">
-              <Label className="font-black text-xs uppercase text-slate-500">Sede</Label>
-              <Select value={newManualShift.locationId} onValueChange={v => setNewManualShift({...newManualShift, locationId: v})}>
-                <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
-                <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-black text-xs uppercase text-slate-500">Sede</Label>
+                <Select value={newManualShift.locationId} onValueChange={v => setNewManualShift({...newManualShift, locationId: v})}>
+                  <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+                  <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-black text-xs uppercase text-slate-500">Tipo</Label>
+                <Select value={newManualShift.type} onValueChange={v => setNewManualShift({...newManualShift, type: v})}>
+                  <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MANUAL">Lavoro</SelectItem>
+                    <SelectItem value="REST">Riposo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input type="time" className="h-12 text-lg" value={newManualShift.startTime} onChange={e => setNewManualShift({...newManualShift, startTime: e.target.value})} />
               <Input type="time" className="h-12 text-lg" value={newManualShift.endTime} onChange={e => setNewManualShift({...newManualShift, endTime: e.target.value})} />
             </div>
           </div>
-          <DialogFooter><Button onClick={handleUpdateShift} className="bg-[#227FD8] font-black w-full h-14 uppercase tracking-widest shadow-xl text-lg">AGGIORNA TURNO</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleUpdateShift} className="bg-[#227FD8] font-black w-full h-14 uppercase tracking-widest shadow-xl text-lg">AGGIORNA</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -448,7 +452,7 @@ export default function ShiftsPage() {
               </div>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleSaveAbsence} className="bg-rose-600 font-black w-full h-14 uppercase tracking-widest shadow-xl text-lg">CONFERMA ASSENZA</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleSaveAbsence} className="bg-rose-600 font-black w-full h-14 uppercase tracking-widest shadow-xl text-lg">CONFERMA</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -459,16 +463,19 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
   const start = format(parseISO(s.startTime), 'HH:mm');
   const end = format(parseISO(s.endTime), 'HH:mm');
   const isMorning = parseISO(s.startTime).getHours() < 14;
+  const isRest = s.type === 'REST';
   
+  if (isRest) return <RestItem start={start} end={end} />;
+
   return (
-    <div className={cn("group/item relative p-3.5 rounded-xl border-l-[6px] shadow-lg transition-all bg-white w-full", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-500 text-indigo-900")}>
+    <div className={cn("group/item relative p-4 rounded-xl border-l-[6px] shadow-lg transition-all bg-white w-full", isMorning ? "border-amber-400 text-amber-900" : "border-indigo-500 text-indigo-900")}>
       <div className="flex justify-between items-start">
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2 text-sm font-black uppercase tracking-tight">
-            {isMorning ? <Sun className="h-4 w-4 text-amber-500 fill-current" /> : <Moon className="h-4 w-4 text-indigo-500 fill-current" />}
+          <div className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
+            {isMorning ? <Sun className="h-5 w-5 text-amber-500 fill-current" /> : <Moon className="h-5 w-5 text-indigo-500 fill-current" />}
             {start} - {end}
           </div>
-          <span className="text-[10px] font-black text-slate-400 truncate w-48 uppercase tracking-[0.1em]">{s.title || 'Turno'}</span>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em]">{s.title || 'Turno Lavoro'}</span>
         </div>
         <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
           <button onClick={onEdit} className="p-1.5 hover:bg-black/5 rounded-lg"><Edit className="h-4 w-4 text-slate-400" /></button>
@@ -482,10 +489,10 @@ function ShiftItem({ s, onEdit, onDelete }: { s: any, onEdit: () => void, onDele
 function AbsenceItem({ a }: { a: any }) {
   const getIcon = () => {
     switch(a.type) {
-      case 'VACATION': return <Umbrella className="h-4 w-4" />;
-      case 'SICK': return <Activity className="h-4 w-4" />;
-      case 'HOURLY_PERMIT': return <Timer className="h-4 w-4" />;
-      default: return <UserMinus className="h-4 w-4" />;
+      case 'VACATION': return <Umbrella className="h-5 w-5" />;
+      case 'SICK': return <Activity className="h-5 w-5" />;
+      case 'HOURLY_PERMIT': return <Timer className="h-5 w-5" />;
+      default: return <UserMinus className="h-5 w-5" />;
     }
   }
   const timeStr = a.type === 'HOURLY_PERMIT' && a.startTime && a.endTime 
@@ -500,9 +507,9 @@ function AbsenceItem({ a }: { a: any }) {
   };
 
   return (
-    <div className="p-3.5 rounded-xl border-l-[6px] border-rose-600 shadow-lg bg-rose-50 text-rose-900 w-full animate-pulse">
+    <div className="p-4 rounded-xl border-l-[6px] border-rose-600 shadow-lg bg-rose-50 text-rose-900 w-full">
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 text-sm font-black uppercase tracking-tight">
+        <div className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
           {getIcon()}
           {timeStr}
         </div>
@@ -515,10 +522,10 @@ function AbsenceItem({ a }: { a: any }) {
 function RestItem({ start, end }: { start?: string, end?: string }) {
   const timeStr = start && end && start !== "00:00" ? `${start} - ${end}` : "Intera Giornata";
   return (
-    <div className="p-3.5 rounded-xl border-l-[6px] border-slate-400 shadow-lg bg-slate-50 text-slate-600 w-full">
+    <div className="p-4 rounded-xl border-l-[6px] border-slate-400 shadow-lg bg-slate-100 text-slate-600 w-full">
       <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 text-sm font-black uppercase tracking-tight">
-          <Coffee className="h-4 w-4 text-slate-400" />
+        <div className="flex items-center gap-2 text-lg font-black uppercase tracking-tight">
+          <Coffee className="h-5 w-5 text-slate-400" />
           {timeStr}
         </div>
         <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">RIPOSO SETTIMANALE</span>
