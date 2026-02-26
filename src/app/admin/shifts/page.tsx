@@ -113,7 +113,6 @@ export default function ShiftsPage() {
 
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
-    // Ordine specifico richiesto: vittorio, isa, rosa, savino
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
     
     return employees
@@ -286,7 +285,7 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-5xl font-black text-slate-900 tracking-tight">Pianificazione Turni</h1>
-          <p className="text-lg text-slate-500 font-medium">Layout a doppio slot fisso (Palese/Bisceglie) ottimizzato.</p>
+          <p className="text-lg text-slate-500 font-medium">Visualizzazione a doppio slot (Palese/Bisceglie) ottimizzata.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => setIsAbsenceOpen(true)} className="font-bold border-amber-200 text-amber-700 bg-amber-50 h-12 px-6 uppercase"><UserMinus className="h-5 w-5 mr-2" /> Assenza</Button>
@@ -349,11 +348,17 @@ export default function ShiftsPage() {
                       {displayEmployees.map(emp => {
                         const dayShifts = (indexedShifts[dayStr] || {})[emp.id] || [];
                         const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
-                        
                         const isRestDay = day.getDay().toString() === emp.restDay;
 
-                        const paleseEvents = dayShifts.filter(s => s.locationId === paleseLoc?.id);
-                        const bisceglieEvents = dayShifts.filter(s => s.locationId === bisceglieLoc?.id);
+                        // Filtraggio eventi per sede con fallback sulla sede principale del dipendente se il turno è generico
+                        const paleseEvents = dayShifts.filter(s => 
+                          s.locationId === paleseLoc?.id || 
+                          ((!s.locationId || s.locationId === 'default') && emp.locationId === paleseLoc?.id)
+                        );
+                        const bisceglieEvents = dayShifts.filter(s => 
+                          s.locationId === bisceglieLoc?.id || 
+                          ((!s.locationId || s.locationId === 'default') && emp.locationId === bisceglieLoc?.id)
+                        );
                         
                         const paleseAbsences = dayAbsences.filter(a => !a.locationId || a.locationId === paleseLoc?.id);
                         const bisceglieAbsences = dayAbsences.filter(a => a.locationId === bisceglieLoc?.id);
