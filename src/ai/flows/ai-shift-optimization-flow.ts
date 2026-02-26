@@ -1,7 +1,6 @@
-
 'use server';
 /**
- * @fileOverview Un flusso Genkit per ottimizzare l'assegnazione dei turni.
+ * @fileOverview Un flusso Genkit semplificato per ottimizzare l'assegnazione dei turni.
  *
  * - aiShiftOptimization - Una funzione che gestisce il processo di ottimizzazione dei turni tramite AI.
  * - AiShiftOptimizationInput - Il tipo di input per la funzione aiShiftOptimization.
@@ -14,40 +13,32 @@ import {z} from 'genkit';
 const EmployeeSchema = z.object({
   id: z.string().describe('Identificativo unico per il dipendente.'),
   name: z.string().describe('Nome completo del dipendente.'),
-  roles: z.array(z.string()).describe('Lista dei ruoli.'),
-  skills: z.array(z.string()).describe('Lista di competenze.'),
-  availability: z.string().describe('Descrizione testuale della disponibilità e giorno di riposo.'),
+  availability: z.string().describe('Descrizione del giorno di riposo e ore contrattuali.'),
 });
 export type Employee = z.infer<typeof EmployeeSchema>;
 
 const ShiftSchema = z.object({
-  id: z.string().describe('Identificativo unico per il turno.'),
-  name: z.string().describe('Nome descrittivo del turno (es. "Palese Mattina").'),
-  startTime: z.string().describe('Data e ora di inizio in formato ISO 8601.'),
-  endTime: z.string().describe('Data e ora di fine in formato ISO 8601.'),
-  requiredRoles: z.array(z.string()),
-  requiredSkills: z.array(z.string()),
-  minCoverage: z.number().int().min(1),
-  locationId: z.string().optional().describe('ID della sede associata al turno.'),
+  id: z.string().describe('Identificativo unico per lo slot.'),
+  name: z.string().describe('Nome del turno (es. "Mattina").'),
+  startTime: z.string().describe('ISO 8601.'),
+  endTime: z.string().describe('ISO 8601.'),
 });
 export type Shift = z.infer<typeof ShiftSchema>;
 
 const AiShiftOptimizationInputSchema = z.object({
-  employees: z.array(EmployeeSchema).describe('Lista dei dipendenti disponibili.'),
-  shifts: z.array(ShiftSchema).describe('Lista dei turni da coprire (Mattina/Pomeriggio per Palese/Bisceglie).'),
+  employees: z.array(EmployeeSchema).describe('Lista dei dipendenti.'),
+  shifts: z.array(ShiftSchema).describe('Slot temporali da coprire.'),
 });
 export type AiShiftOptimizationInput = z.infer<typeof AiShiftOptimizationInputSchema>;
 
 const OptimizedAssignmentSchema = z.object({
-  shiftId: z.string().describe('L\'ID del turno assegnato.'),
-  employeeId: z.string().describe('L\'ID del dipendente assegnato.'),
-  justification: z.string().describe('Spiegazione della scelta.'),
+  shiftId: z.string().describe('ID dello slot.'),
+  employeeId: z.string().describe('ID del dipendente.'),
 });
 export type OptimizedAssignment = z.infer<typeof OptimizedAssignmentSchema>;
 
 const AiShiftOptimizationOutputSchema = z.object({
-  optimizedAssignments: z.array(OptimizedAssignmentSchema).describe('Gli assegnamenti suggeriti.'),
-  optimizationSummary: z.string().describe('Un riepilogo del processo.'),
+  optimizedAssignments: z.array(OptimizedAssignmentSchema),
 });
 export type AiShiftOptimizationOutput = z.infer<typeof AiShiftOptimizationOutputSchema>;
 
@@ -59,21 +50,17 @@ const aiShiftOptimizationPrompt = ai.definePrompt({
   name: 'aiShiftOptimizationPrompt',
   input: {schema: AiShiftOptimizationInputSchema},
   output: {schema: AiShiftOptimizationOutputSchema},
-  prompt: `Sei un esperto di gestione turni per l'azienda TU.L.S.
-Il tuo obiettivo è assegnare i dipendenti ai turni settimanali (Mattina e Pomeriggio) per le sedi di PALESE e BISCEGLIE.
+  prompt: `Sei un assistente per la creazione dei turni di TU.L.S.
+Il tuo compito è assegnare i dipendenti agli slot temporali indicati.
 
-REGOLE CRITICHE:
-1. RISPETTA I RIPOSI: Se un dipendente ha riposo mercoledì (3), non assegnarlo a nessun turno quel giorno.
-2. COPERTURA: Ogni turno (Mattina/Pomeriggio per sede) deve avere almeno 1 persona.
-3. EQUITÀ: Distribuisci i turni in modo equo rispettando le ore settimanali contrattuali.
-4. EVITA SOVRAPPOSIZIONI: Un dipendente non può essere in due sedi contemporaneamente.
+REGOLE SEMPLICI:
+1. RISPETTA I RIPOSI: Non assegnare MAI un dipendente nel suo giorno di riposo indicato in 'availability'.
+2. COPERTURA: Ogni slot deve avere almeno 1 o 2 persone assegnate (distribuisci equamente).
+3. VELOCITÀ: Non preoccuparti delle sedi (Palese/Bisceglie), assegna solo le persone alle ore.
 
 Dati:
 Dipendenti: {{{json employees}}}
-Turni da coprire: {{{json shifts}}}
-
-Fornisci una 'justification' in italiano per ogni assegnamento.
-Rispondi RIGOROSAMENTE nel formato JSON richiesto dallo schema.`,
+Slot: {{{json shifts}}}`,
 });
 
 const aiShiftOptimizationFlow = ai.defineFlow(
@@ -84,9 +71,7 @@ const aiShiftOptimizationFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await aiShiftOptimizationPrompt(input);
-    if (!output) {
-      throw new Error('Nessun output ricevuto dal prompt di ottimizzazione.');
-    }
+    if (!output) throw new Error('Nessun output ricevuto.');
     return output;
   }
 );

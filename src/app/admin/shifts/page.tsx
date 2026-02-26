@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from "react"
@@ -16,15 +15,9 @@ import {
   Sun,
   Moon,
   MapPin,
-  UserMinus,
-  Activity,
-  Umbrella,
-  Timer,
-  RefreshCw,
   Coffee,
-  MoreVertical,
-  Wand2,
-  CheckCircle2
+  Umbrella,
+  Wand2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -78,6 +71,7 @@ export default function ShiftsPage() {
   })
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
+  const weekEnd = addDays(weekStart, 6)
   const daysOfVisualizedWeek = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i))
   }, [weekStart])
@@ -102,7 +96,6 @@ export default function ShiftsPage() {
 
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
-    // Ordine specifico richiesto
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
     return [...employees]
       .filter(emp => !(emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo'))
@@ -179,112 +172,71 @@ export default function ShiftsPage() {
   }
 
   const handleGenerateAI = async () => {
-    if (!employees || !locations || employees.length === 0) {
-      toast({ variant: "destructive", title: "Dati mancanti", description: "Caricamento dipendenti o sedi non completato." });
-      return;
-    }
+    if (!employees || !locations || employees.length === 0) return;
     
     setIsGenerating(true);
-    toast({ title: "Analisi AI in corso...", description: "Sto ottimizzando la copertura per questa settimana." });
+    toast({ title: "Aggiornamento Settimana", description: "Rimozione turni precedenti e ottimizzazione in corso..." });
     
     try {
-      const palese = locations.find(l => l.name.toLowerCase().includes('palese'));
-      const bisceglie = locations.find(l => l.name.toLowerCase().includes('bisceglie'));
+      // 1. CANCELLAZIONE TURNI ESISTENTI NELLA SETTIMANA
+      const weekShifts = shifts?.filter(s => {
+        const d = parseISO(s.date);
+        return d >= weekStart && d <= weekEnd;
+      }) || [];
 
-      if (!palese || !bisceglie) {
-        throw new Error("Sedi operative non trovate nel sistema.");
-      }
+      weekShifts.forEach(s => {
+        deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id));
+      });
 
-      const shiftsToCover: any[] = [];
+      // 2. PREPARAZIONE SLOT SEMPLIFICATI (Solo Mattina e Pomeriggio senza distinzione sede)
+      const slotsToCover: any[] = [];
       daysOfVisualizedWeek.forEach(day => {
         if (day.getDay() === 0) return; // Salta Domenica
         const dayStr = format(day, 'yyyy-MM-dd');
         
-        // Definiamo i 4 slot fondamentali giornalieri
-        shiftsToCover.push({ 
-          id: `p-am-${dayStr}`, 
-          name: 'Palese Mattina', 
-          startTime: `${dayStr}T09:00:00Z`, 
-          endTime: `${dayStr}T13:00:00Z`, 
-          requiredRoles: [], requiredSkills: [], minCoverage: 1, 
-          locationId: palese.id 
-        });
-        shiftsToCover.push({ 
-          id: `b-am-${dayStr}`, 
-          name: 'Bisceglie Mattina', 
-          startTime: `${dayStr}T09:00:00Z`, 
-          endTime: `${dayStr}T13:00:00Z`, 
-          requiredRoles: [], requiredSkills: [], minCoverage: 1, 
-          locationId: bisceglie.id 
-        });
-        shiftsToCover.push({ 
-          id: `p-pm-${dayStr}`, 
-          name: 'Palese Pomeriggio', 
-          startTime: `${dayStr}T17:00:00Z`, 
-          endTime: `${dayStr}T20:20:00Z`, 
-          requiredRoles: [], requiredSkills: [], minCoverage: 1, 
-          locationId: palese.id 
-        });
-        shiftsToCover.push({ 
-          id: `b-pm-${dayStr}`, 
-          name: 'Bisceglie Pomeriggio', 
-          startTime: `${dayStr}T17:00:00Z`, 
-          endTime: `${dayStr}T20:20:00Z`, 
-          requiredRoles: [], requiredSkills: [], minCoverage: 1, 
-          locationId: bisceglie.id 
-        });
+        // Creiamo 2 slot per mattina e 2 per pomeriggio (copertura base)
+        for (let i = 1; i <= 2; i++) {
+          slotsToCover.push({ id: `am-${dayStr}-${i}`, name: 'Mattina', startTime: `${dayStr}T09:00:00Z`, endTime: `${dayStr}T13:00:00Z` });
+          slotsToCover.push({ id: `pm-${dayStr}-${i}`, name: 'Pomeriggio', startTime: `${dayStr}T17:00:00Z`, endTime: `${dayStr}T20:20:00Z` });
+        }
       });
 
       const aiInput = {
         employees: displayEmployees.map(e => ({
           id: e.id,
           name: `${e.firstName} ${e.lastName}`,
-          roles: [e.jobTitle || 'Collaboratore'],
-          skills: [],
-          availability: `Riposo il giorno ${e.restDay} (0=Dom, 1=Lun, 3=Mer...). Ore settimanali: ${e.weeklyHours}`
+          availability: `Riposo il giorno ${e.restDay} (0=Dom, 1=Lun...).`
         })),
-        shifts: shiftsToCover
+        shifts: slotsToCover
       };
 
       const result = await aiShiftOptimization(aiInput);
 
-      if (!result.optimizedAssignments || result.optimizedAssignments.length === 0) {
-        throw new Error("L'AI non ha prodotto assegnamenti validi.");
-      }
+      // 3. SALVATAGGIO (Tutti nello slot superiore PALESE come default)
+      const paleseId = locations.find(l => l.name.toLowerCase().includes('palese'))?.id || "default-palese";
 
-      // Salvataggio batch non-blocking
-      result.optimizedAssignments.forEach(asn => {
-        const targetShift = shiftsToCover.find(s => s.id === asn.shiftId);
-        if (!targetShift) return;
+      result.optimizedAssignments.forEach((asn, idx) => {
+        const targetSlot = slotsToCover.find(s => s.id === asn.shiftId);
+        if (!targetSlot) return;
 
-        const id = `ai-${Date.now()}-${asn.employeeId}-${targetShift.id}`;
+        const id = `ai-${Date.now()}-${idx}`;
         setDocumentNonBlocking(doc(db, "employees", asn.employeeId, "shifts", id), {
           id,
           employeeId: asn.employeeId,
-          locationId: targetShift.locationId,
-          date: targetShift.startTime.split('T')[0],
-          startTime: targetShift.startTime,
-          endTime: targetShift.endTime,
-          title: targetShift.name,
+          locationId: paleseId,
+          date: targetSlot.startTime.split('T')[0],
+          startTime: targetSlot.startTime,
+          endTime: targetSlot.endTime,
+          title: targetSlot.name,
           type: "MANUAL",
           companyId: "default",
-          status: "SCHEDULED",
-          justification: asn.justification
+          status: "SCHEDULED"
         }, { merge: true });
       });
 
-      toast({ 
-        title: "Generazione Completata", 
-        description: `Assegnati ${result.optimizedAssignments.length} turni ottimizzati.`,
-        variant: "default" 
-      });
+      toast({ title: "Generazione Completata", description: "I turni sono stati inseriti nello slot Palese. Spostali se necessario." });
     } catch (e: any) {
-      console.error("Shift AI Error:", e);
-      toast({ 
-        variant: "destructive", 
-        title: "Errore Generazione", 
-        description: e.message || "Impossibile completare l'ottimizzazione tramite AI." 
-      });
+      toast({ variant: "destructive", title: "Errore", description: "Impossibile completare l'operazione." });
     } finally {
       setIsGenerating(false);
     }
@@ -295,12 +247,12 @@ export default function ShiftsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Programmazione Settimanale</h1>
-          <p className="text-sm text-slate-500 font-medium italic">Layout fisso: Slot Palese (Su), Slot Bisceglie (Giù).</p>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest opacity-70">Gestione Centralizzata Badge</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button 
             onClick={handleGenerateAI} 
-            disabled={isGenerating || isEmployeesLoading}
+            disabled={isGenerating}
             className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-widest shadow-lg gap-2 h-11 px-6"
           >
             {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
@@ -323,9 +275,8 @@ export default function ShiftsPage() {
             <div className="py-32 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
           ) : (
             <div className="flex flex-col">
-              {/* Header Collaboratori */}
               <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
-                <div className="w-[80px] p-4 font-black text-[9px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
+                <div className="w-[80px] p-4 font-black text-[9px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center justify-center text-center">DATA</div>
                 {displayEmployees.map(emp => (
                   <div key={emp.id} className="min-w-[260px] p-4 border-r flex items-center gap-3 bg-slate-50/90 backdrop-blur-sm">
                     <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
@@ -333,18 +284,17 @@ export default function ShiftsPage() {
                       <AvatarFallback className="font-black text-xs bg-slate-200">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-lg leading-none uppercase tracking-tight">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[8px] font-black uppercase text-[#227FD8] tracking-widest mt-1 opacity-70">CONTRATTO: {emp.weeklyHours}H</span>
+                      <span className="font-black text-slate-900 text-base leading-none uppercase tracking-tight">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[8px] font-black uppercase text-[#227FD8] tracking-widest mt-1 opacity-70">REPARTO: {emp.jobTitle}</span>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Corpo Griglia */}
               <div className="divide-y divide-slate-100">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
-                  if (day.getDay() === 0) return null; // Salta Domenica
+                  if (day.getDay() === 0) return null;
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-50/20 transition-colors">
@@ -355,10 +305,8 @@ export default function ShiftsPage() {
                       
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
-                        const isRestDay = day.getDay().toString() === emp.restDay;
                         const isVittorio = emp.firstName?.toLowerCase() === 'vittorio';
                         
-                        // Smistamento Slot basato sulla sede
                         const slot1Events = dayEvents.filter(ev => {
                           const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
                           return !locName.toLowerCase().includes('bisceglie');
@@ -370,7 +318,7 @@ export default function ShiftsPage() {
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r bg-white flex flex-col p-1.5 gap-1.5">
-                            {/* SLOT 1 - PALESE */}
+                            {/* SLOT 1 - PALESE (DEFAULT GENERAZIONE) */}
                             <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
                               <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest pointer-events-none">PALESE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
@@ -423,7 +371,6 @@ export default function ShiftsPage() {
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
 
-      {/* DIALOG GESTIONE EVENTO */}
       <Dialog open={isShiftOpen || isEditOpen} onOpenChange={(o) => { if(!o) { setIsShiftOpen(false); setIsEditOpen(false); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -456,7 +403,7 @@ export default function ShiftsPage() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Assegnazione Sede</Label>
+              <Label className="font-black text-[10px] uppercase text-slate-500 tracking-widest">Sede Assegnata</Label>
               <Select value={form.locationId} onValueChange={v => setForm({...form, locationId: v})}>
                 <SelectTrigger className="h-11 font-bold"><SelectValue placeholder="Sede..." /></SelectTrigger>
                 <SelectContent>{locations?.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
@@ -501,7 +448,7 @@ function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
     <div 
       onClick={(e) => { e.stopPropagation(); onEdit(); }}
       className={cn(
-        "group relative p-2.5 rounded-lg border-l-[4px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
+        "group relative p-2 rounded-lg border-l-[4px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
         colorClass
       )}
     >
@@ -512,7 +459,7 @@ function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
           </span>
           {icon}
         </div>
-        <div className="text-[10px] font-black tracking-tight">{start} - {end}</div>
+        <div className="text-[9px] font-black tracking-tight">{start} - {end}</div>
         <div className="text-[8px] font-bold uppercase truncate">{ev.title || 'Turno'}</div>
       </div>
     </div>
