@@ -16,7 +16,9 @@ import {
   Umbrella,
   AlertTriangle,
   CheckCircle2,
-  CalendarDays
+  CalendarDays,
+  Building2,
+  Users2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -95,7 +97,7 @@ export default function ShiftsPage() {
   }, [db])
   const { data: locations } = useCollection(locationsQuery)
 
-  // ORDINE FISSO RICHIESTO
+  // ORDINE FISSO RICHIESTO: Vittorio, Isa, Rosa, Savino
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
@@ -113,7 +115,7 @@ export default function ShiftsPage() {
       });
   }, [employees]);
 
-  // Indicizzazione turni per accesso rapido
+  // Indicizzazione turni
   const indexedEvents = useMemo(() => {
     const map: Record<string, Record<string, any[]>> = {};
     if (!shifts) return map;
@@ -125,29 +127,6 @@ export default function ShiftsPage() {
     });
     return map;
   }, [shifts]);
-
-  // Calcolo Copertura AM/PM
-  const coverageData = useMemo(() => {
-    const dailyCoverage: Record<string, { am: number, pm: number }> = {};
-    daysOfVisualizedWeek.forEach(day => {
-      const dayStr = format(day, 'yyyy-MM-dd');
-      let amCount = 0;
-      let pmCount = 0;
-      
-      const dayShifts = Object.values(indexedEvents[dayStr] || {}).flat();
-      dayShifts.forEach(ev => {
-        if (ev.type === 'MANUAL' || !ev.type) {
-          const startTime = ev.startTime?.includes('T') ? ev.startTime.split('T')[1] : ev.startTime;
-          if (!startTime) return;
-          const hour = parseInt(startTime.split(':')[0]);
-          if (hour < 14) amCount++;
-          else pmCount++;
-        }
-      });
-      dailyCoverage[dayStr] = { am: amCount, pm: pmCount };
-    });
-    return dailyCoverage;
-  }, [indexedEvents, daysOfVisualizedWeek]);
 
   const handleOpenAdd = (employeeId: string, date: string, locId?: string) => {
     setForm({
@@ -200,10 +179,9 @@ export default function ShiftsPage() {
   const handleGenerateAI = async () => {
     if (!employees || !locations || employees.length === 0) return;
     setIsGenerating(true);
-    toast({ title: "Generazione AI", description: "Pianificazione della settimana in corso..." });
+    toast({ title: "Generazione AI", description: "Pianificazione rapida in corso..." });
     
     try {
-      // 1. Pulizia turni esistenti nella settimana
       const weekShifts = shifts?.filter(s => {
         const d = parseISO(s.date);
         return d >= weekStart && d <= weekEnd;
@@ -213,13 +191,12 @@ export default function ShiftsPage() {
         deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id));
       }
 
-      // 2. Definizione slot da coprire
       const slotsToCover: any[] = [];
       daysOfVisualizedWeek.forEach(day => {
-        if (day.getDay() === 0) return; // Escludi domenica
+        if (day.getDay() === 0) return;
         const dStr = format(day, 'yyyy-MM-dd');
-        slotsToCover.push({ id: `am1-${dStr}`, name: 'Mattina', startTime: `${dStr}T09:00:00Z`, endTime: `${dStr}T13:00:00Z` });
-        slotsToCover.push({ id: `pm1-${dStr}`, name: 'Pomeriggio', startTime: `${dStr}T17:00:00Z`, endTime: `${dStr}T20:20:00Z` });
+        slotsToCover.push({ id: `am-${dStr}`, name: 'Mattina', startTime: `${dStr}T09:00:00Z`, endTime: `${dStr}T13:00:00Z` });
+        slotsToCover.push({ id: `pm-${dStr}`, name: 'Pomeriggio', startTime: `${dStr}T17:00:00Z`, endTime: `${dStr}T20:20:00Z` });
       });
 
       const aiInput = {
@@ -234,7 +211,6 @@ export default function ShiftsPage() {
       const result = await aiShiftOptimization(aiInput);
       const paleseId = locations.find(l => l.name.toLowerCase().includes('palese'))?.id || "palese-id";
 
-      // 3. Inserimento nuovi turni
       result.optimizedAssignments.forEach((asn, idx) => {
         const targetSlot = slotsToCover.find(s => s.id === asn.shiftId);
         if (!targetSlot) return;
@@ -243,7 +219,7 @@ export default function ShiftsPage() {
         setDocumentNonBlocking(doc(db, "employees", asn.employeeId, "shifts", id), {
           id,
           employeeId: asn.employeeId,
-          locationId: paleseId, // Tutti in Palese come base, poi spostabili
+          locationId: paleseId,
           date: targetSlot.startTime.split('T')[0],
           startTime: targetSlot.startTime,
           endTime: targetSlot.endTime,
@@ -254,9 +230,9 @@ export default function ShiftsPage() {
         }, { merge: true });
       });
 
-      toast({ title: "Pianificazione Completa", description: "Griglia aggiornata con successo." });
+      toast({ title: "Completato" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore AI", description: "Impossibile completare l'operazione automatica." });
+      toast({ variant: "destructive", title: "Errore" });
     } finally {
       setIsGenerating(false);
     }
@@ -268,16 +244,16 @@ export default function ShiftsPage() {
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase">Pianificazione Turni</h1>
           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
-            <CalendarDays className="h-3 w-3 text-[#227FD8]" /> Gestione Sedi Palese e Bisceglie
+            <CalendarDays className="h-3 w-3 text-[#227FD8]" /> Monitoraggio Copertura Sedi
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button 
             onClick={handleGenerateAI} 
             disabled={isGenerating}
-            className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-widest shadow-lg gap-2 h-11 px-6 border-b-4 border-amber-700 active:border-b-0 transition-all"
+            className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-widest shadow-lg h-11 px-6"
           >
-            {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+            {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5 mr-2" />}
             GENERA TURNI AI
           </Button>
           
@@ -294,57 +270,50 @@ export default function ShiftsPage() {
       <ScrollArea className="w-full h-[750px] border rounded-2xl bg-slate-50 shadow-2xl overflow-hidden ring-1 ring-slate-200">
         <div className="inline-block min-w-full">
           {isEmployeesLoading || isShiftsLoading ? (
-            <div className="py-40 text-center"><Loader2 className="h-12 w-12 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-bold text-slate-400 uppercase text-xs tracking-widest">Caricamento Griglia...</p></div>
+            <div className="py-40 text-center"><Loader2 className="h-12 w-12 animate-spin mx-auto text-[#227FD8]" /><p className="mt-4 font-bold text-slate-400 uppercase text-xs">Caricamento...</p></div>
           ) : (
             <div className="flex flex-col">
-              {/* Header Dipendenti */}
+              {/* Header Dipendenti + Specchietto */}
               <div className="flex sticky top-0 z-30 bg-slate-100 border-b shadow-md">
                 <div className="w-[100px] p-4 font-black text-[9px] uppercase text-slate-400 sticky left-0 bg-slate-100 border-r z-40 flex items-center justify-center text-center">DATA</div>
                 {displayEmployees.map(emp => (
                   <div key={emp.id} className="min-w-[240px] p-4 border-r flex items-center gap-3 bg-slate-100/95 backdrop-blur-sm">
-                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm ring-2 ring-slate-200">
+                    <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
                       <AvatarImage src={emp.photoUrl} />
-                      <AvatarFallback className="font-black text-xs bg-slate-300">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
+                      <AvatarFallback className="font-black text-[10px]">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-sm uppercase leading-none">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[8px] font-black uppercase text-[#227FD8] mt-1 tracking-tighter">{emp.jobTitle}</span>
+                      <span className="font-black text-slate-900 text-xs uppercase leading-none">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[8px] font-bold text-[#227FD8] mt-1">{emp.jobTitle}</span>
                     </div>
                   </div>
                 ))}
+                {/* Header Specchietto */}
+                <div className="min-w-[220px] p-4 bg-slate-200/50 flex items-center justify-center gap-2 border-l-2 border-l-slate-300">
+                  <Building2 className="h-4 w-4 text-slate-500" />
+                  <span className="font-black text-[10px] uppercase text-slate-600 tracking-widest">Copertura Sedi</span>
+                </div>
               </div>
 
               {/* Corpo Griglia */}
               <div className="divide-y divide-slate-200">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
-                  if (day.getDay() === 0) return null; // Salta domenica
-                  const cov = coverageData[dayStr];
+                  if (day.getDay() === 0) return null;
+
+                  const dayShifts = Object.values(indexedEvents[dayStr] || {}).flat();
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-100/30 transition-colors">
                       {/* Colonna Data */}
                       <div className="w-[100px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[2px_0_10px_rgba(0,0,0,0.03)]">
                         <div className="text-[9px] font-black uppercase text-slate-400 mb-0.5">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className="text-4xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
-                        
-                        <div className="mt-3 space-y-1">
-                          <div className={cn("text-[8px] font-black py-1 rounded flex items-center justify-center gap-1.5 px-2", cov.am > 0 ? "bg-green-100 text-green-700" : "bg-rose-100 text-rose-700")}>
-                            {cov.am > 0 ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertTriangle className="h-2.5 w-2.5" />} AM: {cov.am}
-                          </div>
-                          <div className={cn("text-[8px] font-black py-1 rounded flex items-center justify-center gap-1.5 px-2", cov.pm > 0 ? "bg-green-100 text-green-700" : "bg-rose-100 text-rose-700")}>
-                            {cov.pm > 0 ? <CheckCircle2 className="h-2.5 w-2.5" /> : <AlertTriangle className="h-2.5 w-2.5" />} PM: {cov.pm}
-                          </div>
-                        </div>
+                        <div className="text-3xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
                       </div>
                       
                       {/* Celle Dipendenti */}
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
-                        const isVittorio = emp.firstName?.toLowerCase() === 'vittorio';
-                        const isWednesday = day.getDay() === 3;
-                        
-                        // LOGICA SLOTS: PALESE sopra, BISCEGLIE sotto
                         const paleseEvents = dayEvents.filter(ev => {
                           const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
                           return !locName.toLowerCase().includes('bisceglie');
@@ -356,51 +325,60 @@ export default function ShiftsPage() {
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[240px] border-r bg-white flex flex-col p-2 gap-2">
-                            
-                            {/* SLOT PALESE (Superiore) */}
-                            <div className="flex-1 min-h-[100px] border-2 rounded-2xl border-dashed border-slate-100 p-1 relative group/slot bg-slate-50/30">
-                              <div className="absolute top-1.5 right-2 text-[7px] font-black text-slate-300 uppercase tracking-[0.2em] pointer-events-none">PALESE</div>
-                              <div className="flex flex-col gap-2 relative z-10">
-                                {isVittorio && isWednesday && paleseEvents.length === 0 ? (
-                                  <div className="p-3 rounded-xl border-l-[6px] border-l-slate-400 bg-slate-100 text-slate-600 shadow-sm">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-[8px] font-black uppercase tracking-widest opacity-60">RIPOSO</span>
-                                      <Coffee className="h-3 w-3" />
-                                    </div>
-                                    <div className="text-[10px] font-black">09:00 - 13:00</div>
-                                    <div className="text-[9px] font-bold uppercase truncate">Riposo Vittorio</div>
-                                  </div>
-                                ) : paleseEvents.map(ev => (
-                                  <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />
-                                ))}
-                                <button 
-                                  onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('palese'))?.id)}
-                                  className="w-full py-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/slot:opacity-100 hover:border-[#227FD8] hover:text-[#227FD8] transition-all flex items-center justify-center bg-white/50"
-                                >
-                                  <Plus className="h-5 w-5" />
-                                </button>
+                            {/* SLOT PALESE */}
+                            <div className="flex-1 min-h-[90px] border-2 rounded-xl border-dashed border-slate-100 p-1 relative group/palese bg-slate-50/30">
+                              <div className="absolute top-1 right-2 text-[7px] font-black text-slate-300 uppercase pointer-events-none">PALESE</div>
+                              <div className="flex flex-col gap-1.5 relative z-10">
+                                {paleseEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />)}
+                                <button onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('palese'))?.id)} className="w-full py-2 rounded-lg border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/palese:opacity-100 hover:text-[#227FD8] transition-all flex items-center justify-center bg-white/50"><Plus className="h-4 w-4" /></button>
                               </div>
                             </div>
-
-                            {/* SLOT BISCEGLIE (Inferiore) */}
-                            <div className="flex-1 min-h-[100px] border-2 rounded-2xl border-dashed border-slate-100 p-1 relative group/slot2 bg-slate-50/30">
-                              <div className="absolute top-1.5 right-2 text-[7px] font-black text-slate-300 uppercase tracking-[0.2em] pointer-events-none">BISCEGLIE</div>
-                              <div className="flex flex-col gap-2 relative z-10">
-                                {bisceglieEvents.map(ev => (
-                                  <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />
-                                ))}
-                                <button 
-                                  onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('bisceglie'))?.id)}
-                                  className="w-full py-3 rounded-xl border-2 border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/slot2:opacity-100 hover:border-[#227FD8] hover:text-[#227FD8] transition-all flex items-center justify-center bg-white/50"
-                                >
-                                  <Plus className="h-5 w-5" />
-                                </button>
+                            {/* SLOT BISCEGLIE */}
+                            <div className="flex-1 min-h-[90px] border-2 rounded-xl border-dashed border-slate-100 p-1 relative group/bisceglie bg-slate-50/30">
+                              <div className="absolute top-1 right-2 text-[7px] font-black text-slate-300 uppercase pointer-events-none">BISCEGLIE</div>
+                              <div className="flex flex-col gap-1.5 relative z-10">
+                                {bisceglieEvents.map(ev => <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />)}
+                                <button onClick={() => handleOpenAdd(emp.id, dayStr, locations?.find(l => l.name.toLowerCase().includes('bisceglie'))?.id)} className="w-full py-2 rounded-lg border border-dashed border-slate-200 text-slate-300 opacity-0 group-hover/bisceglie:opacity-100 hover:text-[#227FD8] transition-all flex items-center justify-center bg-white/50"><Plus className="h-4 w-4" /></button>
                               </div>
                             </div>
-
                           </div>
                         );
                       })}
+
+                      {/* SPECCHIETTO COPERTURA (Colonna Destra) */}
+                      <div className="min-w-[220px] bg-slate-50/80 p-3 border-l-2 border-l-slate-200 flex flex-col gap-3">
+                        {locations?.map(loc => {
+                          const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE');
+                          let am = 0; let pm = 0;
+                          locShifts.forEach(s => {
+                            const start = s.startTime?.includes('T') ? s.startTime.split('T')[1] : s.startTime;
+                            const hour = parseInt(start?.split(':')[0] || "0");
+                            if (hour < 14) am++; else pm++;
+                          });
+
+                          return (
+                            <div key={loc.id} className="bg-white rounded-xl border p-2.5 shadow-sm">
+                              <div className="flex items-center gap-2 mb-2 border-b pb-1.5">
+                                <div className="h-5 w-5 rounded bg-slate-100 flex items-center justify-center">
+                                  <Building2 className="h-3 w-3 text-slate-500" />
+                                </div>
+                                <span className="font-black text-[9px] uppercase text-slate-700 truncate w-32">{loc.name}</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className={cn("rounded-lg p-1.5 flex flex-col items-center justify-center border", am > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
+                                  <span className="text-[7px] font-black uppercase text-slate-400">AM</span>
+                                  <span className={cn("text-sm font-black", am > 0 ? "text-green-700" : "text-rose-700")}>{am}</span>
+                                </div>
+                                <div className={cn("rounded-lg p-1.5 flex flex-col items-center justify-center border", pm > 0 ? "bg-green-50 border-green-100" : "bg-rose-50 border-rose-100")}>
+                                  <span className="text-[7px] font-black uppercase text-slate-400">PM</span>
+                                  <span className={cn("text-sm font-black", pm > 0 ? "text-green-700" : "text-rose-700")}>{pm}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+
                     </div>
                   );
                 })}
@@ -475,36 +453,36 @@ function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
   const isMorning = parseInt(start.split(':')[0]) < 14;
 
   let colorClass = "border-l-amber-500 bg-amber-50 text-amber-900";
-  let icon = <Sun className="h-3.5 w-3.5 text-amber-500" />;
+  let icon = <Sun className="h-3 w-3 text-amber-500" />;
 
   if (ev.type === 'REST') {
     colorClass = "border-l-slate-400 bg-slate-100 text-slate-600";
-    icon = <Coffee className="h-3.5 w-3.5 text-slate-400" />;
+    icon = <Coffee className="h-3 w-3 text-slate-400" />;
   } else if (ev.type === 'ABSENCE') {
     colorClass = "border-l-rose-600 bg-rose-50 text-rose-900";
-    icon = <Umbrella className="h-3.5 w-3.5 text-rose-600" />;
+    icon = <Umbrella className="h-3 w-3 text-rose-600" />;
   } else if (!isMorning) {
     colorClass = "border-l-indigo-600 bg-indigo-50 text-indigo-900";
-    icon = <Moon className="h-3.5 w-3.5 text-indigo-600" />;
+    icon = <Moon className="h-3 w-3 text-indigo-600" />;
   }
 
   return (
     <div 
       onClick={(e) => { e.stopPropagation(); onEdit(); }}
       className={cn(
-        "group relative p-3 rounded-xl border-l-[6px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full border border-slate-100",
+        "group relative p-2.5 rounded-xl border-l-[4px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full border border-slate-100",
         colorClass
       )}
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5">
         <div className="flex items-center justify-between">
-          <span className="text-[8px] font-black uppercase tracking-widest opacity-70">
+          <span className="text-[7px] font-black uppercase tracking-widest opacity-70">
             {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : 'LAVORO'}
           </span>
           {icon}
         </div>
-        <div className="text-[10px] font-black tracking-tight">{start} - {end}</div>
-        <div className="text-[9px] font-bold uppercase truncate opacity-80">{ev.title || 'Turno'}</div>
+        <div className="text-[9px] font-black tracking-tight">{start} - {end}</div>
+        <div className="text-[8px] font-bold uppercase truncate opacity-80">{ev.title || 'Turno'}</div>
       </div>
     </div>
   )
