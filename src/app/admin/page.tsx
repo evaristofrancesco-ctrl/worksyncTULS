@@ -92,9 +92,9 @@ export default function AdminDashboard() {
         const entryDate = new Date(entry.checkInTime).toISOString().split('T')[0];
         if (entryDate !== todayStr) return false;
         
-        const entryHour = new Date(entry.checkInTime).getHours();
-        const shiftHour = new Date(shift.startTime).getHours();
-        return Math.abs(entryHour - shiftHour) <= 3;
+        const entryIn = new Date(entry.checkInTime);
+        const shiftIn = new Date(shift.startTime);
+        return Math.abs(entryIn.getTime() - shiftIn.getTime()) <= 4 * 60 * 60 * 1000;
       });
 
       if (hasEntry) return false;
@@ -120,9 +120,19 @@ export default function AdminDashboard() {
         .map(s => s.employeeId)
     ));
 
-    return employeeIdsScheduledToday.map(id => {
+    const employeeIdsWithEntriesToday = Array.from(new Set(
+      allEntries
+        .filter(e => new Date(e.checkInTime).toISOString().split('T')[0] === todayStr)
+        .map(e => e.employeeId)
+    ));
+
+    const allRelevantIds = Array.from(new Set([...employeeIdsScheduledToday, ...employeeIdsWithEntriesToday]));
+
+    return allRelevantIds.map(id => {
       const emp = employeeMap[id];
-      const empShifts = allShifts.filter(s => s.employeeId === id && s.date === todayStr);
+      if (!emp) return null;
+
+      const empShifts = allShifts.filter(s => s.employeeId === id && s.date === todayStr && s.type !== 'REST' && s.type !== 'ABSENCE');
       const empEntriesRaw = entriesByEmployee.get(id) || [];
       
       const empEntries = empEntriesRaw
@@ -148,13 +158,15 @@ export default function AdminDashboard() {
           return { ...entry, isWrong };
         });
 
+      if (empEntries.length === 0 && empShifts.length === 0) return null;
+
       return {
         employee: emp,
         entries: empEntries,
         isCurrentlyIn: empEntries.some(e => !e.checkOutTime)
       };
-    }).filter(item => item.employee);
-  }, [allShifts, entriesByEmployee, employees, employeeMap, now]);
+    }).filter(item => item !== null);
+  }, [allShifts, allEntries, employees, employeeMap, now, entriesByEmployee]);
 
   const myGoal = useMemo(() => {
     const me = employees?.find(e => e.id === employeeId);
@@ -270,10 +282,10 @@ export default function AdminDashboard() {
                                 variant="outline" 
                                 className={`h-6 text-[10px] font-bold ${
                                   e.isWrong 
-                                    ? "bg-rose-50 text-rose-700 border-rose-200" 
+                                    ? "bg-rose-100 text-rose-700 border-rose-300 shadow-sm" 
                                     : !e.checkOutTime 
-                                      ? "bg-green-50 text-green-700 border-green-200" 
-                                      : "bg-slate-50 text-slate-500 border-slate-200"
+                                      ? "bg-green-100 text-green-700 border-green-300 shadow-sm" 
+                                      : "bg-blue-50 text-[#227FD8] border-blue-200"
                                 }`}
                               >
                                 {new Date(e.checkInTime).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
