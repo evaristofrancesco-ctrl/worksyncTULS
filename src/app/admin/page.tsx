@@ -79,9 +79,13 @@ export default function AdminDashboard() {
     return allShifts.filter(shift => {
       if (shift.date !== todayStr) return false;
       
+      // ESCLUDI RIPOSI E ASSENZE DALL'ALLERTA RITARDO
+      if (shift.type === 'REST' || shift.type === 'ABSENCE') return false;
+      
       const emp = employeeMap[shift.employeeId];
       if (!emp) return false;
 
+      // Escludi Francesco Evaristo come da regola precedente
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       if (isFrancesco) return false;
 
@@ -92,13 +96,14 @@ export default function AdminDashboard() {
         
         const entryHour = new Date(entry.checkInTime).getHours();
         const shiftHour = new Date(shift.startTime).getHours();
+        // Se ha timbrato entro 3 ore dall'inizio previsto, consideralo presente
         return Math.abs(entryHour - shiftHour) <= 3;
       });
 
       if (hasEntry) return false;
 
       const startTime = new Date(shift.startTime);
-      const limitTime = addMinutes(startTime, 15);
+      const limitTime = addMinutes(startTime, 15); // Allerta dopo 15 minuti di ritardo
       
       return isAfter(now, limitTime);
     }).map(s => ({
@@ -114,7 +119,7 @@ export default function AdminDashboard() {
     
     const employeeIdsScheduledToday = Array.from(new Set(
       allShifts
-        .filter(s => s.date === todayStr)
+        .filter(s => s.date === todayStr && s.type !== 'REST' && s.type !== 'ABSENCE')
         .map(s => s.employeeId)
     ));
 
@@ -192,13 +197,22 @@ export default function AdminDashboard() {
         </div>
         
         {missingClockIns.length > 0 && (
-          <div className="bg-rose-50 border-2 border-rose-200 p-4 rounded-3xl flex items-center gap-4 animate-bounce">
-            <div className="bg-rose-500 p-3 rounded-2xl text-white shadow-lg shadow-rose-200">
-              <BellRing className="h-6 w-6" />
+          <div className="bg-rose-50 border-2 border-rose-200 p-4 rounded-3xl flex flex-col gap-3 shadow-lg shadow-rose-100 min-w-[300px]">
+            <div className="flex items-center gap-4">
+              <div className="bg-rose-500 p-3 rounded-2xl text-white shadow-lg shadow-rose-200 animate-pulse">
+                <BellRing className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-rose-700 font-black text-[10px] uppercase tracking-widest">Allerta Presenze</p>
+                <p className="text-rose-900 font-bold text-sm">Mancata Timbratura Inizio:</p>
+              </div>
             </div>
-            <div>
-              <p className="text-rose-700 font-black text-xs uppercase tracking-widest">Allerta Presenze</p>
-              <p className="text-rose-900 font-bold text-sm">{missingClockIns.length} in ritardo.</p>
+            <div className="flex flex-wrap gap-2 pl-14">
+              {missingClockIns.map((m, idx) => (
+                <Badge key={idx} variant="destructive" className="bg-rose-600 font-black uppercase text-[10px] px-2 py-1">
+                  {m.employee?.firstName} {m.employee?.lastName}
+                </Badge>
+              ))}
             </div>
           </div>
         )}
@@ -210,7 +224,7 @@ export default function AdminDashboard() {
             <StatCard title="Team" value={employees?.length || 0} description="Totali" icon={Users} />
             <StatCard title="Attivi" value={allEntries?.filter(e => !e.checkOutTime).length || 0} description="In servizio" icon={Clock} />
             <StatCard title="Richieste" value={allRequests?.filter(r => (r.status || "").toUpperCase() === "PENDING").length || 0} description="Da gestire" icon={FileText} />
-            <StatCard title="Turni" value={allShifts?.filter(s => s.date === now.toISOString().split('T')[0]).length || 0} description="Oggi" icon={Calendar} />
+            <StatCard title="Turni" value={allShifts?.filter(s => s.date === now.toISOString().split('T')[0] && s.type !== 'REST' && s.type !== 'ABSENCE').length || 0} description="Oggi" icon={Calendar} />
           </div>
 
           <div className="grid gap-8 md:grid-cols-2">
