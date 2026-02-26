@@ -22,7 +22,8 @@ import {
   Timer,
   RefreshCw,
   Coffee,
-  MoreVertical
+  MoreVertical,
+  Wand2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -37,7 +38,8 @@ import {
   addDays, 
   startOfWeek, 
   parseISO, 
-  subDays 
+  subDays,
+  isSameDay
 } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -52,11 +54,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { aiShiftOptimization } from "@/ai/flows/ai-shift-optimization-flow"
 
 export default function ShiftsPage() {
   const db = useFirestore()
   const { toast } = useToast()
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [isGenerating, setIsGenerating] = useState(false)
   
   const [isShiftOpen, setIsShiftOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -172,6 +176,70 @@ export default function ShiftsPage() {
     setIsEditOpen(true);
   }
 
+  const handleGenerateAI = async () => {
+    if (!employees || !locations) return;
+    setIsGenerating(true);
+    
+    try {
+      const palese = locations.find(l => l.name.toLowerCase().includes('palese'));
+      const bisceglie = locations.find(l => l.name.toLowerCase().includes('bisceglie'));
+
+      const shiftsToCover: any[] = [];
+      daysOfVisualizedWeek.forEach(day => {
+        if (day.getDay() === 0) return; // Salta Domenica
+        const dayStr = format(day, 'yyyy-MM-dd');
+        
+        // Slot Mattina
+        shiftsToCover.push({ id: `p-am-${dayStr}`, name: 'Palese Mattina', startTime: `${dayStr}T09:00:00Z`, endTime: `${dayStr}T13:00:00Z`, requiredRoles: [], requiredSkills: [], minCoverage: 1, locationId: palese?.id });
+        shiftsToCover.push({ id: `b-am-${dayStr}`, name: 'Bisceglie Mattina', startTime: `${dayStr}T09:00:00Z`, endTime: `${dayStr}T13:00:00Z`, requiredRoles: [], requiredSkills: [], minCoverage: 1, locationId: bisceglie?.id });
+        
+        // Slot Pomeriggio
+        shiftsToCover.push({ id: `p-pm-${dayStr}`, name: 'Palese Pomeriggio', startTime: `${dayStr}T17:00:00Z`, endTime: `${dayStr}T20:20:00Z`, requiredRoles: [], requiredSkills: [], minCoverage: 1, locationId: palese?.id });
+        shiftsToCover.push({ id: `b-pm-${dayStr}`, name: 'Bisceglie Pomeriggio', startTime: `${dayStr}T17:00:00Z`, endTime: `${dayStr}T20:20:00Z`, requiredRoles: [], requiredSkills: [], minCoverage: 1, locationId: bisceglie?.id });
+      });
+
+      const aiInput = {
+        employees: displayEmployees.map(e => ({
+          id: e.id,
+          name: `${e.firstName} ${e.lastName}`,
+          roles: [e.jobTitle || 'Collaboratore'],
+          skills: [],
+          availability: `Riposo il giorno ${e.restDay} (0=Dom, 1=Lun...). Ore settimanali: ${e.weeklyHours}`
+        })),
+        shifts: shiftsToCover
+      };
+
+      const result = await aiShiftOptimization(aiInput);
+
+      result.optimizedAssignments.forEach(asn => {
+        const targetShift = shiftsToCover.find(s => s.id === asn.shiftId);
+        if (!targetShift) return;
+
+        const id = `ai-${Date.now()}-${asn.employeeId}-${targetShift.id}`;
+        setDocumentNonBlocking(doc(db, "employees", asn.employeeId, "shifts", id), {
+          id,
+          employeeId: asn.employeeId,
+          locationId: targetShift.locationId,
+          date: targetShift.startTime.split('T')[0],
+          startTime: targetShift.startTime,
+          endTime: targetShift.endTime,
+          title: targetShift.name,
+          type: "MANUAL",
+          companyId: "default",
+          status: "SCHEDULED",
+          justification: asn.justification
+        }, { merge: true });
+      });
+
+      toast({ title: "Ottimizzazione Completata", description: "I turni suggeriti sono stati inseriti nella griglia." });
+    } catch (e) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Errore AI", description: "Impossibile completare l'ottimizzazione automatica." });
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -179,12 +247,23 @@ export default function ShiftsPage() {
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Programmazione Settimanale</h1>
           <p className="text-sm text-slate-500 font-medium italic">Layout fisso: Slot Palese (Su), Slot Bisceglie (Giù).</p>
         </div>
-        <div className="flex items-center gap-4 bg-white p-2 rounded-xl shadow-sm border ring-1 ring-slate-200">
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-5 w-5" /></Button>
-          <span className="text-sm font-black uppercase tracking-widest min-w-[180px] text-center">
-            {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
-          </span>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-5 w-5" /></Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button 
+            onClick={handleGenerateAI} 
+            disabled={isGenerating || isEmployeesLoading}
+            className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-widest shadow-lg gap-2"
+          >
+            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            GENERA TURNI AI
+          </Button>
+          
+          <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border ring-1 ring-slate-200">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentDate(subDays(currentDate, 7))}><ChevronLeft className="h-4 w-4" /></Button>
+            <span className="text-[10px] font-black uppercase tracking-tighter min-w-[120px] text-center">
+              {format(weekStart, 'dd MMM', { locale: it })} - {format(addDays(weekStart, 6), 'dd MMM', { locale: it })}
+            </span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentDate(addDays(currentDate, 7))}><ChevronRight className="h-4 w-4" /></Button>
+          </div>
         </div>
       </div>
 
@@ -195,16 +274,16 @@ export default function ShiftsPage() {
           ) : (
             <div className="flex flex-col">
               <div className="flex sticky top-0 z-30 bg-slate-50 border-b">
-                <div className="w-[100px] p-4 font-black text-[10px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center justify-center">DATA</div>
+                <div className="w-[80px] p-4 font-black text-[9px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
                 {displayEmployees.map(emp => (
-                  <div key={emp.id} className="min-w-[280px] p-4 border-r flex items-center gap-3 bg-slate-50/90 backdrop-blur-sm">
+                  <div key={emp.id} className="min-w-[260px] p-4 border-r flex items-center gap-3 bg-slate-50/90 backdrop-blur-sm">
                     <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
                       <AvatarImage src={emp.photoUrl} />
                       <AvatarFallback className="font-black text-xs bg-slate-200">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
                       <span className="font-black text-slate-900 text-lg leading-none uppercase">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[9px] font-black uppercase text-[#227FD8] tracking-widest mt-1">H: {emp.weeklyHours}h/sett</span>
+                      <span className="text-[8px] font-black uppercase text-[#227FD8] tracking-widest mt-1">CONTRATTO: {emp.weeklyHours}H</span>
                     </div>
                   </div>
                 ))}
@@ -217,14 +296,15 @@ export default function ShiftsPage() {
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-50/20 transition-colors">
-                      <div className="w-[100px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
-                        <div className="text-[10px] font-black uppercase text-slate-400 mb-0.5">{format(day, 'EEEE', { locale: it })}</div>
-                        <div className="text-4xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
+                      <div className="w-[80px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
+                        <div className="text-[9px] font-black uppercase text-slate-400 mb-0.5">{format(day, 'EEE', { locale: it })}</div>
+                        <div className="text-3xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
                       </div>
                       
                       {displayEmployees.map(emp => {
                         const dayEvents = (indexedEvents[dayStr] || {})[emp.id] || [];
-                        const isVittorioWednesday = emp.firstName?.toLowerCase() === 'vittorio' && day.getDay() === 3;
+                        const isRestDay = day.getDay().toString() === emp.restDay;
+                        const isVittorio = emp.firstName?.toLowerCase() === 'vittorio';
                         
                         const slot1Events = dayEvents.filter(ev => {
                           const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
@@ -236,19 +316,19 @@ export default function ShiftsPage() {
                         });
 
                         return (
-                          <div key={`${dayStr}-${emp.id}`} className="min-w-[280px] border-r bg-white flex flex-col p-1.5 gap-1.5">
+                          <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r bg-white flex flex-col p-1.5 gap-1.5">
                             {/* SLOT 1 - PALESE */}
-                            <div className="flex-1 min-h-[85px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
-                              <div className="absolute top-1 right-1 text-[8px] font-black text-slate-200 uppercase tracking-widest">PALESE</div>
+                            <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
+                              <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest">PALESE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
-                                {isVittorioWednesday && slot1Events.length === 0 ? (
-                                  <div className="p-3 rounded-lg border-l-[6px] border-l-slate-400 bg-slate-50 text-slate-600 shadow-sm">
+                                {isVittorio && day.getDay() === 3 && slot1Events.length === 0 ? (
+                                  <div className="p-3 rounded-lg border-l-[4px] border-l-slate-400 bg-slate-50 text-slate-600 shadow-sm">
                                     <div className="flex items-center justify-between mb-1">
-                                      <span className="text-[9px] font-black uppercase tracking-widest opacity-60">RIPOSO</span>
+                                      <span className="text-[8px] font-black uppercase tracking-widest opacity-60">RIPOSO</span>
                                       <Coffee className="h-3 w-3" />
                                     </div>
-                                    <div className="text-sm font-black tracking-tight">09:00 - 13:00</div>
-                                    <div className="text-[10px] font-bold uppercase truncate">Riposo Settimanale</div>
+                                    <div className="text-[10px] font-black tracking-tight">09:00 - 13:00</div>
+                                    <div className="text-[8px] font-bold uppercase truncate">Riposo Vittorio</div>
                                   </div>
                                 ) : slot1Events.map(ev => (
                                   <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />
@@ -263,8 +343,8 @@ export default function ShiftsPage() {
                             </div>
 
                             {/* SLOT 2 - BISCEGLIE */}
-                            <div className="flex-1 min-h-[85px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot2">
-                              <div className="absolute top-1 right-1 text-[8px] font-black text-slate-200 uppercase tracking-widest">BISCEGLIE</div>
+                            <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot2">
+                              <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest">BISCEGLIE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
                                 {slot2Events.map(ev => (
                                   <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />
@@ -368,19 +448,19 @@ function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
     <div 
       onClick={(e) => { e.stopPropagation(); onEdit(); }}
       className={cn(
-        "group relative p-2.5 rounded-lg border-l-[5px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
+        "group relative p-3 rounded-lg border-l-[4px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
         colorClass
       )}
     >
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
+          <span className="text-[8px] font-black uppercase tracking-widest opacity-60">
             {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : 'LAVORO'}
           </span>
           {icon}
         </div>
-        <div className="text-xs font-black tracking-tighter">{start} - {end}</div>
-        <div className="text-[10px] font-bold uppercase truncate">{ev.title || 'Turno'}</div>
+        <div className="text-[10px] font-black tracking-tight">{start} - {end}</div>
+        <div className="text-[8px] font-bold uppercase truncate">{ev.title || 'Turno'}</div>
       </div>
     </div>
   )
