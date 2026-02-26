@@ -23,7 +23,8 @@ import {
   RefreshCw,
   Coffee,
   MoreVertical,
-  Wand2
+  Wand2,
+  CheckCircle2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -101,6 +102,7 @@ export default function ShiftsPage() {
 
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
+    // Ordine specifico richiesto
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
     return [...employees]
       .filter(emp => !(emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo'))
@@ -177,25 +179,60 @@ export default function ShiftsPage() {
   }
 
   const handleGenerateAI = async () => {
-    if (!employees || !locations) return;
+    if (!employees || !locations || employees.length === 0) {
+      toast({ variant: "destructive", title: "Dati mancanti", description: "Caricamento dipendenti o sedi non completato." });
+      return;
+    }
+    
     setIsGenerating(true);
+    toast({ title: "Analisi AI in corso...", description: "Sto ottimizzando la copertura per questa settimana." });
     
     try {
       const palese = locations.find(l => l.name.toLowerCase().includes('palese'));
       const bisceglie = locations.find(l => l.name.toLowerCase().includes('bisceglie'));
+
+      if (!palese || !bisceglie) {
+        throw new Error("Sedi operative non trovate nel sistema.");
+      }
 
       const shiftsToCover: any[] = [];
       daysOfVisualizedWeek.forEach(day => {
         if (day.getDay() === 0) return; // Salta Domenica
         const dayStr = format(day, 'yyyy-MM-dd');
         
-        // Slot Mattina
-        shiftsToCover.push({ id: `p-am-${dayStr}`, name: 'Palese Mattina', startTime: `${dayStr}T09:00:00Z`, endTime: `${dayStr}T13:00:00Z`, requiredRoles: [], requiredSkills: [], minCoverage: 1, locationId: palese?.id });
-        shiftsToCover.push({ id: `b-am-${dayStr}`, name: 'Bisceglie Mattina', startTime: `${dayStr}T09:00:00Z`, endTime: `${dayStr}T13:00:00Z`, requiredRoles: [], requiredSkills: [], minCoverage: 1, locationId: bisceglie?.id });
-        
-        // Slot Pomeriggio
-        shiftsToCover.push({ id: `p-pm-${dayStr}`, name: 'Palese Pomeriggio', startTime: `${dayStr}T17:00:00Z`, endTime: `${dayStr}T20:20:00Z`, requiredRoles: [], requiredSkills: [], minCoverage: 1, locationId: palese?.id });
-        shiftsToCover.push({ id: `b-pm-${dayStr}`, name: 'Bisceglie Pomeriggio', startTime: `${dayStr}T17:00:00Z`, endTime: `${dayStr}T20:20:00Z`, requiredRoles: [], requiredSkills: [], minCoverage: 1, locationId: bisceglie?.id });
+        // Definiamo i 4 slot fondamentali giornalieri
+        shiftsToCover.push({ 
+          id: `p-am-${dayStr}`, 
+          name: 'Palese Mattina', 
+          startTime: `${dayStr}T09:00:00Z`, 
+          endTime: `${dayStr}T13:00:00Z`, 
+          requiredRoles: [], requiredSkills: [], minCoverage: 1, 
+          locationId: palese.id 
+        });
+        shiftsToCover.push({ 
+          id: `b-am-${dayStr}`, 
+          name: 'Bisceglie Mattina', 
+          startTime: `${dayStr}T09:00:00Z`, 
+          endTime: `${dayStr}T13:00:00Z`, 
+          requiredRoles: [], requiredSkills: [], minCoverage: 1, 
+          locationId: bisceglie.id 
+        });
+        shiftsToCover.push({ 
+          id: `p-pm-${dayStr}`, 
+          name: 'Palese Pomeriggio', 
+          startTime: `${dayStr}T17:00:00Z`, 
+          endTime: `${dayStr}T20:20:00Z`, 
+          requiredRoles: [], requiredSkills: [], minCoverage: 1, 
+          locationId: palese.id 
+        });
+        shiftsToCover.push({ 
+          id: `b-pm-${dayStr}`, 
+          name: 'Bisceglie Pomeriggio', 
+          startTime: `${dayStr}T17:00:00Z`, 
+          endTime: `${dayStr}T20:20:00Z`, 
+          requiredRoles: [], requiredSkills: [], minCoverage: 1, 
+          locationId: bisceglie.id 
+        });
       });
 
       const aiInput = {
@@ -204,13 +241,18 @@ export default function ShiftsPage() {
           name: `${e.firstName} ${e.lastName}`,
           roles: [e.jobTitle || 'Collaboratore'],
           skills: [],
-          availability: `Riposo il giorno ${e.restDay} (0=Dom, 1=Lun...). Ore settimanali: ${e.weeklyHours}`
+          availability: `Riposo il giorno ${e.restDay} (0=Dom, 1=Lun, 3=Mer...). Ore settimanali: ${e.weeklyHours}`
         })),
         shifts: shiftsToCover
       };
 
       const result = await aiShiftOptimization(aiInput);
 
+      if (!result.optimizedAssignments || result.optimizedAssignments.length === 0) {
+        throw new Error("L'AI non ha prodotto assegnamenti validi.");
+      }
+
+      // Salvataggio batch non-blocking
       result.optimizedAssignments.forEach(asn => {
         const targetShift = shiftsToCover.find(s => s.id === asn.shiftId);
         if (!targetShift) return;
@@ -231,10 +273,18 @@ export default function ShiftsPage() {
         }, { merge: true });
       });
 
-      toast({ title: "Ottimizzazione Completata", description: "I turni suggeriti sono stati inseriti nella griglia." });
-    } catch (e) {
-      console.error(e);
-      toast({ variant: "destructive", title: "Errore AI", description: "Impossibile completare l'ottimizzazione automatica." });
+      toast({ 
+        title: "Generazione Completata", 
+        description: `Assegnati ${result.optimizedAssignments.length} turni ottimizzati.`,
+        variant: "default" 
+      });
+    } catch (e: any) {
+      console.error("Shift AI Error:", e);
+      toast({ 
+        variant: "destructive", 
+        title: "Errore Generazione", 
+        description: e.message || "Impossibile completare l'ottimizzazione tramite AI." 
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -251,9 +301,9 @@ export default function ShiftsPage() {
           <Button 
             onClick={handleGenerateAI} 
             disabled={isGenerating || isEmployeesLoading}
-            className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-widest shadow-lg gap-2"
+            className="bg-amber-500 hover:bg-amber-600 text-white font-black uppercase tracking-widest shadow-lg gap-2 h-11 px-6"
           >
-            {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
             GENERA TURNI AI
           </Button>
           
@@ -273,7 +323,8 @@ export default function ShiftsPage() {
             <div className="py-32 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
           ) : (
             <div className="flex flex-col">
-              <div className="flex sticky top-0 z-30 bg-slate-50 border-b">
+              {/* Header Collaboratori */}
+              <div className="flex sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
                 <div className="w-[80px] p-4 font-black text-[9px] uppercase text-slate-400 sticky left-0 bg-slate-50 border-r z-40 flex items-center justify-center text-center">GIORNO</div>
                 {displayEmployees.map(emp => (
                   <div key={emp.id} className="min-w-[260px] p-4 border-r flex items-center gap-3 bg-slate-50/90 backdrop-blur-sm">
@@ -282,21 +333,22 @@ export default function ShiftsPage() {
                       <AvatarFallback className="font-black text-xs bg-slate-200">{(emp.firstName || "U").charAt(0)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <span className="font-black text-slate-900 text-lg leading-none uppercase">{emp.firstName} {emp.lastName}</span>
-                      <span className="text-[8px] font-black uppercase text-[#227FD8] tracking-widest mt-1">CONTRATTO: {emp.weeklyHours}H</span>
+                      <span className="font-black text-slate-900 text-lg leading-none uppercase tracking-tight">{emp.firstName} {emp.lastName}</span>
+                      <span className="text-[8px] font-black uppercase text-[#227FD8] tracking-widest mt-1 opacity-70">CONTRATTO: {emp.weeklyHours}H</span>
                     </div>
                   </div>
                 ))}
               </div>
 
+              {/* Corpo Griglia */}
               <div className="divide-y divide-slate-100">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
-                  if (day.getDay() === 0) return null;
+                  if (day.getDay() === 0) return null; // Salta Domenica
 
                   return (
                     <div key={dayStr} className="flex group hover:bg-slate-50/20 transition-colors">
-                      <div className="w-[80px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center">
+                      <div className="w-[80px] p-4 sticky left-0 bg-white border-r z-20 flex flex-col justify-center text-center shadow-[2px_0_5px_rgba(0,0,0,0.02)]">
                         <div className="text-[9px] font-black uppercase text-slate-400 mb-0.5">{format(day, 'EEE', { locale: it })}</div>
                         <div className="text-3xl font-black text-slate-800 tracking-tighter">{format(day, 'dd')}</div>
                       </div>
@@ -306,6 +358,7 @@ export default function ShiftsPage() {
                         const isRestDay = day.getDay().toString() === emp.restDay;
                         const isVittorio = emp.firstName?.toLowerCase() === 'vittorio';
                         
+                        // Smistamento Slot basato sulla sede
                         const slot1Events = dayEvents.filter(ev => {
                           const locName = locations?.find(l => l.id === ev.locationId)?.name || "";
                           return !locName.toLowerCase().includes('bisceglie');
@@ -319,7 +372,7 @@ export default function ShiftsPage() {
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r bg-white flex flex-col p-1.5 gap-1.5">
                             {/* SLOT 1 - PALESE */}
                             <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot">
-                              <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest">PALESE</div>
+                              <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest pointer-events-none">PALESE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
                                 {isVittorio && day.getDay() === 3 && slot1Events.length === 0 ? (
                                   <div className="p-3 rounded-lg border-l-[4px] border-l-slate-400 bg-slate-50 text-slate-600 shadow-sm">
@@ -344,7 +397,7 @@ export default function ShiftsPage() {
 
                             {/* SLOT 2 - BISCEGLIE */}
                             <div className="flex-1 min-h-[90px] border rounded-xl border-dashed border-slate-100 p-1 relative group/slot2">
-                              <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest">BISCEGLIE</div>
+                              <div className="absolute top-1 right-1 text-[7px] font-black text-slate-200 uppercase tracking-widest pointer-events-none">BISCEGLIE</div>
                               <div className="flex flex-col gap-1.5 relative z-10">
                                 {slot2Events.map(ev => (
                                   <EventBadge key={ev.id} ev={ev} onEdit={() => handleEdit(ev)} />
@@ -423,9 +476,9 @@ export default function ShiftsPage() {
 }
 
 function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
-  const start = format(parseISO(ev.startTime), 'HH:mm');
-  const end = format(parseISO(ev.endTime), 'HH:mm');
-  const isMorning = parseISO(ev.startTime).getHours() < 14;
+  const start = ev.startTime ? format(parseISO(ev.startTime), 'HH:mm') : "00:00";
+  const end = ev.endTime ? format(parseISO(ev.endTime), 'HH:mm') : "00:00";
+  const isMorning = ev.startTime ? parseISO(ev.startTime).getHours() < 14 : true;
 
   let colorClass = "border-l-[#227FD8] bg-blue-50/30 text-blue-900";
   let icon = <Sun className="h-3 w-3 text-blue-500" />;
@@ -448,7 +501,7 @@ function EventBadge({ ev, onEdit }: { ev: any, onEdit: () => void }) {
     <div 
       onClick={(e) => { e.stopPropagation(); onEdit(); }}
       className={cn(
-        "group relative p-3 rounded-lg border-l-[4px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
+        "group relative p-2.5 rounded-lg border-l-[4px] shadow-sm cursor-pointer hover:shadow-md transition-all w-full",
         colorClass
       )}
     >
