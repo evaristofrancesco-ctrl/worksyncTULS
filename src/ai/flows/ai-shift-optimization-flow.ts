@@ -1,48 +1,41 @@
 'use server';
 /**
- * @fileOverview Un flusso Genkit semplificato per ottimizzare l'assegnazione dei turni.
+ * @fileOverview Flusso Genkit ottimizzato per la generazione rapida dei turni.
  *
- * - aiShiftOptimization - Una funzione che gestisce il processo di ottimizzazione dei turni tramite AI.
- * - AiShiftOptimizationInput - Il tipo di input per la funzione aiShiftOptimization.
- * - AiShiftOptimizationOutput - Il tipo di ritorno per la funzione aiShiftOptimization.
+ * - aiShiftOptimization - Funzione per l'assegnazione rapida del personale agli slot.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const EmployeeSchema = z.object({
-  id: z.string().describe('Identificativo unico per il dipendente.'),
-  name: z.string().describe('Nome completo del dipendente.'),
-  availability: z.string().describe('Descrizione del giorno di riposo e ore contrattuali.'),
+  id: z.string(),
+  name: z.string(),
+  availability: z.string().describe('Giorno di riposo (0=Dom, 1=Lun...)'),
 });
-export type Employee = z.infer<typeof EmployeeSchema>;
 
 const ShiftSchema = z.object({
-  id: z.string().describe('Identificativo unico per lo slot.'),
-  name: z.string().describe('Nome del turno (es. "Mattina").'),
-  startTime: z.string().describe('ISO 8601.'),
-  endTime: z.string().describe('ISO 8601.'),
+  id: z.string(),
+  name: z.string(),
+  startTime: z.string(),
+  endTime: z.string(),
 });
-export type Shift = z.infer<typeof ShiftSchema>;
 
 const AiShiftOptimizationInputSchema = z.object({
-  employees: z.array(EmployeeSchema).describe('Lista dei dipendenti.'),
-  shifts: z.array(ShiftSchema).describe('Slot temporali da coprire.'),
+  employees: z.array(EmployeeSchema),
+  shifts: z.array(ShiftSchema),
 });
-export type AiShiftOptimizationInput = z.infer<typeof AiShiftOptimizationInputSchema>;
 
 const OptimizedAssignmentSchema = z.object({
-  shiftId: z.string().describe('ID dello slot.'),
-  employeeId: z.string().describe('ID del dipendente.'),
+  shiftId: z.string(),
+  employeeId: z.string(),
 });
-export type OptimizedAssignment = z.infer<typeof OptimizedAssignmentSchema>;
 
 const AiShiftOptimizationOutputSchema = z.object({
   optimizedAssignments: z.array(OptimizedAssignmentSchema),
 });
-export type AiShiftOptimizationOutput = z.infer<typeof AiShiftOptimizationOutputSchema>;
 
-export async function aiShiftOptimization(input: AiShiftOptimizationInput): Promise<AiShiftOptimizationOutput> {
+export async function aiShiftOptimization(input: z.infer<typeof AiShiftOptimizationInputSchema>): Promise<z.infer<typeof AiShiftOptimizationOutputSchema>> {
   return aiShiftOptimizationFlow(input);
 }
 
@@ -50,13 +43,15 @@ const aiShiftOptimizationPrompt = ai.definePrompt({
   name: 'aiShiftOptimizationPrompt',
   input: {schema: AiShiftOptimizationInputSchema},
   output: {schema: AiShiftOptimizationOutputSchema},
-  prompt: `Sei un assistente per la creazione dei turni di TU.L.S.
-Il tuo compito è assegnare i dipendenti agli slot temporali indicati.
+  prompt: `Sei l'assistente turni di TU.L.S. 
+OBIETTIVO: Assegna i dipendenti agli slot orari in modo RAPIDO.
 
-REGOLE SEMPLICI:
-1. RISPETTA I RIPOSI: Non assegnare MAI un dipendente nel suo giorno di riposo indicato in 'availability'.
-2. COPERTURA: Ogni slot deve avere almeno 1 o 2 persone assegnate (distribuisci equamente).
-3. VELOCITÀ: Non preoccuparti delle sedi (Palese/Bisceglie), assegna solo le persone alle ore.
+REGOLE TASSATIVE:
+1. RIPOSO: Se un dipendente ha riposo il giorno X, non assegnarlo MAI in quel giorno.
+2. DISTRIBUZIONE: Cerca di assegnare circa lo stesso numero di turni a tutti.
+3. COPERTURA: Ogni slot (ID) deve avere 1 persona. Se ci sono più slot per lo stesso orario, assegna persone diverse.
+
+Ignora le sedi. Restituisci solo l'array optimizedAssignments.
 
 Dati:
 Dipendenti: {{{json employees}}}
@@ -71,7 +66,7 @@ const aiShiftOptimizationFlow = ai.defineFlow(
   },
   async (input) => {
     const {output} = await aiShiftOptimizationPrompt(input);
-    if (!output) throw new Error('Nessun output ricevuto.');
+    if (!output) throw new Error('Errore generazione AI');
     return output;
   }
 );
