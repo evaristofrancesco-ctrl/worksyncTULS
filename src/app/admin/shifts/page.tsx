@@ -143,6 +143,7 @@ export default function ShiftsPage() {
   const handleSave = () => {
     if (!form.employeeId || !form.date) return;
     const id = form.id || `shift-${Date.now()}`;
+    // Usiamo il costruttore Date locale per evitare shift di fuso orario
     const sObj = new Date(`${form.date}T${form.startTime}`);
     const eObj = new Date(`${form.date}T${form.endTime}`);
     
@@ -193,8 +194,10 @@ export default function ShiftsPage() {
 
     const timeIn = format(parseISO(draggedShift.startTime), "HH:mm:ss");
     const timeOut = format(parseISO(draggedShift.endTime), "HH:mm:ss");
-    const newStartTime = `${targetDate}T${timeIn}Z`;
-    const newEndTime = `${targetDate}T${timeOut}Z`;
+    
+    // Creiamo date locali per evitare slittamenti
+    const newStartTime = new Date(`${targetDate}T${timeIn}`).toISOString();
+    const newEndTime = new Date(`${targetDate}T${timeOut}`).toISOString();
 
     if (draggedShift.employeeId !== targetEmployeeId) {
       deleteDocumentNonBlocking(doc(db, "employees", draggedShift.employeeId, "shifts", draggedShift.id));
@@ -262,8 +265,8 @@ export default function ShiftsPage() {
               employeeId: emp.id,
               locationId: paleseId,
               date: dStr,
-              startTime: `${dStr}T09:00:00Z`,
-              endTime: `${dStr}T20:20:00Z`,
+              startTime: new Date(`${dStr}T09:00:00`).toISOString(),
+              endTime: new Date(`${dStr}T20:20:00`).toISOString(),
               title: request.type === 'VACATION' ? 'FERIE' : 'PERMESSO',
               type: "ABSENCE",
               companyId: "default",
@@ -291,8 +294,8 @@ export default function ShiftsPage() {
             employeeId: emp.id,
             locationId: paleseId,
             date: dStr,
-            startTime: `${dStr}T${amSlot.start}:00Z`,
-            endTime: `${dStr}T${amSlot.end}:00Z`,
+            startTime: new Date(`${dStr}T${amSlot.start}:00`).toISOString(),
+            endTime: new Date(`${dStr}T${amSlot.end}:00`).toISOString(),
             title: amSlot.isRest ? "Riposo Settimanale" : "Mattina",
             type: amSlot.isRest ? "REST" : "MANUAL",
             companyId: "default",
@@ -305,8 +308,8 @@ export default function ShiftsPage() {
             employeeId: emp.id,
             locationId: paleseId,
             date: dStr,
-            startTime: `${dStr}T${pmSlot.start}:00Z`,
-            endTime: `${dStr}T${pmSlot.end}:00Z`,
+            startTime: new Date(`${dStr}T${pmSlot.start}:00`).toISOString(),
+            endTime: new Date(`${dStr}T${pmSlot.end}:00`).toISOString(),
             title: "Pomeriggio",
             type: "MANUAL",
             companyId: "default",
@@ -440,8 +443,8 @@ export default function ShiftsPage() {
                           const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE');
                           let am = 0; let pm = 0;
                           locShifts.forEach(s => {
-                            const start = s.startTime?.includes('T') ? s.startTime.split('T')[1] : s.startTime;
-                            const hour = parseInt(start?.split(':')[0] || "0");
+                            const start = format(parseISO(s.startTime), 'HH:mm');
+                            const hour = parseInt(start.split(':')[0] || "0");
                             if (hour < 14) am++; else pm++;
                           });
 
