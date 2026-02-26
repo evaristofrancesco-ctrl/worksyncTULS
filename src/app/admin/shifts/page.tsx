@@ -113,6 +113,7 @@ export default function ShiftsPage() {
 
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
+    // ORDINE RICHIESTO: Vittorio, Isa, Rosa, Savino
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
     
     return employees
@@ -152,12 +153,16 @@ export default function ShiftsPage() {
     allRequests.forEach(r => {
       const status = (r.status || "").toUpperCase();
       if (status !== "APPROVATO" && status !== "APPROVED" && status !== "Approvato") return;
+      
+      const start = r.startDate;
+      const end = r.endDate || r.startDate;
+      
       daysOfVisualizedWeek.forEach(day => {
-        const dateStr = format(day, 'yyyy-MM-dd');
-        if (dateStr >= r.startDate && dateStr <= (r.endDate || r.startDate)) {
-          if (!map[dateStr]) map[dateStr] = {};
-          if (!map[dateStr][r.employeeId]) map[dateStr][r.employeeId] = [];
-          map[dateStr][r.employeeId].push(r);
+        const dStr = format(day, 'yyyy-MM-dd');
+        if (dStr >= start && dStr <= end) {
+          if (!map[dStr]) map[dStr] = {};
+          if (!map[dStr][r.employeeId]) map[dStr][r.employeeId] = [];
+          map[dStr][r.employeeId].push(r);
         }
       });
     });
@@ -177,6 +182,7 @@ export default function ShiftsPage() {
           const abs = (indexedAbsences[dStr] || {})[empId] || [];
           const isFullyAbsent = abs.some(a => a.type !== 'HOURLY_PERMIT');
           if (isFullyAbsent) return;
+          
           dayShiftsMap[empId].forEach(s => {
             if (s.locationId === loc.id) {
               const hour = parseISO(s.startTime).getHours();
@@ -350,7 +356,7 @@ export default function ShiftsPage() {
                         const dayAbsences = (indexedAbsences[dayStr] || {})[emp.id] || [];
                         const isRestDay = day.getDay().toString() === emp.restDay;
 
-                        // Filtraggio eventi per sede con fallback sulla sede principale del dipendente
+                        // Filtraggio eventi per sede con fallback intelligente sulla sede principale
                         const paleseEvents = dayShifts.filter(s => 
                           s.locationId === paleseLoc?.id || 
                           ((!s.locationId || s.locationId === 'default') && emp.locationId === paleseLoc?.id)
@@ -360,9 +366,8 @@ export default function ShiftsPage() {
                           ((!s.locationId || s.locationId === 'default') && emp.locationId === bisceglieLoc?.id)
                         );
                         
-                        // Assenze associate per sede
-                        const paleseAbsences = dayAbsences.filter(a => !a.locationId || a.locationId === paleseLoc?.id);
-                        const bisceglieAbsences = dayAbsences.filter(a => a.locationId === bisceglieLoc?.id);
+                        const paleseAbsences = dayAbsences.filter(a => !a.locationId || a.locationId === paleseLoc?.id || (emp.locationId === paleseLoc?.id));
+                        const bisceglieAbsences = dayAbsences.filter(a => a.locationId === bisceglieLoc?.id || (emp.locationId === bisceglieLoc?.id && a.locationId === undefined));
 
                         return (
                           <div key={`${dayStr}-${emp.id}`} className="min-w-[260px] border-r flex flex-col bg-white">
@@ -372,7 +377,7 @@ export default function ShiftsPage() {
                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#227FD8]">PALESE</span>
                               </div>
                               <div className="flex flex-col gap-1.5">
-                                {paleseAbsences.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
+                                {emp.locationId === paleseLoc?.id && paleseAbsences.map(a => <AbsenceItem key={`p-abs-${a.id}`} a={a} />)}
                                 {paleseEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
@@ -388,7 +393,7 @@ export default function ShiftsPage() {
                                 <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">BISCEGLIE</span>
                               </div>
                               <div className="flex flex-col gap-1.5">
-                                {bisceglieAbsences.map(a => <AbsenceItem key={`b-abs-${a.id}`} a={a} />)}
+                                {emp.locationId === bisceglieLoc?.id && bisceglieAbsences.map(a => <AbsenceItem key={`b-abs-${a.id}`} a={a} />)}
                                 {bisceglieEvents.sort((a, b) => a.startTime.localeCompare(b.startTime)).map(s => (
                                   <ShiftItem key={s.id} s={s} onEdit={() => handleEditShift(s)} onDelete={() => deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id))} />
                                 ))}
