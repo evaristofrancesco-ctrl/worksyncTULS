@@ -222,7 +222,7 @@ export default function ReportsPage() {
           }
 
           daysInInterval.forEach(d => { 
-            absenceDetails.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo} [${hForThisReq}h]`); 
+            absenceDetails.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo} [${formatTime(hForThisReq)}]`); 
           });
         } catch (e) {}
       });
