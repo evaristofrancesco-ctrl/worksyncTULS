@@ -29,7 +29,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, format, isWithinInterval, parseISO } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, isWithinInterval, parseISO } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
@@ -197,22 +197,33 @@ export default function ReportsPage() {
           const overlapStart = rStart < monthStart ? monthStart : rStart;
           const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
           if (overlapStart > overlapEnd) return;
+          
           const daysInInterval = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
           const count = daysInInterval.length;
+          
+          let hForThisReq = 0;
+          let timeInfo = "";
           const typeLabel = req.type === 'VACATION' ? 'Ferie' : req.type === 'SICK' ? 'Malattia' : req.type === 'HOURLY_PERMIT' ? 'Permesso Orario' : 'Permesso';
-          const timeInfo = req.type === 'HOURLY_PERMIT' ? ` (${req.startTime}-${req.endTime})` : '';
-          daysInInterval.forEach(d => { absenceDetails.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo}`); });
-          if (req.type === "VACATION") vacationHours += count * 8;
-          else if (req.type === "SICK") sickHours += count * 8;
-          else if (req.type === "PERSONAL") permitHours += count * 8;
+
+          if (req.type === "VACATION") { vacationHours += count * 8; hForThisReq = 8; }
+          else if (req.type === "SICK") { sickHours += count * 8; hForThisReq = 8; }
+          else if (req.type === "PERSONAL") { permitHours += count * 8; hForThisReq = 8; }
           else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
-              const hours = (h2 + m2/60) - (h1 + m1/60);
-              if (hours > 0) permitHours += (hours * count);
+              const diff = (h2 + m2/60) - (h1 + m1/60);
+              if (diff > 0) {
+                permitHours += (diff * count);
+                hForThisReq = diff;
+                timeInfo = ` (${req.startTime}-${req.endTime})`;
+              }
             }
           }
+
+          daysInInterval.forEach(d => { 
+            absenceDetails.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo} [${hForThisReq}h]`); 
+          });
         } catch (e) {}
       });
 
@@ -244,15 +255,17 @@ export default function ReportsPage() {
   const handleExportCSV = () => {
     if (!reportData.length) return;
 
-    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Ore Nette"];
+    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate (Lorde)", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Ore Nette", "Dettaglio Assenze (Giorno - Tipo - Ore)"];
     const rows = reportData.map(r => [
       r.name,
       r.jobTitle,
       r.expectedHoursFormatted,
+      r.workedHoursFormatted,
       r.vacationHoursFormatted,
       r.sickHoursFormatted,
       r.permitHoursFormatted,
-      r.totalHoursFormatted
+      r.totalHoursFormatted,
+      `"${r.absenceDetailStr}"`
     ]);
 
     const csvContent = [
@@ -264,7 +277,7 @@ export default function ReportsPage() {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `Report_Ore_${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.csv`);
+    link.setAttribute("download", `Report_Dettagliato_${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
