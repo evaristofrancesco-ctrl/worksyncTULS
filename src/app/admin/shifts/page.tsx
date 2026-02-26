@@ -175,7 +175,7 @@ export default function ShiftsPage() {
   const handleGenerateAI = async () => {
     if (!employees || !locations || employees.length === 0) return;
     setIsGenerating(true);
-    toast({ title: "Generazione AI", description: "Pianificazione rapida in corso..." });
+    toast({ title: "Generazione Iniziata", description: "Applicazione regole Vittorio e ottimizzazione team..." });
     
     try {
       const weekShifts = shifts?.filter(s => {
@@ -183,53 +183,101 @@ export default function ShiftsPage() {
         return d >= weekStart && d <= weekEnd;
       }) || [];
 
-      // Pulizia precedente
+      // 1. Pulizia Settimana
       for (const s of weekShifts) {
         deleteDocumentNonBlocking(doc(db, "employees", s.employeeId, "shifts", s.id));
       }
 
-      const slotsToCover: any[] = [];
-      daysOfVisualizedWeek.forEach(day => {
-        if (day.getDay() === 0) return;
-        const dStr = format(day, 'yyyy-MM-dd');
-        slotsToCover.push({ id: `am-${dStr}`, name: 'Mattina', startTime: `${dStr}T09:00:00Z`, endTime: `${dStr}T13:00:00Z` });
-        slotsToCover.push({ id: `pm-${dStr}`, name: 'Pomeriggio', startTime: `${dStr}T17:00:00Z`, endTime: `${dStr}T20:20:00Z` });
-      });
-
-      const aiInput = {
-        employees: displayEmployees.map(e => ({
-          id: e.id,
-          name: `${e.firstName} ${e.lastName}`,
-          availability: e.restDay || "0"
-        })),
-        shifts: slotsToCover
-      };
-
-      const result = await aiShiftOptimization(aiInput);
       const paleseId = locations.find(l => l.name.toLowerCase().includes('palese'))?.id || "palese-id";
 
-      result.optimizedAssignments.forEach((asn, idx) => {
-        const targetSlot = slotsToCover.find(s => s.id === asn.shiftId);
-        if (!targetSlot) return;
+      // 2. REGOLE FISSE VITTORIO (Richiesta Utente)
+      const vittorio = displayEmployees.find(e => e.firstName?.toLowerCase().includes('vittorio'));
+      if (vittorio) {
+        daysOfVisualizedWeek.forEach((day) => {
+          const dayOfWeek = day.getDay(); // 0=Dom, 1=Lun, ..., 6=Sab
+          if (dayOfWeek === 0) return; // No Domenica
 
-        const id = `ai-${Date.now()}-${idx}`;
-        setDocumentNonBlocking(doc(db, "employees", asn.employeeId, "shifts", id), {
-          id,
-          employeeId: asn.employeeId,
-          locationId: paleseId,
-          date: targetSlot.startTime.split('T')[0],
-          startTime: targetSlot.startTime,
-          endTime: targetSlot.endTime,
-          title: targetSlot.name,
-          type: "MANUAL",
-          companyId: "default",
-          status: "SCHEDULED"
-        }, { merge: true });
-      });
+          const dStr = format(day, 'yyyy-MM-dd');
+          
+          // Mattina (Mercoledì Riposo, gli altri lavoro)
+          const amId = `vitt-am-${dStr}`;
+          const isWedRest = dayOfWeek === 3;
+          
+          setDocumentNonBlocking(doc(db, "employees", vittorio.id, "shifts", amId), {
+            id: amId,
+            employeeId: vittorio.id,
+            locationId: paleseId,
+            date: dStr,
+            startTime: `${dStr}T09:00:00Z`,
+            endTime: `${dStr}T13:00:00Z`,
+            title: isWedRest ? "Riposo Settimanale" : "Mattina",
+            type: isWedRest ? "REST" : "MANUAL",
+            companyId: "default",
+            status: "SCHEDULED"
+          }, { merge: true });
 
-      toast({ title: "Completato" });
+          // Pomeriggio (Sempre lavoro Lun-Sab)
+          const pmId = `vitt-pm-${dStr}`;
+          setDocumentNonBlocking(doc(db, "employees", vittorio.id, "shifts", pmId), {
+            id: pmId,
+            employeeId: vittorio.id,
+            locationId: paleseId,
+            date: dStr,
+            startTime: `${dStr}T17:00:00Z`,
+            endTime: `${dStr}T20:20:00Z`,
+            title: "Pomeriggio",
+            type: "MANUAL",
+            companyId: "default",
+            status: "SCHEDULED"
+          }, { merge: true });
+        });
+      }
+
+      // 3. GENERAZIONE AI PER GLI ALTRI
+      const otherEmployees = displayEmployees.filter(e => !e.firstName?.toLowerCase().includes('vittorio'));
+      if (otherEmployees.length > 0) {
+        const slotsToCover: any[] = [];
+        daysOfVisualizedWeek.forEach(day => {
+          if (day.getDay() === 0) return;
+          const dStr = format(day, 'yyyy-MM-dd');
+          slotsToCover.push({ id: `am-${dStr}`, name: 'Mattina', startTime: `${dStr}T09:00:00Z`, endTime: `${dStr}T13:00:00Z` });
+          slotsToCover.push({ id: `pm-${dStr}`, name: 'Pomeriggio', startTime: `${dStr}T17:00:00Z`, endTime: `${dStr}T20:20:00Z` });
+        });
+
+        const aiInput = {
+          employees: otherEmployees.map(e => ({
+            id: e.id,
+            name: `${e.firstName} ${e.lastName}`,
+            availability: e.restDay || "0"
+          })),
+          shifts: slotsToCover
+        };
+
+        const result = await aiShiftOptimization(aiInput);
+
+        result.optimizedAssignments.forEach((asn, idx) => {
+          const targetSlot = slotsToCover.find(s => s.id === asn.shiftId);
+          if (!targetSlot) return;
+
+          const id = `ai-${Date.now()}-${idx}`;
+          setDocumentNonBlocking(doc(db, "employees", asn.employeeId, "shifts", id), {
+            id,
+            employeeId: asn.employeeId,
+            locationId: paleseId,
+            date: targetSlot.startTime.split('T')[0],
+            startTime: targetSlot.startTime,
+            endTime: targetSlot.endTime,
+            title: targetSlot.name,
+            type: "MANUAL",
+            companyId: "default",
+            status: "SCHEDULED"
+          }, { merge: true });
+        });
+      }
+
+      toast({ title: "Completato", description: "Programma settimanale aggiornato correttamente." });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Errore generazione AI" });
+      toast({ variant: "destructive", title: "Errore Generazione" });
     } finally {
       setIsGenerating(false);
     }
@@ -288,7 +336,7 @@ export default function ShiftsPage() {
                 {/* Header Specchietto Copertura */}
                 <div className="min-w-[240px] p-4 bg-slate-200/60 flex items-center justify-center gap-3 border-l-2 border-l-slate-300">
                   <Building2 className="h-6 w-6 text-slate-500" />
-                  <span className="font-black text-sm uppercase text-slate-600 tracking-tighter">STATO COPERTURA</span>
+                  <span className="font-black text-sm uppercase text-slate-600 tracking-tighter">COPERTURA SEDI</span>
                 </div>
               </div>
 
