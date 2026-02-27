@@ -251,7 +251,7 @@ export default function ShiftsPage() {
         
         daysOfVisualizedWeek.forEach((day) => {
           const dayOfWeek = day.getDay();
-          if (dayOfWeek === 0) return;
+          if (dayOfWeek === 0) return; // Skip automatic Sunday generation per rules
 
           const dStr = format(day, 'yyyy-MM-dd');
           const request = approvedRequests.find(r => r.employeeId === emp.id && r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
@@ -385,8 +385,6 @@ export default function ShiftsPage() {
               <div className="divide-y divide-slate-200">
                 {daysOfVisualizedWeek.map((day) => {
                   const dayStr = format(day, 'yyyy-MM-dd');
-                  if (day.getDay() === 0) return null;
-
                   const dayShifts = Object.values(indexedEvents[dayStr] || {}).flat();
 
                   return (
