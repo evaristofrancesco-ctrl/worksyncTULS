@@ -29,7 +29,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, isWithinInterval, parseISO } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 
@@ -107,39 +107,48 @@ export default function ReportsPage() {
   const reportData = useMemo(() => {
     if (!employees || !allEntries || !allRequests || !allShifts) return [];
 
-    const targetDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 1);
-    const monthStart = startOfMonth(targetDate);
-    const monthEnd = endOfMonth(targetDate);
+    const selMonthInt = parseInt(selectedMonth);
+    const selYearInt = parseInt(selectedYear);
+    const monthStart = startOfMonth(new Date(selYearInt, selMonthInt, 1));
+    const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
     
+    // Mappaggio Timbrature filtrato per mese/anno (usando la stringa della data per evitare offset UTC)
     const entriesMap = allEntries.reduce((acc, entry) => {
       if (!entry.checkInTime) return acc;
-      try {
-        const checkIn = parseISO(entry.checkInTime);
-        if (isWithinInterval(checkIn, { start: monthStart, end: monthEnd })) {
-          if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
-          acc[entry.employeeId].push(entry);
-        }
-      } catch (e) {}
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    const requestsMap = allRequests.reduce((acc, req) => {
-      if (!acc[req.employeeId]) acc[req.employeeId] = [];
-      const status = (req.status || "").toUpperCase();
-      if (status === "APPROVATO" || status === "APPROVED" || status === "Approvato") {
-        acc[req.employeeId].push(req);
+      const datePart = entry.checkInTime.split('T')[0]; // yyyy-MM-dd
+      const [y, m] = datePart.split('-').map(Number);
+      
+      if (y === selYearInt && (m - 1) === selMonthInt) {
+        if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
+        acc[entry.employeeId].push(entry);
       }
       return acc;
     }, {} as Record<string, any[]>);
 
+    // Mappaggio Richieste Approva (usando la data stringa)
+    const requestsMap = allRequests.reduce((acc, req) => {
+      const status = (req.status || "").toUpperCase();
+      if (status === "APPROVATO" || status === "APPROVED" || status === "Approvato") {
+        const datePart = req.startDate; // yyyy-MM-dd
+        const [y, m] = datePart.split('-').map(Number);
+        if (y === selYearInt && (m - 1) === selMonthInt) {
+          if (!acc[req.employeeId]) acc[req.employeeId] = [];
+          acc[req.employeeId].push(req);
+        }
+      }
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // Mappaggio Turni/Straordinari (usando la data stringa)
     const shiftsMap = allShifts.reduce((acc, shift) => {
-      if (!acc[shift.employeeId]) acc[shift.employeeId] = [];
-      try {
-        const shiftStart = parseISO(shift.startTime);
-        if (isWithinInterval(shiftStart, { start: monthStart, end: monthEnd })) {
+      const datePart = shift.date; // yyyy-MM-dd
+      if (datePart) {
+        const [y, m] = datePart.split('-').map(Number);
+        if (y === selYearInt && (m - 1) === selMonthInt) {
+          if (!acc[shift.employeeId]) acc[shift.employeeId] = [];
           acc[shift.employeeId].push(shift);
         }
-      } catch (e) {}
+      }
       return acc;
     }, {} as Record<string, any[]>);
 
@@ -183,7 +192,6 @@ export default function ReportsPage() {
       });
 
       const empEntries = entriesMap[emp.id] || [];
-
       let actualWorkHours = 0;
       empEntries.forEach(entry => {
         if (entry.checkInTime && entry.checkOutTime) {
@@ -194,15 +202,9 @@ export default function ReportsPage() {
         }
       });
 
-      const empRequests = (requestsMap[emp.id] || []).filter(req => {
-        try {
-          const reqStart = parseISO(req.startDate);
-          const reqEnd = req.endDate ? parseISO(req.endDate) : reqStart;
-          return (reqStart <= monthEnd && reqEnd >= monthStart);
-        } catch (e) { return false; }
-      });
-
-      const empOvertimeShifts = (shiftsMap[emp.id] || []).filter(s => s.type === 'OVERTIME');
+      const empRequests = requestsMap[emp.id] || [];
+      const empShifts = shiftsMap[emp.id] || [];
+      const empOvertimeShifts = empShifts.filter(s => s.type === 'OVERTIME');
 
       let vacationHours = 0;
       let sickHours = 0;
@@ -215,11 +217,11 @@ export default function ReportsPage() {
         try {
           const rStart = parseISO(req.startDate);
           const rEnd = req.endDate ? parseISO(req.endDate) : rStart;
-          const overlapStart = rStart < monthStart ? monthStart : rStart;
-          const overlapEnd = rEnd > monthEnd ? monthEnd : rEnd;
-          if (overlapStart > overlapEnd) return;
           
-          const daysInInterval = eachDayOfInterval({ start: overlapStart, end: overlapEnd });
+          const daysInInterval = eachDayOfInterval({ 
+            start: rStart < monthStart ? monthStart : rStart, 
+            end: rEnd > monthEnd ? monthEnd : rEnd 
+          });
           const count = daysInInterval.length;
           
           let hForThisReq = 0;
@@ -248,7 +250,7 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
-      // Calcolo Straordinari (Aggiunta)
+      // Calcolo Straordinari (Somma delle durate dei badge Verde Smeraldo)
       empOvertimeShifts.forEach(s => {
         const start = new Date(s.startTime).getTime();
         const end = new Date(s.endTime).getTime();
@@ -259,8 +261,9 @@ export default function ReportsPage() {
         }
       });
 
-      const absenceTotal = vacationHours + sickHours + permitHours;
-      const netTotalHours = actualWorkHours - absenceTotal + overtimeHours;
+      // Ore Nette = Lavorate + Extra
+      // Le assenze (Ferie/Permessi) sono riportate a parte per chiarezza contabile
+      const netTotalHours = actualWorkHours + overtimeHours;
 
       return {
         id: emp.id,
@@ -274,7 +277,7 @@ export default function ReportsPage() {
         permitHoursFormatted: formatTime(permitHours),
         overtimeHoursFormatted: formatTime(overtimeHours),
         totalHoursFormatted: formatTime(netTotalHours),
-        isSubtracted: absenceTotal > 0,
+        isSubtracted: false, // Non più sottratte nel calcolo netto basato sulle timbrature
         isAdded: overtimeHours > 0,
         absenceDetailStr: detailEntries.join(" | ")
       }
@@ -328,7 +331,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Ore previste vs <b>ore nette</b> (timbrate + extra - assenze).</p>
+          <p className="text-slate-500 font-medium">Ore previste vs <b>ore nette</b> (timbrate + straordinari).</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
@@ -389,7 +392,7 @@ export default function ReportsPage() {
                   <TableCell className="text-center"><span className="text-sm font-bold text-rose-600">{row.sickHoursFormatted}</span></TableCell>
                   <TableCell className="text-center"><span className="text-sm font-bold text-cyan-600">{row.permitHoursFormatted}</span></TableCell>
                   <TableCell className="text-center"><span className="text-sm font-black text-emerald-600">{row.overtimeHoursFormatted}</span></TableCell>
-                  <TableCell className="text-right pr-8"><span className={cn("text-lg font-black transition-colors", row.isSubtracted ? "text-rose-600" : row.isAdded ? "text-emerald-600" : "text-[#227FD8]")}>{row.totalHoursFormatted}</span></TableCell>
+                  <TableCell className="text-right pr-8"><span className={cn("text-lg font-black transition-colors", row.isAdded ? "text-emerald-600" : "text-[#227FD8]")}>{row.totalHoursFormatted}</span></TableCell>
                 </TableRow>
               )) : (
                 <TableRow><TableCell colSpan={7} className="h-40 text-center text-slate-400 italic font-medium">Nessun dato trovato per il periodo selezionato.</TableCell></TableRow>
