@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from "react"
@@ -348,10 +347,18 @@ export default function ReportsPage() {
         toast({ title: "Email Inviata", description: `Il report è stato spedito a ${destEmail}.` });
         setIsEmailOpen(false);
       } else {
-        toast({ variant: "destructive", title: "Errore Invio", description: result.message });
+        toast({ 
+          variant: "destructive", 
+          title: "Errore Invio", 
+          description: result.message || "Controlla la configurazione SMTP." 
+        });
       }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Errore Sistema", description: "Impossibile completare l'invio." });
+    } catch (e: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Errore Sistema", 
+        description: e.message || "Impossibile completare l'invio." 
+      });
     } finally {
       setIsSending(false);
     }

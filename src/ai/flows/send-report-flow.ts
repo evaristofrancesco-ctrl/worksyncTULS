@@ -44,7 +44,6 @@ Restituisci solo oggetto e corpo.`,
 
 /**
  * Definizione del flusso Genkit per l'invio del report.
- * Deve essere definito prima della funzione esportata che lo richiama.
  */
 const sendReportFlow = ai.defineFlow(
   {
@@ -62,11 +61,15 @@ const sendReportFlow = ai.defineFlow(
       const transporter = nodemailer.createTransport({
         host: "mail.laltrasigaretta.com",
         port: 465,
-        secure: true, // true per porta 465, false per altre porte
+        secure: true, // Port 465 uses SSL/TLS
         auth: {
-          user: process.env.SMTP_USER || "tuls@laltrasigaretta.com",
-          pass: process.env.SMTP_PASS || "c97bd8f3-cdab-4113-8771-7f77503331c2", 
+          user: "tuls@laltrasigaretta.com",
+          pass: "c97bd8f3-cdab-4113-8771-7f77503331c2", 
         },
+        tls: {
+          // Necessario per alcuni server condivisi
+          rejectUnauthorized: false
+        }
       });
 
       const fileName = `Report_Presenze_${input.monthLabel.replace(/\s+/g, '_')}_${input.year}.csv`;
@@ -81,14 +84,18 @@ const sendReportFlow = ai.defineFlow(
           {
             filename: fileName,
             content: input.csvContent,
+            contentType: 'text/csv'
           },
         ],
       });
 
       return { success: true, message: 'Email inviata con successo.' };
     } catch (error: any) {
-      console.error('Email Error:', error);
-      return { success: false, message: `Errore: ${error.message || 'Invio fallito'}` };
+      console.error('Email Error Detailed:', error);
+      return { 
+        success: false, 
+        message: `Errore: ${error.message || 'Verifica le credenziali SMTP'}` 
+      };
     }
   }
 );
