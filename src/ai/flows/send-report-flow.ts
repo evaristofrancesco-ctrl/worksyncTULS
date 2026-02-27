@@ -6,7 +6,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import nodemailer from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 
 const SendReportInputSchema = z.object({
   recipientEmail: z.string().email(),
@@ -20,10 +20,6 @@ const SendReportOutputSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 });
-
-export async function sendReportEmail(input: z.infer<typeof SendReportInputSchema>): Promise<z.infer<typeof SendReportOutputSchema>> {
-  return sendReportFlow(input);
-}
 
 const reportEmailPrompt = ai.definePrompt({
   name: 'reportEmailPrompt',
@@ -57,18 +53,17 @@ const sendReportFlow = ai.defineFlow(
       if (!output) throw new Error('Errore generazione testo AI');
 
       // 2. Configura Trasportatore SMTP (Serverplan)
-      // Nota: In produzione queste dovrebbero essere variabili d'ambiente reali
       const transporter = nodemailer.createTransport({
         host: "mail.laltrasigaretta.com",
         port: 465,
-        secure: true, // true per porta 465
+        secure: true,
         auth: {
           user: process.env.SMTP_USER || "tuls@laltrasigaretta.com",
           pass: process.env.SMTP_PASS || "Password_Placeholder", 
         },
       });
 
-      const fileName = `Report_Presenze_${input.monthLabel.replace(' ', '_')}_${input.year}.csv`;
+      const fileName = `Report_Presenze_${input.monthLabel.replace(/\s+/g, '_')}_${input.year}.csv`;
 
       // 3. Invia Email
       await transporter.sendMail({
@@ -91,3 +86,7 @@ const sendReportFlow = ai.defineFlow(
     }
   }
 );
+
+export async function sendReportEmail(input: z.infer<typeof SendReportInputSchema>): Promise<z.infer<typeof SendReportOutputSchema>> {
+  return sendReportFlow(input);
+}

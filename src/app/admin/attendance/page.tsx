@@ -55,21 +55,18 @@ export default function AttendancePage() {
     type: "ADMIN"
   })
 
-  // Caricamento collaboratori
   const employeesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collection(db, "employees");
   }, [db, user])
   const { data: employees } = useCollection(employeesQuery)
 
-  // Caricamento timbrature (senza ordinamento server-side per evitare indici)
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collectionGroup(db, "timeentries");
   }, [db, user])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
 
-  // Caricamento richieste (ferie/permessi) per visualizzarle nel registro
   const requestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
     return collectionGroup(db, "requests");
@@ -84,55 +81,59 @@ export default function AttendancePage() {
     }, {} as any);
   }, [employees]);
 
-  // Unifica timbrature reali e assenze simulate
   const unifiedEntries = useMemo(() => {
     const realEntries = entries || [];
     const mappedRequests = (allRequests || [])
       .filter(req => {
         const status = (req.status || "").toUpperCase();
-        return status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
+        return (status === "APPROVATO" || status === "APPROVED" || status === "Approvato") && req.startDate;
       })
       .map(req => {
-        const start = req.startDate + (req.startTime ? `T${req.startTime}` : "T09:00");
-        const end = (req.endDate || req.startDate) + (req.endTime ? `T${req.endTime}` : "T20:20");
-        return {
-          ...req,
-          id: `sim-${req.id}`,
-          checkInTime: new Date(start).toISOString(),
-          checkOutTime: new Date(end).toISOString(),
-          type: "ABSENCE",
-          absenceType: req.type
-        };
-      });
+        try {
+          const startStr = req.startDate + (req.startTime ? `T${req.startTime}` : "T09:00");
+          const endStr = (req.endDate || req.startDate) + (req.endTime ? `T${req.endTime}` : "T20:20");
+          const startDate = new Date(startStr);
+          const endDate = new Date(endStr);
+          
+          if (!isValid(startDate)) return null;
+
+          return {
+            ...req,
+            id: `sim-${req.id}`,
+            checkInTime: startDate.toISOString(),
+            checkOutTime: isValid(endDate) ? endDate.toISOString() : null,
+            type: "ABSENCE",
+            absenceType: req.type
+          };
+        } catch (e) {
+          return null;
+        }
+      })
+      .filter(r => r !== null);
     return [...realEntries, ...mappedRequests];
   }, [entries, allRequests]);
 
   const filteredEntries = useMemo(() => {
     const today = format(new Date(), "yyyy-MM-dd");
-    const horizon = subDays(new Date(), 30);
 
     return unifiedEntries
       .filter(entry => {
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
         
-        // LOGICA PULIZIA: Se non c'è filtro attivo, mostriamo SOLO OGGI
         if (!showAllHistory && !filterDate && !searchQuery) {
           const entryDate = entry.checkInTime ? entry.checkInTime.split('T')[0] : "";
           if (entryDate !== today) return false;
         }
 
-        // Filtro per ricerca nome
         const fullName = `${emp.firstName || ""} ${emp.lastName || ""}`.toLowerCase();
         if (searchQuery && !fullName.includes(searchQuery.toLowerCase())) return false;
         
-        // Filtro per data specifica
         if (filterDate && entry.checkInTime) {
           const entryDate = entry.checkInTime.split('T')[0];
           if (entryDate !== filterDate) return false;
         }
 
-        // Filtro per tipo (User, Auto, Admin, Absence)
         if (filterType !== "all") {
           const type = entry.type || "MANUAL";
           if (filterType === "USER" && type !== "MANUAL" && type !== "USER") return false;
@@ -147,7 +148,7 @@ export default function AttendancePage() {
         const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
         return dateB - dateA;
       })
-      .slice(0, 500); // Limite per performance
+      .slice(0, 500);
   }, [unifiedEntries, employeeMap, searchQuery, filterDate, filterType, showAllHistory]);
 
   const groupedEntries = useMemo(() => {
@@ -166,15 +167,20 @@ export default function AttendancePage() {
       return;
     }
     const id = `entry-adm-${Date.now()}`;
-    const checkIn = new Date(`${formData.checkInDate}T${formData.checkInTime}`).toISOString();
-    const checkOut = formData.checkOutTime ? new Date(`${formData.checkOutDate}T${formData.checkOutTime}`).toISOString() : null;
+    const checkInDateObj = new Date(`${formData.checkInDate}T${formData.checkInTime}`);
+    const checkOutDateObj = formData.checkOutTime ? new Date(`${formData.checkOutDate}T${formData.checkOutTime}`) : null;
     
+    if (!isValid(checkInDateObj)) {
+      toast({ variant: "destructive", title: "Errore", description: "Data di inizio non valida." });
+      return;
+    }
+
     setDocumentNonBlocking(doc(db, "employees", formData.employeeId, "timeentries", id), {
       id, 
       employeeId: formData.employeeId, 
       companyId: "default", 
-      checkInTime: checkIn, 
-      checkOutTime: checkOut, 
+      checkInTime: checkInDateObj.toISOString(), 
+      checkOutTime: checkOutDateObj && isValid(checkOutDateObj) ? checkOutDateObj.toISOString() : null, 
       type: "ADMIN", 
       status: "PRESENT", 
       isApproved: true
@@ -202,12 +208,17 @@ export default function AttendancePage() {
 
   const handleUpdateEntry = () => {
     if (!selectedEntry || !db) return;
-    const checkIn = new Date(`${formData.checkInDate}T${formData.checkInTime}`).toISOString();
-    const checkOut = formData.checkOutTime ? new Date(`${formData.checkOutDate}T${formData.checkOutTime}`).toISOString() : null;
+    const checkInDateObj = new Date(`${formData.checkInDate}T${formData.checkInTime}`);
+    const checkOutDateObj = formData.checkOutTime ? new Date(`${formData.checkOutDate}T${formData.checkOutTime}`) : null;
     
+    if (!isValid(checkInDateObj)) {
+      toast({ variant: "destructive", title: "Errore", description: "Data di inizio non valida." });
+      return;
+    }
+
     updateDocumentNonBlocking(doc(db, "employees", selectedEntry.employeeId, "timeentries", selectedEntry.id), {
-      checkInTime: checkIn, 
-      checkOutTime: checkOut, 
+      checkInTime: checkInDateObj.toISOString(), 
+      checkOutTime: checkOutDateObj && isValid(checkOutDateObj) ? checkOutDateObj.toISOString() : null, 
       updatedAt: new Date().toISOString()
     });
     
@@ -361,7 +372,6 @@ export default function AttendancePage() {
         )}
       </div>
 
-      {/* Dialog Nuova Timbratura */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -404,7 +414,6 @@ export default function AttendancePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Modifica Timbratura */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
