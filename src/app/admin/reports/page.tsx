@@ -7,7 +7,10 @@ import {
   Download, 
   Users, 
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Send,
+  Mail,
+  CheckCircle2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,12 +29,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
+import { sendReportEmail } from "@/ai/flows/send-report-flow"
 
 const MONTHS = [
   { label: "Gennaio", value: "0" },
@@ -51,9 +66,14 @@ const MONTHS = [
 export default function ReportsPage() {
   const db = useFirestore()
   const { user } = useUser()
+  const { toast } = useToast()
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth().toString())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
   const [isRefreshing, setIsRefreshing] = useState(false)
+  
+  const [isEmailOpen, setIsEmailOpen] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [destEmail, setDestEmail] = useState("")
 
   const yearsOptions = useMemo(() => {
     const current = new Date().getFullYear()
@@ -112,12 +132,10 @@ export default function ReportsPage() {
     const monthStart = startOfMonth(new Date(selYearInt, selMonthInt, 1));
     const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
     
-    // Mappaggio Timbrature filtrato per mese/anno (usando la stringa della data per evitare offset UTC)
     const entriesMap = allEntries.reduce((acc, entry) => {
       if (!entry.checkInTime) return acc;
-      const datePart = entry.checkInTime.split('T')[0]; // yyyy-MM-dd
+      const datePart = entry.checkInTime.split('T')[0];
       const [y, m] = datePart.split('-').map(Number);
-      
       if (y === selYearInt && (m - 1) === selMonthInt) {
         if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
         acc[entry.employeeId].push(entry);
@@ -125,11 +143,10 @@ export default function ReportsPage() {
       return acc;
     }, {} as Record<string, any[]>);
 
-    // Mappaggio Richieste Approva (usando la data stringa)
     const requestsMap = allRequests.reduce((acc, req) => {
       const status = (req.status || "").toUpperCase();
       if (status === "APPROVATO" || status === "APPROVED" || status === "Approvato") {
-        const datePart = req.startDate; // yyyy-MM-dd
+        const datePart = req.startDate;
         const [y, m] = datePart.split('-').map(Number);
         if (y === selYearInt && (m - 1) === selMonthInt) {
           if (!acc[req.employeeId]) acc[req.employeeId] = [];
@@ -139,9 +156,8 @@ export default function ReportsPage() {
       return acc;
     }, {} as Record<string, any[]>);
 
-    // Mappaggio Turni/Straordinari (usando la data stringa)
     const shiftsMap = allShifts.reduce((acc, shift) => {
-      const datePart = shift.date; // yyyy-MM-dd
+      const datePart = shift.date;
       if (datePart) {
         const [y, m] = datePart.split('-').map(Number);
         if (y === selYearInt && (m - 1) === selMonthInt) {
@@ -212,7 +228,6 @@ export default function ReportsPage() {
       let overtimeHours = 0;
       let detailEntries: string[] = [];
 
-      // Calcolo Assenze
       empRequests.forEach(req => {
         try {
           const rStart = parseISO(req.startDate);
@@ -250,7 +265,6 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
-      // Calcolo Straordinari (Somma delle durate dei badge Verde Smeraldo)
       empOvertimeShifts.forEach(s => {
         const start = new Date(s.startTime).getTime();
         const end = new Date(s.endTime).getTime();
@@ -261,8 +275,6 @@ export default function ReportsPage() {
         }
       });
 
-      // Ore Nette = Lavorate + Extra
-      // Le assenze (Ferie/Permessi) sono riportate a parte per chiarezza contabile
       const netTotalHours = actualWorkHours + overtimeHours;
 
       return {
@@ -277,21 +289,15 @@ export default function ReportsPage() {
         permitHoursFormatted: formatTime(permitHours),
         overtimeHoursFormatted: formatTime(overtimeHours),
         totalHoursFormatted: formatTime(netTotalHours),
-        isSubtracted: false, // Non più sottratte nel calcolo netto basato sulle timbrature
+        isSubtracted: false,
         isAdded: overtimeHours > 0,
         absenceDetailStr: detailEntries.join(" | ")
       }
     });
   }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
 
-  const handleRefresh = () => {
-    setIsRefreshing(true)
-    setTimeout(() => setIsRefreshing(false), 800)
-  }
-
-  const handleExportCSV = () => {
-    if (!reportData.length) return;
-
+  const generateCSVContent = () => {
+    if (!reportData.length) return "";
     const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate (Lorde)", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Straordinari (h)", "Ore Nette", "Dettaglio Assenze/Extra"];
     const rows = reportData.map(r => [
       r.name,
@@ -305,12 +311,12 @@ export default function ReportsPage() {
       r.totalHoursFormatted,
       `"${r.absenceDetailStr}"`
     ]);
+    return [headers.join(";"), ...rows.map(e => e.join(";"))].join("\n");
+  }
 
-    const csvContent = [
-      headers.join(";"),
-      ...rows.map(e => e.join(";"))
-    ].join("\n");
-
+  const handleExportCSV = () => {
+    const csvContent = generateCSVContent();
+    if (!csvContent) return;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
@@ -321,6 +327,35 @@ export default function ReportsPage() {
     link.click();
     document.body.removeChild(link);
   };
+
+  const handleSendEmail = async () => {
+    if (!destEmail) {
+      toast({ variant: "destructive", title: "Email mancante", description: "Inserisci l'indirizzo del destinatario." });
+      return;
+    }
+    setIsSending(true);
+    try {
+      const csvContent = generateCSVContent();
+      const result = await sendReportEmail({
+        recipientEmail: destEmail,
+        monthLabel: MONTHS[parseInt(selectedMonth)].label,
+        year: selectedYear,
+        csvContent,
+        adminName: user?.displayName || "Amministratore TU.L.S."
+      });
+
+      if (result.success) {
+        toast({ title: "Email Inviata", description: `Il report è stato spedito a ${destEmail}.` });
+        setIsEmailOpen(false);
+      } else {
+        toast({ variant: "destructive", title: "Errore Invio", description: result.message });
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Errore Sistema", description: "Impossibile completare l'invio." });
+    } finally {
+      setIsSending(false);
+    }
+  }
 
   const isLoading = employeesLoading || entriesLoading || requestsLoading || shiftsLoading || isRefreshing;
 
@@ -348,11 +383,14 @@ export default function ReportsPage() {
             </SelectContent>
           </Select>
           <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
-          <Button variant="ghost" size="sm" className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50" onClick={handleRefresh} disabled={isLoading}>
+          <Button variant="ghost" size="sm" className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50" onClick={() => setIsRefreshing(true) || setTimeout(() => setIsRefreshing(false), 800)} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} /> Ricalcola
           </Button>
           <Button variant="outline" size="sm" className="h-10 gap-2 font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50" onClick={handleExportCSV} disabled={isLoading || reportData.length === 0}>
             <Download className="h-4 w-4" /> Esporta CSV
+          </Button>
+          <Button variant="default" size="sm" className="h-10 gap-2 font-black bg-[#227FD8] hover:bg-[#227FD8]/90 shadow-md" onClick={() => setIsEmailOpen(true)} disabled={isLoading || reportData.length === 0}>
+            <Send className="h-4 w-4" /> Invia via Email
           </Button>
         </div>
       </div>
@@ -401,6 +439,47 @@ export default function ReportsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Dialog Invio Email */}
+      <Dialog open={isEmailOpen} onOpenChange={setIsEmailOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-black text-xl uppercase flex items-center gap-2">
+              <Mail className="h-6 w-6 text-[#227FD8]" /> Invia Report Mensile
+            </DialogTitle>
+            <DialogDescription>
+              Il sistema preparerà un'email professionale con il file CSV allegato per {MONTHS[parseInt(selectedMonth)].label} {selectedYear}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+              <Label className="font-bold text-xs uppercase text-slate-500">Indirizzo Email Destinatario</Label>
+              <Input 
+                type="email" 
+                placeholder="es. consulente@studio.it" 
+                className="h-12"
+                value={destEmail}
+                onChange={(e) => setDestEmail(e.target.value)}
+              />
+            </div>
+            <div className="bg-slate-50 p-4 rounded-xl border border-dashed flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
+              <p className="text-xs font-medium text-slate-600">Il mittente sarà <b>tuls@laltrasigaretta.com</b></p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsEmailOpen(false)} className="font-bold">Annulla</Button>
+            <Button 
+              onClick={handleSendEmail} 
+              disabled={isSending || !destEmail}
+              className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8 h-11 gap-2"
+            >
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {isSending ? "INVIO IN CORSO..." : "SPEDISCI REPORT"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
