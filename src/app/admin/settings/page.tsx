@@ -1,8 +1,7 @@
-
 "use client"
 
 import { useState } from "react"
-import { Settings, Building2, Bell, Shield, Save, Loader2, Globe, Mail, Phone, Clock } from "lucide-react"
+import { Settings, Building2, Bell, Shield, Save, Loader2, Globe, Mail, Phone, Clock, Send, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -56,7 +55,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
       <div>
         <h1 className="text-3xl font-black tracking-tight text-[#1e293b]">Impostazioni di Sistema</h1>
         <p className="text-muted-foreground">Configura i parametri aziendali e le preferenze di TU.L.S.</p>
@@ -66,6 +65,9 @@ export default function SettingsPage() {
         <TabsList className="bg-white/50 backdrop-blur-sm border shadow-sm h-12 p-1">
           <TabsTrigger value="azienda" className="font-bold gap-2">
             <Building2 className="h-4 w-4" /> Azienda
+          </TabsTrigger>
+          <TabsTrigger value="email" className="font-bold gap-2">
+            <Mail className="h-4 w-4" /> Mail AI
           </TabsTrigger>
           <TabsTrigger value="notifiche" className="font-bold gap-2">
             <Bell className="h-4 w-4" /> Notifiche
@@ -95,65 +97,36 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="font-bold">Email di Contatto</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input className="pl-10" defaultValue="info@tuls.it" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="font-bold">Telefono</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input className="pl-10" defaultValue="+39 02 1234567" />
-                  </div>
-                </div>
-              </div>
             </CardContent>
           </Card>
+        </TabsContent>
 
+        <TabsContent value="email" className="space-y-6 mt-6">
           <Card className="border-none shadow-sm bg-white/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="font-black">Standard Orari Lavoro</CardTitle>
-              <CardDescription>Parametri predefiniti per la generazione dei turni.</CardDescription>
+              <CardTitle className="font-black flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-[#227FD8]" /> Integrazione Email AI
+              </CardTitle>
+              <CardDescription>Configura l'invio automatico delle comunicazioni generate dall'AI.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/10">
+              <div className="flex items-center justify-between p-4 bg-[#227FD8]/5 rounded-xl border border-[#227FD8]/10">
                 <div className="space-y-0.5">
-                  <Label className="text-base font-bold">Full-time standard (40h)</Label>
-                  <p className="text-sm text-muted-foreground">Calcola i progressi settimanali su base 40 ore.</p>
+                  <Label className="text-base font-bold">Generazione Automatica Bozze</Label>
+                  <p className="text-sm text-muted-foreground">L'AI prepara la mail subito dopo un'approvazione/rifiuto.</p>
                 </div>
                 <Switch defaultChecked />
               </div>
-
-              <div className="grid md:grid-cols-2 gap-6 pt-2">
-                <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase text-primary tracking-wider">Fascia Mattina</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold">Inizio</Label>
-                      <Input type="time" defaultValue="09:00" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold">Fine</Label>
-                      <Input type="time" defaultValue="13:00" />
-                    </div>
-                  </div>
+              
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-bold">Servizio di Invio (SMTP/API)</Label>
+                  <Input placeholder="es. Resend, SendGrid, Mailgun" disabled />
+                  <p className="text-[10px] text-slate-400 font-bold uppercase italic">In attesa di configurazione API Key</p>
                 </div>
-                <div className="space-y-4">
-                  <h4 className="text-sm font-black uppercase text-primary tracking-wider">Fascia Pomeriggio</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold">Inizio</Label>
-                      <Input type="time" defaultValue="17:00" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold">Fine</Label>
-                      <Input type="time" defaultValue="20:20" />
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  <Label className="font-bold">Email Mittente</Label>
+                  <Input defaultValue="notifiche@tuls.it" />
                 </div>
               </div>
             </CardContent>
@@ -174,13 +147,6 @@ export default function SettingsPage() {
                 </div>
                 <Switch defaultChecked />
               </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="font-bold">Resoconto Settimanale</Label>
-                  <p className="text-sm text-muted-foreground">Invia una mail ogni lunedì con il riepilogo delle ore.</p>
-                </div>
-                <Switch />
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -199,13 +165,6 @@ export default function SettingsPage() {
                 </div>
                 <Switch />
               </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="font-bold">Accesso Anonimo</Label>
-                  <p className="text-sm text-muted-foreground">Permetti l'accesso semplificato per prototipazione.</p>
-                </div>
-                <Switch defaultChecked />
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -215,7 +174,7 @@ export default function SettingsPage() {
         <Button 
           onClick={handleSaveSettings} 
           disabled={isSaving}
-          className="bg-primary hover:bg-primary/90 gap-2 h-12 px-10 font-black shadow-lg"
+          className="bg-[#227FD8] hover:bg-[#227FD8]/90 gap-2 h-12 px-10 font-black shadow-lg"
         >
           {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />}
           SALVA IMPOSTAZIONI

@@ -12,7 +12,10 @@ import {
   Timer,
   RefreshCw,
   ChevronDown,
-  Trash2
+  Trash2,
+  Mail,
+  Copy,
+  Sparkles
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -28,19 +31,24 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup, doc } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
+import { draftEmail } from "@/ai/flows/draft-email-flow"
 
 export default function RequestsPage() {
   const db = useFirestore()
+  const { user } = useUser()
   const { toast } = useToast()
   
   const [rejectingRequest, setRejectingRequest] = useState<any>(null)
   const [adminNote, setAdminNote] = useState("")
+  
+  const [isDrafting, setIsDrafting] = useState(false)
+  const [emailDraft, setEmailDraft] = useState<{subject: string, body: string} | null>(null)
 
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -111,6 +119,24 @@ export default function RequestsPage() {
     setAdminNote("")
   }
 
+  const handleDraftEmail = async (request: any) => {
+    setIsDrafting(true);
+    const emp = employeeMap[request.employeeId];
+    try {
+      const draft = await draftEmail({
+        recipientName: emp?.firstName || "Collaboratore",
+        eventType: `Richiesta ${request.type} del ${request.startDate} - Stato: ${request.status}`,
+        details: request.adminNote || request.reason || "Nessuna nota specifica.",
+        adminName: user?.displayName || "Amministratore"
+      });
+      setEmailDraft(draft);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Errore AI", description: "Impossibile generare la bozza." });
+    } finally {
+      setIsDrafting(false);
+    }
+  }
+
   const handleDeleteRejected = () => {
     const rejected = historyRequests.filter(req => {
       const s = (req.status || "").toUpperCase();
@@ -169,6 +195,7 @@ export default function RequestsPage() {
                 emp={employeeMap[request.employeeId]} 
                 onApprove={() => handleUpdateStatus(request, "Approvato")}
                 onReject={() => setRejectingRequest(request)}
+                onDraft={() => handleDraftEmail(request)}
                 typeIcon={getTypeIcon(request.type)}
               />
             ))
@@ -197,6 +224,7 @@ export default function RequestsPage() {
               request={request} 
               emp={employeeMap[request.employeeId]} 
               isHistory={true}
+              onDraft={() => handleDraftEmail(request)}
               typeIcon={getTypeIcon(request.type)}
             />
           ))}
@@ -229,11 +257,51 @@ export default function RequestsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!emailDraft || isDrafting} onOpenChange={() => setEmailDraft(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#227FD8] flex items-center gap-2">
+              <Sparkles className="h-5 w-5" /> Bozza Email AI
+            </DialogTitle>
+            <DialogDescription>Testo professionale generato automaticamente dal sistema.</DialogDescription>
+          </DialogHeader>
+          {isDrafting ? (
+            <div className="py-20 text-center flex flex-col items-center gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-[#227FD8]" />
+              <p className="font-bold text-slate-400 animate-pulse">L'AI sta scrivendo la mail...</p>
+            </div>
+          ) : emailDraft && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-slate-50 rounded-lg border font-bold text-sm">
+                <span className="text-slate-400 uppercase text-[10px] mr-2">Oggetto:</span> {emailDraft.subject}
+              </div>
+              <div className="p-4 bg-white rounded-lg border text-sm leading-relaxed whitespace-pre-wrap min-h-[200px] max-h-[400px] overflow-y-auto font-medium text-slate-700">
+                {emailDraft.body}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setEmailDraft(null)} className="font-bold">Chiudi</Button>
+            <Button 
+              className="bg-[#227FD8] gap-2 font-black"
+              onClick={() => {
+                if (emailDraft) {
+                  navigator.clipboard.writeText(`${emailDraft.subject}\n\n${emailDraft.body}`);
+                  toast({ title: "Copiato", description: "Bozza copiata negli appunti." });
+                }
+              }}
+            >
+              <Copy className="h-4 w-4" /> Copia Tutto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typeIcon }: { request: any, emp: any, onApprove?: any, onReject?: any, isHistory?: boolean, typeIcon: any }) {
+function RequestCard({ request, emp, onApprove, onReject, onDraft, isHistory = false, typeIcon }: { request: any, emp: any, onApprove?: any, onReject?: any, onDraft: any, isHistory?: boolean, typeIcon: any }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const status = (request.status || "").toUpperCase();
   const isApproved = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
@@ -264,6 +332,9 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-[#227FD8]" onClick={(e) => { e.stopPropagation(); onDraft(); }}>
+                  <Mail className="h-3.5 w-3.5" />
+                </Button>
                 <Badge variant="outline" className="h-5 px-2 text-[8px] font-black uppercase border-none bg-slate-100 text-slate-500 gap-1">
                   {typeIcon} {request.type}
                 </Badge>
@@ -335,6 +406,9 @@ function RequestCard({ request, emp, onApprove, onReject, isHistory = false, typ
                 {request.status}
               </Badge>
               <div className="flex gap-2">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-[#227FD8] hover:bg-blue-50" title="Bozza Email AI" onClick={onDraft}>
+                  <Mail className="h-4 w-4" />
+                </Button>
                 <Button variant="outline" size="sm" className="h-8 text-xs font-black border-rose-200 text-rose-600 hover:bg-rose-50" onClick={onReject}>RIFIUTA</Button>
                 <Button size="sm" className="h-8 text-xs font-black bg-green-600 hover:bg-green-700" onClick={onApprove}>APPROVA</Button>
               </div>

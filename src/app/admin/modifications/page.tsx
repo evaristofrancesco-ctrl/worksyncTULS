@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from "react"
@@ -11,23 +10,39 @@ import {
   Calendar,
   MapPin,
   Barcode,
-  Trash2
+  Trash2,
+  Mail,
+  Copy,
+  Sparkles
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { draftEmail } from "@/ai/flows/draft-email-flow"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog"
 
 export default function AdminModificationsPage() {
   const db = useFirestore()
+  const { user } = useUser()
   const { toast } = useToast()
   
+  const [isDrafting, setIsDrafting] = useState(false)
+  const [emailDraft, setEmailDraft] = useState<{subject: string, body: string} | null>(null)
+
   const employeesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return collection(db, "employees");
@@ -84,25 +99,29 @@ export default function AdminModificationsPage() {
     toast({ title: newStatus === "APPROVED" ? "Approvata" : "Rifiutata" })
   }
 
+  const handleDraftEmail = async (request: any) => {
+    setIsDrafting(true);
+    const emp = employeeMap[request.employeeId];
+    try {
+      const draft = await draftEmail({
+        recipientName: emp?.firstName || "Collaboratore",
+        eventType: `Movimentazione ${request.locationName} - Stato: ${request.status}`,
+        details: `Entra: ${request.entra?.name || 'nessuno'}, Esce: ${request.esce?.name || 'nessuno'}. Esito amministrativo: ${request.status === 'APPROVED' ? 'Approvato' : 'Non approvato'}.`,
+        adminName: user?.displayName || "Amministratore"
+      });
+      setEmailDraft(draft);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Errore AI", description: "Impossibile generare la bozza." });
+    } finally {
+      setIsDrafting(false);
+    }
+  }
+
   const handleDeleteRequest = (request: any) => {
     if (!db) return;
     const requestRef = doc(db, "employees", request.employeeId, "modifications", request.id);
     deleteDocumentNonBlocking(requestRef);
     toast({ title: "Richiesta eliminata", description: "Il record è stato rimosso dal sistema." });
-  }
-
-  const handleDeleteRejected = () => {
-    const rejected = historyRequests.filter(req => req.status === "REJECTED");
-    if (rejected.length === 0) {
-      toast({ title: "Nessun record", description: "Non ci sono richieste rifiutate da eliminare." });
-      return;
-    }
-    
-    rejected.forEach(req => {
-      deleteDocumentNonBlocking(doc(db, "employees", req.employeeId, "modifications", req.id));
-    });
-    
-    toast({ title: "Database Alleggerito", description: `Eliminate ${rejected.length} richieste rifiutate.` });
   }
 
   return (
@@ -137,6 +156,7 @@ export default function AdminModificationsPage() {
                 emp={employeeMap[req.employeeId]} 
                 onUpdate={handleUpdateStatus} 
                 onDelete={handleDeleteRequest}
+                onDraft={() => handleDraftEmail(req)}
                 isPending={true} 
               />
             ))
@@ -149,16 +169,6 @@ export default function AdminModificationsPage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-3">
-          <div className="flex justify-end mb-4">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="text-destructive border-destructive/20 hover:bg-rose-50 font-black uppercase text-[10px] h-8 gap-2"
-              onClick={handleDeleteRejected}
-            >
-              <Trash2 className="h-3 w-3" /> Pulisci Rifiutate
-            </Button>
-          </div>
           {historyRequests.map((req) => (
             <ModificationCard 
               key={req.id} 
@@ -166,16 +176,57 @@ export default function AdminModificationsPage() {
               emp={employeeMap[req.employeeId]} 
               onUpdate={handleUpdateStatus} 
               onDelete={handleDeleteRequest}
+              onDraft={() => handleDraftEmail(req)}
               isPending={false} 
             />
           ))}
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!emailDraft || isDrafting} onOpenChange={() => setEmailDraft(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-black text-[#227FD8] flex items-center gap-2">
+              <Sparkles className="h-5 w-5" /> Bozza Email AI
+            </DialogTitle>
+            <DialogDescription>Generazione bozza per comunicazione movimentazione.</DialogDescription>
+          </DialogHeader>
+          {isDrafting ? (
+            <div className="py-20 text-center flex flex-col items-center gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-[#227FD8]" />
+              <p className="font-bold text-slate-400">L'AI sta preparando il contenuto...</p>
+            </div>
+          ) : emailDraft && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-slate-50 rounded-lg border font-bold text-sm">
+                <span className="text-slate-400 uppercase text-[10px] mr-2">Oggetto:</span> {emailDraft.subject}
+              </div>
+              <div className="p-4 bg-white rounded-lg border text-sm leading-relaxed whitespace-pre-wrap min-h-[200px] max-h-[400px] overflow-y-auto font-medium text-slate-700">
+                {emailDraft.body}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setEmailDraft(null)} className="font-bold">Chiudi</Button>
+            <Button 
+              className="bg-[#227FD8] gap-2 font-black"
+              onClick={() => {
+                if (emailDraft) {
+                  navigator.clipboard.writeText(`${emailDraft.subject}\n\n${emailDraft.body}`);
+                  toast({ title: "Copiato", description: "Bozza copiata negli appunti." });
+                }
+              }}
+            >
+              <Copy className="h-4 w-4" /> Copia Tutto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function ModificationCard({ req, emp, onUpdate, onDelete, isPending }: { req: any, emp: any, onUpdate: any, onDelete: any, isPending: boolean }) {
+function ModificationCard({ req, emp, onUpdate, onDelete, onDraft, isPending }: { req: any, emp: any, onUpdate: any, onDelete: any, onDraft: any, isPending: boolean }) {
   const isApproved = req.status === "APPROVED";
   
   if (!isPending) {
@@ -210,6 +261,9 @@ function ModificationCard({ req, emp, onUpdate, onDelete, isPending }: { req: an
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-[#227FD8]" onClick={onDraft}>
+              <Mail className="h-4 w-4" />
+            </Button>
             <Badge className={`h-6 text-[10px] font-black uppercase tracking-tight ${isApproved ? "bg-green-100 text-green-800" : "bg-rose-100 text-rose-800"}`}>
               {req.status === 'APPROVED' ? 'Approvata' : 'Rifiutata'}
             </Badge>
@@ -242,6 +296,9 @@ function ModificationCard({ req, emp, onUpdate, onDelete, isPending }: { req: an
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="h-9 w-9 text-[#227FD8] hover:bg-blue-50" onClick={onDraft}>
+              <Mail className="h-5 w-5" />
+            </Button>
             <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400 hover:text-destructive mr-2" onClick={() => onDelete(req)}>
               <Trash2 className="h-5 w-5" />
             </Button>
