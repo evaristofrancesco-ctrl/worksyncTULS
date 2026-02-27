@@ -82,6 +82,12 @@ export default function ReportsPage() {
   }, [db, user])
   const { data: allRequests, isLoading: requestsLoading } = useCollection(requestsQuery)
 
+  const shiftsQuery = useMemoFirebase(() => {
+    if (!db || !user) return null;
+    return collectionGroup(db, "shifts");
+  }, [db, user])
+  const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
+
   const formatTime = (decimalHours: number) => {
     const isNegative = decimalHours < 0;
     const absHours = Math.abs(decimalHours);
@@ -99,7 +105,7 @@ export default function ReportsPage() {
   };
 
   const reportData = useMemo(() => {
-    if (!employees || !allEntries || !allRequests) return [];
+    if (!employees || !allEntries || !allRequests || !allShifts) return [];
 
     const targetDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 1);
     const monthStart = startOfMonth(targetDate);
@@ -123,6 +129,17 @@ export default function ReportsPage() {
       if (status === "APPROVATO" || status === "APPROVED" || status === "Approvato") {
         acc[req.employeeId].push(req);
       }
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    const shiftsMap = allShifts.reduce((acc, shift) => {
+      if (!acc[shift.employeeId]) acc[shift.employeeId] = [];
+      try {
+        const shiftStart = parseISO(shift.startTime);
+        if (isWithinInterval(shiftStart, { start: monthStart, end: monthEnd })) {
+          acc[shift.employeeId].push(shift);
+        }
+      } catch (e) {}
       return acc;
     }, {} as Record<string, any[]>);
 
@@ -185,11 +202,15 @@ export default function ReportsPage() {
         } catch (e) { return false; }
       });
 
+      const empOvertimeShifts = (shiftsMap[emp.id] || []).filter(s => s.type === 'OVERTIME');
+
       let vacationHours = 0;
       let sickHours = 0;
       let permitHours = 0;
-      let absenceDetails: string[] = [];
+      let overtimeHours = 0;
+      let detailEntries: string[] = [];
 
+      // Calcolo Assenze
       empRequests.forEach(req => {
         try {
           const rStart = parseISO(req.startDate);
@@ -222,13 +243,24 @@ export default function ReportsPage() {
           }
 
           daysInInterval.forEach(d => { 
-            absenceDetails.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo} [${formatTime(hForThisReq)}]`); 
+            detailEntries.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo} [${formatTime(hForThisReq)}]`); 
           });
         } catch (e) {}
       });
 
+      // Calcolo Straordinari (Aggiunta)
+      empOvertimeShifts.forEach(s => {
+        const start = new Date(s.startTime).getTime();
+        const end = new Date(s.endTime).getTime();
+        const diffHours = (end - start) / (1000 * 60 * 60);
+        if (diffHours > 0) {
+          overtimeHours += diffHours;
+          detailEntries.push(`${format(parseISO(s.date), 'dd/MM')} Straordinario [${formatTime(diffHours)}]`);
+        }
+      });
+
       const absenceTotal = vacationHours + sickHours + permitHours;
-      const netTotalHours = actualWorkHours - absenceTotal;
+      const netTotalHours = actualWorkHours - absenceTotal + overtimeHours;
 
       return {
         id: emp.id,
@@ -240,12 +272,14 @@ export default function ReportsPage() {
         vacationHoursFormatted: formatTime(vacationHours),
         sickHoursFormatted: formatTime(sickHours),
         permitHoursFormatted: formatTime(permitHours),
+        overtimeHoursFormatted: formatTime(overtimeHours),
         totalHoursFormatted: formatTime(netTotalHours),
         isSubtracted: absenceTotal > 0,
-        absenceDetailStr: absenceDetails.join(" | ")
+        isAdded: overtimeHours > 0,
+        absenceDetailStr: detailEntries.join(" | ")
       }
     });
-  }, [employees, allEntries, allRequests, selectedMonth, selectedYear]);
+  }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
 
   const handleRefresh = () => {
     setIsRefreshing(true)
@@ -255,7 +289,7 @@ export default function ReportsPage() {
   const handleExportCSV = () => {
     if (!reportData.length) return;
 
-    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate (Lorde)", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Ore Nette", "Dettaglio Assenze (Giorno - Tipo - Ore)"];
+    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate (Lorde)", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Straordinari (h)", "Ore Nette", "Dettaglio Assenze/Extra"];
     const rows = reportData.map(r => [
       r.name,
       r.jobTitle,
@@ -264,6 +298,7 @@ export default function ReportsPage() {
       r.vacationHoursFormatted,
       r.sickHoursFormatted,
       r.permitHoursFormatted,
+      r.overtimeHoursFormatted,
       r.totalHoursFormatted,
       `"${r.absenceDetailStr}"`
     ]);
@@ -284,7 +319,7 @@ export default function ReportsPage() {
     document.body.removeChild(link);
   };
 
-  const isLoading = employeesLoading || entriesLoading || requestsLoading || isRefreshing;
+  const isLoading = employeesLoading || entriesLoading || requestsLoading || shiftsLoading || isRefreshing;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
@@ -293,7 +328,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Ore previste vs <b>ore nette</b> (timbrate meno assenze).</p>
+          <p className="text-slate-500 font-medium">Ore previste vs <b>ore nette</b> (timbrate + extra - assenze).</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
@@ -334,12 +369,13 @@ export default function ReportsPage() {
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
                 <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
+                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center text-emerald-600">Extra (h)</TableHead>
                 <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /><p className="text-sm font-bold text-slate-400 mt-4">Analisi dati in corso...</p></TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /><p className="text-sm font-bold text-slate-400 mt-4">Analisi dati in corso...</p></TableCell></TableRow>
               ) : reportData.length > 0 ? reportData.map((row) => (
                 <TableRow key={row.id} className="h-16 hover:bg-slate-50/50 transition-colors">
                   <TableCell className="pl-8">
@@ -352,10 +388,11 @@ export default function ReportsPage() {
                   <TableCell className="text-center"><span className="text-sm font-bold text-amber-600">{row.vacationHoursFormatted}</span></TableCell>
                   <TableCell className="text-center"><span className="text-sm font-bold text-rose-600">{row.sickHoursFormatted}</span></TableCell>
                   <TableCell className="text-center"><span className="text-sm font-bold text-cyan-600">{row.permitHoursFormatted}</span></TableCell>
-                  <TableCell className="text-right pr-8"><span className={cn("text-lg font-black transition-colors", row.isSubtracted ? "text-rose-600" : "text-[#227FD8]")}>{row.totalHoursFormatted}</span></TableCell>
+                  <TableCell className="text-center"><span className="text-sm font-black text-emerald-600">{row.overtimeHoursFormatted}</span></TableCell>
+                  <TableCell className="text-right pr-8"><span className={cn("text-lg font-black transition-colors", row.isSubtracted ? "text-rose-600" : row.isAdded ? "text-emerald-600" : "text-[#227FD8]")}>{row.totalHoursFormatted}</span></TableCell>
                 </TableRow>
               )) : (
-                <TableRow><TableCell colSpan={6} className="h-40 text-center text-slate-400 italic font-medium">Nessuna timbratura trovata per il periodo selezionato.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="h-40 text-center text-slate-400 italic font-medium">Nessun dato trovato per il periodo selezionato.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

@@ -15,7 +15,8 @@ import {
   Coffee,
   Umbrella,
   CalendarDays,
-  Building2
+  Building2,
+  Zap
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -251,7 +252,7 @@ export default function ShiftsPage() {
         
         daysOfVisualizedWeek.forEach((day) => {
           const dayOfWeek = day.getDay();
-          if (dayOfWeek === 0) return; // Skip automatic Sunday generation per rules
+          if (dayOfWeek === 0) return; 
 
           const dStr = format(day, 'yyyy-MM-dd');
           const request = approvedRequests.find(r => r.employeeId === emp.id && r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
@@ -490,6 +491,7 @@ export default function ShiftsPage() {
                 <SelectTrigger className="h-12 font-bold rounded-xl border-slate-200"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MANUAL" className="font-bold">Turno Lavorativo</SelectItem>
+                  <SelectItem value="OVERTIME" className="font-bold">Straordinario</SelectItem>
                   <SelectItem value="REST" className="font-bold">Riposo Settimanale</SelectItem>
                   <SelectItem value="ABSENCE" className="font-bold">Assenza / Ferie</SelectItem>
                 </SelectContent>
@@ -547,6 +549,9 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
   } else if (ev.type === 'ABSENCE') {
     colorClass = "border-l-rose-600 bg-rose-50 text-rose-900";
     icon = <Umbrella className="h-4 w-4 text-rose-600" />;
+  } else if (ev.type === 'OVERTIME') {
+    colorClass = "border-l-emerald-600 bg-emerald-50 text-emerald-900";
+    icon = <Zap className="h-4 w-4 text-emerald-600" />;
   } else if (!isMorning) {
     colorClass = "border-l-indigo-600 bg-indigo-50 text-indigo-900";
     icon = <Moon className="h-4 w-4 text-indigo-600" />;
@@ -565,7 +570,7 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
       <div className="flex flex-col gap-1 pointer-events-none">
         <div className="flex items-center justify-between">
           <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
-            {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : 'LAVORO'}
+            {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : ev.type === 'OVERTIME' ? 'EXTRA' : 'LAVORO'}
           </span>
           {icon}
         </div>
