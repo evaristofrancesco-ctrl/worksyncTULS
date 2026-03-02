@@ -65,7 +65,7 @@ export function ClockInOut() {
     setIsProcessing(true)
     const now = new Date();
     const day = now.getDay();
-    const isWeekday = day >= 1 && day <= 5;
+    const isWeekday = day >= 1 && day <= 6; // Lun-Sab
     
     let effectiveTime = now.toISOString();
     let isAnomaly = false;
@@ -77,9 +77,10 @@ export function ClockInOut() {
         return d;
       };
 
+      // Definizione slot: Mattina (09:00-13:00) e Pomeriggio (17:20-20:20)
       const slots = isClockedIn 
-        ? [getPrecise(13, 0), getPrecise(20, 20)]
-        : [getPrecise(9, 0), getPrecise(17, 0)];
+        ? [getPrecise(13, 0), getPrecise(20, 20)] // Slot per uscita
+        : [getPrecise(9, 0), getPrecise(17, 20)]; // Slot per entrata
 
       let minDiff = Infinity;
       let targetPrecise: Date | null = null;
@@ -92,7 +93,8 @@ export function ClockInOut() {
         }
       });
 
-      if (minDiff <= 15 && targetPrecise) {
+      // Nuova Regola: Arrotondamento 20 minuti (prima e dopo)
+      if (minDiff <= 20 && targetPrecise) {
         effectiveTime = (targetPrecise as Date).toISOString();
       } else {
         isAnomaly = true;
@@ -202,7 +204,7 @@ export function ClockInOut() {
         
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground italic">
           <MapPin className="h-3 w-3" />
-          <span>Sede Centrale - Arrotondamento 15m attivo</span>
+          <span>Sede Centrale - Arrotondamento 20m attivo</span>
         </div>
       </CardContent>
     </Card>

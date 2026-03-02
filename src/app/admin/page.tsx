@@ -95,13 +95,16 @@ export default function AdminDashboard() {
         
         const entryIn = new Date(entry.checkInTime);
         const shiftIn = new Date(shift.startTime);
+        // Soglia tolleranza estesa a 4 ore per identificare l'ingresso corretto, 
+        // ma l'arrotondamento database gestisce il valore reale.
         return Math.abs(entryIn.getTime() - shiftIn.getTime()) <= 4 * 60 * 60 * 1000;
       });
 
       if (hasEntry) return false;
 
       const startTime = new Date(shift.startTime);
-      const limitTime = addMinutes(startTime, 15);
+      // Allarme dopo 20 minuti di ritardo (coerente con regola arrotondamento)
+      const limitTime = addMinutes(startTime, 20);
       
       return isAfter(now, limitTime);
     }).map(s => ({
@@ -151,7 +154,8 @@ export default function AdminDashboard() {
           if (matchedShift) {
             const shiftIn = new Date(matchedShift.startTime);
             const inDiff = Math.abs(entryIn.getTime() - shiftIn.getTime()) / 60000;
-            if (inDiff > 15) isWrong = true;
+            // Considera anomalo se fuori dai 20 minuti di arrotondamento
+            if (inDiff > 20) isWrong = true;
           } else {
             isWrong = true;
           }
