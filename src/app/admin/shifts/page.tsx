@@ -16,7 +16,8 @@ import {
   Umbrella,
   CalendarDays,
   Building2,
-  Zap
+  Zap,
+  Activity
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -266,8 +267,8 @@ export default function ShiftsPage() {
               date: dStr,
               startTime: new Date(`${dStr}T09:00:00`).toISOString(),
               endTime: new Date(`${dStr}T20:20:00`).toISOString(),
-              title: request.type === 'VACATION' ? 'FERIE' : 'PERMESSO',
-              type: "ABSENCE",
+              title: request.type === 'VACATION' ? 'FERIE' : request.type === 'SICK' ? 'MALATTIA' : 'PERMESSO',
+              type: request.type === 'SICK' ? "SICK" : "ABSENCE",
               companyId: "default",
               status: "SCHEDULED"
             }, { merge: true });
@@ -437,7 +438,7 @@ export default function ShiftsPage() {
 
                       <div className="w-[240px] shrink-0 bg-slate-100/50 p-4 border-l-2 border-l-slate-300 flex flex-col gap-4">
                         {locations?.map(loc => {
-                          const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE');
+                          const locShifts = dayShifts.filter(s => s.locationId === loc.id && s.type !== 'REST' && s.type !== 'ABSENCE' && s.type !== 'SICK');
                           let am = 0; let pm = 0;
                           locShifts.forEach(s => {
                             const start = format(parseISO(s.startTime), 'HH:mm');
@@ -494,6 +495,7 @@ export default function ShiftsPage() {
                   <SelectItem value="OVERTIME" className="font-bold">Straordinario</SelectItem>
                   <SelectItem value="REST" className="font-bold">Riposo Settimanale</SelectItem>
                   <SelectItem value="ABSENCE" className="font-bold">Assenza / Ferie</SelectItem>
+                  <SelectItem value="SICK" className="font-bold">Malattia</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -549,6 +551,9 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
   } else if (ev.type === 'ABSENCE') {
     colorClass = "border-l-rose-600 bg-rose-50 text-rose-900";
     icon = <Umbrella className="h-4 w-4 text-rose-600" />;
+  } else if (ev.type === 'SICK') {
+    colorClass = "border-l-rose-700 bg-rose-100 text-rose-900";
+    icon = <Activity className="h-4 w-4 text-rose-700" />;
   } else if (ev.type === 'OVERTIME') {
     colorClass = "border-l-emerald-600 bg-emerald-50 text-emerald-900";
     icon = <Zap className="h-4 w-4 text-emerald-600" />;
@@ -570,7 +575,7 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
       <div className="flex flex-col gap-1 pointer-events-none">
         <div className="flex items-center justify-between">
           <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
-            {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : ev.type === 'OVERTIME' ? 'EXTRA' : 'LAVORO'}
+            {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : ev.type === 'SICK' ? 'MALATTIA' : ev.type === 'OVERTIME' ? 'EXTRA' : 'LAVORO'}
           </span>
           {icon}
         </div>

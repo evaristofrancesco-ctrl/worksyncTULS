@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -41,7 +42,7 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -134,8 +135,8 @@ export default function ReportsPage() {
     const entriesMap = allEntries.reduce((acc, entry) => {
       if (!entry.checkInTime) return acc;
       const datePart = entry.checkInTime.split('T')[0];
-      const [y, m] = datePart.split('-').map(Number);
-      if (y === selYearInt && (m - 1) === selMonthInt) {
+      const dateObj = parseISO(datePart);
+      if (isValid(dateObj) && dateObj.getFullYear() === selYearInt && dateObj.getMonth() === selMonthInt) {
         if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
         acc[entry.employeeId].push(entry);
       }
@@ -146,8 +147,8 @@ export default function ReportsPage() {
       const status = (req.status || "").toUpperCase();
       if (status === "APPROVATO" || status === "APPROVED" || status === "Approvato") {
         const datePart = req.startDate;
-        const [y, m] = datePart.split('-').map(Number);
-        if (y === selYearInt && (m - 1) === selMonthInt) {
+        const dateObj = parseISO(datePart);
+        if (isValid(dateObj) && dateObj.getFullYear() === selYearInt && dateObj.getMonth() === selMonthInt) {
           if (!acc[req.employeeId]) acc[req.employeeId] = [];
           acc[req.employeeId].push(req);
         }
@@ -158,8 +159,8 @@ export default function ReportsPage() {
     const shiftsMap = allShifts.reduce((acc, shift) => {
       const datePart = shift.date;
       if (datePart) {
-        const [y, m] = datePart.split('-').map(Number);
-        if (y === selYearInt && (m - 1) === selMonthInt) {
+        const dateObj = parseISO(datePart);
+        if (isValid(dateObj) && dateObj.getFullYear() === selYearInt && dateObj.getMonth() === selMonthInt) {
           if (!acc[shift.employeeId]) acc[shift.employeeId] = [];
           acc[shift.employeeId].push(shift);
         }
@@ -219,7 +220,10 @@ export default function ReportsPage() {
 
       const empRequests = requestsMap[emp.id] || [];
       const empShifts = shiftsMap[emp.id] || [];
+      
       const empOvertimeShifts = empShifts.filter(s => s.type === 'OVERTIME');
+      const empAbsenceShifts = empShifts.filter(s => s.type === 'ABSENCE');
+      const empSickShifts = empShifts.filter(s => s.type === 'SICK');
 
       let vacationHours = 0;
       let sickHours = 0;
@@ -227,6 +231,7 @@ export default function ReportsPage() {
       let overtimeHours = 0;
       let detailEntries: string[] = [];
 
+      // Calcolo ore da Richieste Approvate
       empRequests.forEach(req => {
         try {
           const rStart = parseISO(req.startDate);
@@ -236,22 +241,21 @@ export default function ReportsPage() {
             start: rStart < monthStart ? monthStart : rStart, 
             end: rEnd > monthEnd ? monthEnd : rEnd 
           });
-          const count = daysInInterval.length;
           
           let hForThisReq = 0;
           let timeInfo = "";
           const typeLabel = req.type === 'VACATION' ? 'Ferie' : req.type === 'SICK' ? 'Malattia' : req.type === 'HOURLY_PERMIT' ? 'Permesso Orario' : 'Permesso';
 
-          if (req.type === "VACATION") { vacationHours += count * 8; hForThisReq = 8; }
-          else if (req.type === "SICK") { sickHours += count * 8; hForThisReq = 8; }
-          else if (req.type === "PERSONAL") { permitHours += count * 8; hForThisReq = 8; }
+          if (req.type === "VACATION") { vacationHours += daysInInterval.length * 8; hForThisReq = 8; }
+          else if (req.type === "SICK") { sickHours += daysInInterval.length * 8; hForThisReq = 8; }
+          else if (req.type === "PERSONAL") { permitHours += daysInInterval.length * 8; hForThisReq = 8; }
           else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
               const diff = (h2 + m2/60) - (h1 + m1/60);
               if (diff > 0) {
-                permitHours += (diff * count);
+                permitHours += (diff * daysInInterval.length);
                 hForThisReq = diff;
                 timeInfo = ` (${req.startTime}-${req.endTime})`;
               }
@@ -264,6 +268,7 @@ export default function ReportsPage() {
         } catch (e) {}
       });
 
+      // Calcolo ore da Badge Straordinari nel calendario
       empOvertimeShifts.forEach(s => {
         const start = new Date(s.startTime).getTime();
         const end = new Date(s.endTime).getTime();
@@ -271,6 +276,23 @@ export default function ReportsPage() {
         if (diffHours > 0) {
           overtimeHours += diffHours;
           detailEntries.push(`${format(parseISO(s.date), 'dd/MM')} Straordinario [${formatTime(diffHours)}]`);
+        }
+      });
+
+      // Calcolo ore da Badge Assenza/Malattia nel calendario (se non già coperte da richieste)
+      empAbsenceShifts.forEach(s => {
+        const dateLabel = format(parseISO(s.date), 'dd/MM');
+        if (!detailEntries.some(e => e.includes(dateLabel) && e.includes('Ferie'))) {
+          vacationHours += 8;
+          detailEntries.push(`${dateLabel} Assenza/Ferie [8h]`);
+        }
+      });
+
+      empSickShifts.forEach(s => {
+        const dateLabel = format(parseISO(s.date), 'dd/MM');
+        if (!detailEntries.some(e => e.includes(dateLabel) && e.includes('Malattia'))) {
+          sickHours += 8;
+          detailEntries.push(`${dateLabel} Malattia [8h]`);
         }
       });
 
