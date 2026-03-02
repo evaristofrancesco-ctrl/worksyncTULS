@@ -79,7 +79,8 @@ export default function AdminDashboard() {
     return allShifts.filter(shift => {
       if (shift.date !== todayStr) return false;
       
-      if (shift.type === 'REST' || shift.type === 'ABSENCE') return false;
+      // ESCLUDI RIPOSI E ASSENZE (Malattia, Ferie, Permessi)
+      if (shift.type === 'REST' || shift.type === 'ABSENCE' || shift.type === 'SICK') return false;
       
       const emp = employeeMap[shift.employeeId];
       if (!emp) return false;
@@ -116,7 +117,7 @@ export default function AdminDashboard() {
     
     const employeeIdsScheduledToday = Array.from(new Set(
       allShifts
-        .filter(s => s.date === todayStr && s.type !== 'REST' && s.type !== 'ABSENCE')
+        .filter(s => s.date === todayStr && s.type !== 'REST' && s.type !== 'ABSENCE' && s.type !== 'SICK')
         .map(s => s.employeeId)
     ));
 
@@ -132,7 +133,7 @@ export default function AdminDashboard() {
       const emp = employeeMap[id];
       if (!emp) return null;
 
-      const empShifts = allShifts.filter(s => s.employeeId === id && s.date === todayStr && s.type !== 'REST' && s.type !== 'ABSENCE');
+      const empShifts = allShifts.filter(s => s.employeeId === id && s.date === todayStr && s.type !== 'REST' && s.type !== 'ABSENCE' && s.type !== 'SICK');
       const empEntriesRaw = entriesByEmployee.get(id) || [];
       
       const empEntries = empEntriesRaw
@@ -233,7 +234,7 @@ export default function AdminDashboard() {
             <StatCard title="Team" value={employees?.length || 0} description="Totali" icon={Users} />
             <StatCard title="Attivi" value={allEntries?.filter(e => !e.checkOutTime).length || 0} description="In servizio" icon={Clock} />
             <StatCard title="Richieste" value={allRequests?.filter(r => (r.status || "").toUpperCase() === "PENDING").length || 0} description="Da gestire" icon={FileText} />
-            <StatCard title="Turni" value={allShifts?.filter(s => s.date === now.toISOString().split('T')[0] && s.type !== 'REST' && s.type !== 'ABSENCE').length || 0} description="Oggi" icon={Calendar} />
+            <StatCard title="Turni" value={allShifts?.filter(s => s.date === now.toISOString().split('T')[0] && s.type !== 'REST' && s.type !== 'ABSENCE' && s.type !== 'SICK').length || 0} description="Oggi" icon={Calendar} />
           </div>
 
           <div className="grid gap-8 md:grid-cols-2">
