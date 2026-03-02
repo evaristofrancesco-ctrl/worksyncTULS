@@ -44,7 +44,7 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup } from "firebase/firestore"
+import { collection, collectionGroup, query, where } from "firebase/firestore"
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid, isSameDay } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -136,6 +136,35 @@ export default function ReportsPage() {
     const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
+    // Ottimizzazione: Raggruppamento dati per accesso rapido O(1) invece di O(N) find
+    const entriesMap = new Map();
+    allEntries.forEach(e => {
+      const dateKey = e.checkInTime ? e.checkInTime.split('T')[0] : null;
+      if (!dateKey) return;
+      const key = `${e.employeeId}_${dateKey}`;
+      const list = entriesMap.get(key) || [];
+      list.push(e);
+      entriesMap.set(key, list);
+    });
+
+    const requestsMap = new Map();
+    allRequests.forEach(r => {
+      const status = (r.status || "").toUpperCase();
+      if (!(status === "APPROVATO" || status === "APPROVED" || status === "Approvato")) return;
+      const key = r.employeeId;
+      const list = requestsMap.get(key) || [];
+      list.push(r);
+      requestsMap.set(key, list);
+    });
+
+    const shiftsMap = new Map();
+    allShifts.forEach(s => {
+      const key = `${s.employeeId}_${s.date}`;
+      const list = shiftsMap.get(key) || [];
+      list.push(s);
+      shiftsMap.set(key, list);
+    });
+
     const dailyMap: Record<string, any> = {};
 
     const summary = employees.filter(emp => {
@@ -162,7 +191,7 @@ export default function ReportsPage() {
         const dStr = format(day, 'yyyy-MM-dd');
         const dayOfWeekStr = day.getDay().toString();
         
-        // Calcolo ore previste (per coerenza con logica precedente)
+        // Calcolo ore previste
         if (dayOfWeekStr !== "0") {
           const isRestDay = dayOfWeekStr === emp.restDay;
           const rStart = emp.restStartTime || "00:00";
@@ -183,9 +212,10 @@ export default function ReportsPage() {
           }
         }
 
-        // Ore effettive del giorno
+        // Ore effettive del giorno (da Mappa)
         let dayWork = 0;
-        allEntries.filter(e => e.employeeId === emp.id && e.checkInTime?.startsWith(dStr)).forEach(e => {
+        const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
+        dayEntries.forEach((e: any) => {
           if (e.checkInTime && e.checkOutTime) {
             const diff = (new Date(e.checkOutTime).getTime() - new Date(e.checkInTime).getTime()) / 3600000;
             if (diff > 0) dayWork += diff;
@@ -193,9 +223,10 @@ export default function ReportsPage() {
         });
         actualWorkHours += dayWork;
 
-        // Straordinari del giorno
+        // Straordinari del giorno (da Mappa)
         let dayOvertime = 0;
-        allShifts.filter(s => s.employeeId === emp.id && s.date === dStr && s.type === 'OVERTIME').forEach(s => {
+        const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
+        dayShifts.filter((s: any) => s.type === 'OVERTIME').forEach((s: any) => {
           const diff = (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 3600000;
           if (diff > 0) dayOvertime += diff;
         });
@@ -205,12 +236,9 @@ export default function ReportsPage() {
         let dayAbsence = 0;
         let dayAbsenceType = "";
 
-        // 1. Da richieste approvate
-        const req = allRequests.find(r => {
-          const status = (r.status || "").toUpperCase();
-          const isAppr = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
-          return isAppr && r.employeeId === emp.id && r.startDate <= dStr && (r.endDate || r.startDate) >= dStr;
-        });
+        // 1. Da richieste approvate (da Mappa)
+        const empRequests = requestsMap.get(emp.id) || [];
+        const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
 
         if (req) {
           if (req.type === "VACATION") { dayAbsence = 8; dayAbsenceType = "Ferie"; vacationHours += 8; }
@@ -226,7 +254,7 @@ export default function ReportsPage() {
           }
         } else {
           // 2. Da badge manuali nel calendario
-          const shiftAbs = allShifts.find(s => s.employeeId === emp.id && s.date === dStr && (s.type === 'ABSENCE' || s.type === 'SICK'));
+          const shiftAbs = dayShifts.find((s: any) => (s.type === 'ABSENCE' || s.type === 'SICK'));
           if (shiftAbs) {
             dayAbsence = 8;
             dayAbsenceType = shiftAbs.type === 'SICK' ? "Malattia" : "Assenza/Ferie";

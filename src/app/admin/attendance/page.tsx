@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, doc } from "firebase/firestore"
+import { collection, collectionGroup, doc, query, limit, orderBy } from "firebase/firestore"
 import { useState, useMemo } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -63,13 +63,13 @@ export default function AttendancePage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return collectionGroup(db, "timeentries");
+    return query(collectionGroup(db, "timeentries"), orderBy("checkInTime", "desc"), limit(500));
   }, [db, user])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return collectionGroup(db, "requests");
+    return query(collectionGroup(db, "requests"), limit(300));
   }, [db, user])
   const { data: allRequests, isLoading: isLoadingRequests } = useCollection(requestsQuery)
 
@@ -116,7 +116,7 @@ export default function AttendancePage() {
   const filteredEntries = useMemo(() => {
     const today = format(new Date(), "yyyy-MM-dd");
 
-    return unifiedEntries
+    return (unifiedEntries as any[])
       .filter(entry => {
         const emp = employeeMap[entry.employeeId];
         if (!emp) return false;
