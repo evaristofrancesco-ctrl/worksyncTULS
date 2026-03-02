@@ -10,7 +10,9 @@ import {
   RefreshCw,
   Send,
   Mail,
-  CheckCircle2
+  CheckCircle2,
+  CalendarDays,
+  FileSpreadsheet
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -40,9 +42,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid, isSameDay } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -124,179 +127,125 @@ export default function ReportsPage() {
     return isNegative ? `-${formatted}` : formatted;
   };
 
-  const reportData = useMemo(() => {
-    if (!employees || !allEntries || !allRequests || !allShifts) return [];
+  const processedData = useMemo(() => {
+    if (!employees || !allEntries || !allRequests || !allShifts) return { summary: [], daily: {} };
 
     const selMonthInt = parseInt(selectedMonth);
     const selYearInt = parseInt(selectedYear);
     const monthStart = startOfMonth(new Date(selYearInt, selMonthInt, 1));
     const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
-    
-    const entriesMap = allEntries.reduce((acc, entry) => {
-      if (!entry.checkInTime) return acc;
-      const datePart = entry.checkInTime.split('T')[0];
-      const dateObj = parseISO(datePart);
-      if (isValid(dateObj) && dateObj.getFullYear() === selYearInt && dateObj.getMonth() === selMonthInt) {
-        if (!acc[entry.employeeId]) acc[entry.employeeId] = [];
-        acc[entry.employeeId].push(entry);
-      }
-      return acc;
-    }, {} as Record<string, any[]>);
+    const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-    const requestsMap = allRequests.reduce((acc, req) => {
-      const status = (req.status || "").toUpperCase();
-      if (status === "APPROVATO" || status === "APPROVED" || status === "Approvato") {
-        const datePart = req.startDate;
-        const dateObj = parseISO(datePart);
-        if (isValid(dateObj) && dateObj.getFullYear() === selYearInt && dateObj.getMonth() === selMonthInt) {
-          if (!acc[req.employeeId]) acc[req.employeeId] = [];
-          acc[req.employeeId].push(req);
-        }
-      }
-      return acc;
-    }, {} as Record<string, any[]>);
+    const dailyMap: Record<string, any> = {};
 
-    const shiftsMap = allShifts.reduce((acc, shift) => {
-      const datePart = shift.date;
-      if (datePart) {
-        const dateObj = parseISO(datePart);
-        if (isValid(dateObj) && dateObj.getFullYear() === selYearInt && dateObj.getMonth() === selMonthInt) {
-          if (!acc[shift.employeeId]) acc[shift.employeeId] = [];
-          acc[shift.employeeId].push(shift);
-        }
-      }
-      return acc;
-    }, {} as Record<string, any[]>);
-
-    const AFTERNOON_HOURS = 3 + (20 / 60);
-
-    return employees.filter(emp => {
+    const summary = employees.filter(emp => {
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
     }).map(emp => {
       let monthlyExpectedHours = 0;
-      const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-      
-      daysInMonth.forEach(day => {
-        const dayOfWeekStr = day.getDay().toString();
-        if (dayOfWeekStr === "0") return;
-
-        const isRestDay = dayOfWeekStr === emp.restDay;
-        const rStart = emp.restStartTime || "00:00";
-        const rEnd = emp.restEndTime || "00:00";
-
-        const isSavino = emp.firstName?.toLowerCase().includes('savino') || emp.lastName?.toLowerCase().includes('savino');
-
-        if (isSavino) {
-          const dayIdx = day.getDay();
-          let amHours = 1;
-          if (dayIdx === 4) amHours = 4;
-          else if (dayIdx === 6) amHours = 2;
-          let pmHours = AFTERNOON_HOURS;
-          monthlyExpectedHours += (amHours + pmHours);
-        } else {
-          if (emp.contractType === 'full-time') {
-            const morningOverlaps = isRestDay && ("09:00" < rEnd && "13:00" > rStart);
-            if (!morningOverlaps) monthlyExpectedHours += 4;
-            const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
-            if (!afternoonOverlaps) monthlyExpectedHours += AFTERNOON_HOURS;
-          } else {
-            const afternoonOverlaps = isRestDay && ("17:00" < rEnd && "20:20" > rStart);
-            if (!afternoonOverlaps) monthlyExpectedHours += AFTERNOON_HOURS;
-          }
-        }
-      });
-
-      const empEntries = entriesMap[emp.id] || [];
       let actualWorkHours = 0;
-      empEntries.forEach(entry => {
-        if (entry.checkInTime && entry.checkOutTime) {
-          const start = new Date(entry.checkInTime).getTime();
-          const end = new Date(entry.checkOutTime).getTime();
-          const diffMs = end - start;
-          if (diffMs > 0) actualWorkHours += diffMs / (1000 * 60 * 60);
-        }
-      });
-
-      const empRequests = requestsMap[emp.id] || [];
-      const empShifts = shiftsMap[emp.id] || [];
-      
-      const empOvertimeShifts = empShifts.filter(s => s.type === 'OVERTIME');
-      const empAbsenceShifts = empShifts.filter(s => s.type === 'ABSENCE');
-      const empSickShifts = empShifts.filter(s => s.type === 'SICK');
-
       let vacationHours = 0;
       let sickHours = 0;
       let permitHours = 0;
       let overtimeHours = 0;
       let detailEntries: string[] = [];
+      
+      const empDaily: Array<{ 
+        date: Date, 
+        work: number, 
+        overtime: number, 
+        absence: number, 
+        absenceType: string 
+      }> = [];
 
-      // Calcolo ore da Richieste Approvate
-      empRequests.forEach(req => {
-        try {
-          const rStart = parseISO(req.startDate);
-          const rEnd = req.endDate ? parseISO(req.endDate) : rStart;
-          
-          const daysInInterval = eachDayOfInterval({ 
-            start: rStart < monthStart ? monthStart : rStart, 
-            end: rEnd > monthEnd ? monthEnd : rEnd 
-          });
-          
-          let hForThisReq = 0;
-          let timeInfo = "";
-          const typeLabel = req.type === 'VACATION' ? 'Ferie' : req.type === 'SICK' ? 'Malattia' : req.type === 'HOURLY_PERMIT' ? 'Permesso Orario' : 'Permesso';
+      daysInMonth.forEach(day => {
+        const dStr = format(day, 'yyyy-MM-dd');
+        const dayOfWeekStr = day.getDay().toString();
+        
+        // Calcolo ore previste (per coerenza con logica precedente)
+        if (dayOfWeekStr !== "0") {
+          const isRestDay = dayOfWeekStr === emp.restDay;
+          const rStart = emp.restStartTime || "00:00";
+          const rEnd = emp.restEndTime || "00:00";
+          const isSavino = emp.firstName?.toLowerCase().includes('savino') || emp.lastName?.toLowerCase().includes('savino');
 
-          if (req.type === "VACATION") { vacationHours += daysInInterval.length * 8; hForThisReq = 8; }
-          else if (req.type === "SICK") { sickHours += daysInInterval.length * 8; hForThisReq = 8; }
-          else if (req.type === "PERSONAL") { permitHours += daysInInterval.length * 8; hForThisReq = 8; }
+          if (isSavino) {
+            const dayIdx = day.getDay();
+            let amH = 1; if (dayIdx === 4) amH = 4; else if (dayIdx === 6) amH = 2;
+            monthlyExpectedHours += (amH + 3.333333);
+          } else {
+            if (emp.contractType === 'full-time') {
+              if (!(isRestDay && ("09:00" < rEnd && "13:00" > rStart))) monthlyExpectedHours += 4;
+              if (!(isRestDay && ("17:00" < rEnd && "20:20" > rStart))) monthlyExpectedHours += 3.333333;
+            } else {
+              if (!(isRestDay && ("17:00" < rEnd && "20:20" > rStart))) monthlyExpectedHours += 3.333333;
+            }
+          }
+        }
+
+        // Ore effettive del giorno
+        let dayWork = 0;
+        allEntries.filter(e => e.employeeId === emp.id && e.checkInTime?.startsWith(dStr)).forEach(e => {
+          if (e.checkInTime && e.checkOutTime) {
+            const diff = (new Date(e.checkOutTime).getTime() - new Date(e.checkInTime).getTime()) / 3600000;
+            if (diff > 0) dayWork += diff;
+          }
+        });
+        actualWorkHours += dayWork;
+
+        // Straordinari del giorno
+        let dayOvertime = 0;
+        allShifts.filter(s => s.employeeId === emp.id && s.date === dStr && s.type === 'OVERTIME').forEach(s => {
+          const diff = (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 3600000;
+          if (diff > 0) dayOvertime += diff;
+        });
+        overtimeHours += dayOvertime;
+
+        // Assenze del giorno
+        let dayAbsence = 0;
+        let dayAbsenceType = "";
+
+        // 1. Da richieste approvate
+        const req = allRequests.find(r => {
+          const status = (r.status || "").toUpperCase();
+          const isAppr = status === "APPROVATO" || status === "APPROVED" || status === "Approvato";
+          return isAppr && r.employeeId === emp.id && r.startDate <= dStr && (r.endDate || r.startDate) >= dStr;
+        });
+
+        if (req) {
+          if (req.type === "VACATION") { dayAbsence = 8; dayAbsenceType = "Ferie"; vacationHours += 8; }
+          else if (req.type === "SICK") { dayAbsence = 8; dayAbsenceType = "Malattia"; sickHours += 8; }
+          else if (req.type === "PERSONAL") { dayAbsence = 8; dayAbsenceType = "Permesso"; permitHours += 8; }
           else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
               const diff = (h2 + m2/60) - (h1 + m1/60);
-              if (diff > 0) {
-                permitHours += (diff * daysInInterval.length);
-                hForThisReq = diff;
-                timeInfo = ` (${req.startTime}-${req.endTime})`;
-              }
+              if (diff > 0) { dayAbsence = diff; dayAbsenceType = "Permesso Orario"; permitHours += diff; }
             }
           }
+        } else {
+          // 2. Da badge manuali nel calendario
+          const shiftAbs = allShifts.find(s => s.employeeId === emp.id && s.date === dStr && (s.type === 'ABSENCE' || s.type === 'SICK'));
+          if (shiftAbs) {
+            dayAbsence = 8;
+            dayAbsenceType = shiftAbs.type === 'SICK' ? "Malattia" : "Assenza/Ferie";
+            if (shiftAbs.type === 'SICK') sickHours += 8; else vacationHours += 8;
+          }
+        }
 
-          daysInInterval.forEach(d => { 
-            detailEntries.push(`${format(d, 'dd/MM')} ${typeLabel}${timeInfo} [${formatTime(hForThisReq)}]`); 
-          });
-        } catch (e) {}
-      });
-
-      // Calcolo ore da Badge Straordinari nel calendario
-      empOvertimeShifts.forEach(s => {
-        const start = new Date(s.startTime).getTime();
-        const end = new Date(s.endTime).getTime();
-        const diffHours = (end - start) / (1000 * 60 * 60);
-        if (diffHours > 0) {
-          overtimeHours += diffHours;
-          detailEntries.push(`${format(parseISO(s.date), 'dd/MM')} Straordinario [${formatTime(diffHours)}]`);
+        if (dayWork > 0 || dayOvertime > 0 || dayAbsence > 0) {
+          empDaily.push({ date: day, work: dayWork, overtime: dayOvertime, absence: dayAbsence, absenceType: dayAbsenceType });
+          if (dayAbsence > 0) {
+            detailEntries.push(`${format(day, 'dd/MM')} ${dayAbsenceType} [${formatTime(dayAbsence)}]`);
+          }
+          if (dayOvertime > 0) {
+            detailEntries.push(`${format(day, 'dd/MM')} Straord. [${formatTime(dayOvertime)}]`);
+          }
         }
       });
 
-      // Calcolo ore da Badge Assenza/Malattia nel calendario (se non già coperte da richieste)
-      empAbsenceShifts.forEach(s => {
-        const dateLabel = format(parseISO(s.date), 'dd/MM');
-        if (!detailEntries.some(e => e.includes(dateLabel) && e.includes('Ferie'))) {
-          vacationHours += 8;
-          detailEntries.push(`${dateLabel} Assenza/Ferie [8h]`);
-        }
-      });
-
-      empSickShifts.forEach(s => {
-        const dateLabel = format(parseISO(s.date), 'dd/MM');
-        if (!detailEntries.some(e => e.includes(dateLabel) && e.includes('Malattia'))) {
-          sickHours += 8;
-          detailEntries.push(`${dateLabel} Malattia [8h]`);
-        }
-      });
-
-      const netTotalHours = actualWorkHours + overtimeHours;
+      dailyMap[emp.id] = empDaily;
 
       return {
         id: emp.id,
@@ -309,30 +258,35 @@ export default function ReportsPage() {
         sickHoursFormatted: formatTime(sickHours),
         permitHoursFormatted: formatTime(permitHours),
         overtimeHoursFormatted: formatTime(overtimeHours),
-        totalHoursFormatted: formatTime(netTotalHours),
-        isSubtracted: false,
+        totalHoursFormatted: formatTime(actualWorkHours + overtimeHours),
         isAdded: overtimeHours > 0,
         absenceDetailStr: detailEntries.join(" | ")
       }
     });
+
+    return { summary, daily: dailyMap };
   }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
 
   const generateCSVContent = () => {
-    if (!reportData.length) return "";
-    const headers = ["Collaboratore", "Ruolo", "Ore Previste", "Ore Lavorate (Lorde)", "Ferie (h)", "Malattia (h)", "Permessi (h)", "Straordinari (h)", "Ore Nette", "Dettaglio Assenze/Extra"];
-    const rows = reportData.map(r => [
-      r.name,
-      r.jobTitle,
-      r.expectedHoursFormatted,
-      r.workedHoursFormatted,
-      r.vacationHoursFormatted,
-      r.sickHoursFormatted,
-      r.permitHoursFormatted,
-      r.overtimeHoursFormatted,
-      r.totalHoursFormatted,
-      `"${r.absenceDetailStr}"`
-    ]);
-    return [headers.join(";"), ...rows.map(e => e.join(";"))].join("\n");
+    const { summary, daily } = processedData;
+    if (!summary.length) return "";
+    
+    let csv = "REPORT RIEPILOGO MENSILE\n";
+    csv += "Collaboratore;Ruolo;Ore Previste;Ore Lavorate;Ferie;Malattia;Permessi;Straordinari;Ore Nette;Dettaglio\n";
+    summary.forEach(r => {
+      csv += `${r.name};${r.jobTitle};${r.expectedHoursFormatted};${r.workedHoursFormatted};${r.vacationHoursFormatted};${r.sickHoursFormatted};${r.permitHoursFormatted};${r.overtimeHoursFormatted};${r.totalHoursFormatted};"${r.absenceDetailStr}"\n`;
+    });
+
+    csv += "\n\nDETTAGLIO ANALITICO GIORNALIERO\n";
+    csv += "Data;Collaboratore;Lavoro;Straordinario;Assenza;Tipo Assenza\n";
+    Object.entries(daily).forEach(([empId, days]: [string, any]) => {
+      const emp = summary.find(s => s.id === empId);
+      days.forEach((d: any) => {
+        csv += `${format(d.date, 'dd/MM/yyyy')};${emp?.name};${formatTime(d.work)};${formatTime(d.overtime)};${formatTime(d.absence)};${d.absenceType}\n`;
+      });
+    });
+
+    return csv;
   }
 
   const handleExportCSV = () => {
@@ -342,45 +296,29 @@ export default function ReportsPage() {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `Report_Dettagliato_${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    link.setAttribute("download", `Report_TU.L.S._${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.csv`);
     link.click();
-    document.body.removeChild(link);
   };
 
   const handleSendEmail = async () => {
-    if (!destEmail) {
-      toast({ variant: "destructive", title: "Email mancante", description: "Inserisci l'indirizzo del destinatario." });
-      return;
-    }
+    if (!destEmail) return;
     setIsSending(true);
     try {
-      const csvContent = generateCSVContent();
       const result = await sendReportEmail({
         recipientEmail: destEmail,
         monthLabel: MONTHS[parseInt(selectedMonth)].label,
         year: selectedYear,
-        csvContent,
-        adminName: user?.displayName || "Amministratore TU.L.S."
+        csvContent: generateCSVContent(),
+        adminName: user?.displayName || "Amministrazione TU.L.S."
       });
-
       if (result.success) {
-        toast({ title: "Email Inviata", description: `Il report è stato spedito a ${destEmail}.` });
+        toast({ title: "Email Inviata" });
         setIsEmailOpen(false);
       } else {
-        toast({ 
-          variant: "destructive", 
-          title: "Errore Invio", 
-          description: result.message || "Controlla la configurazione SMTP." 
-        });
+        toast({ variant: "destructive", title: "Errore Invio", description: result.message });
       }
     } catch (e: any) {
-      toast({ 
-        variant: "destructive", 
-        title: "Errore Sistema", 
-        description: e.message || "Impossibile completare l'invio." 
-      });
+      toast({ variant: "destructive", title: "Errore", description: e.message });
     } finally {
       setIsSending(false);
     }
@@ -395,116 +333,135 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Ore previste vs <b>ore nette</b> (timbrate + straordinari).</p>
+          <p className="text-slate-500 font-medium">Riepilogo ore contrattuali, straordinari e dettaglio giornaliero.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
             <SelectTrigger className="w-[150px] border-none font-bold"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {MONTHS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-            </SelectContent>
+            <SelectContent>{MONTHS.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={selectedYear} onValueChange={setSelectedYear}>
             <SelectTrigger className="w-[100px] border-none font-bold"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {yearsOptions.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
-            </SelectContent>
+            <SelectContent>{yearsOptions.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent>
           </Select>
           <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
           <Button variant="ghost" size="sm" className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50" onClick={() => setIsRefreshing(true) || setTimeout(() => setIsRefreshing(false), 800)} disabled={isLoading}>
-            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} /> Ricalcola
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
           </Button>
-          <Button variant="outline" size="sm" className="h-10 gap-2 font-bold border-[#227FD8] text-[#227FD8] hover:bg-blue-50" onClick={handleExportCSV} disabled={isLoading || reportData.length === 0}>
-            <Download className="h-4 w-4" /> Esporta CSV
+          <Button variant="outline" size="sm" className="h-10 gap-2 font-bold border-[#227FD8] text-[#227FD8]" onClick={handleExportCSV} disabled={isLoading}>
+            <Download className="h-4 w-4" /> Esporta
           </Button>
-          <Button variant="default" size="sm" className="h-10 gap-2 font-black bg-[#227FD8] hover:bg-[#227FD8]/90 shadow-md" onClick={() => setIsEmailOpen(true)} disabled={isLoading || reportData.length === 0}>
-            <Send className="h-4 w-4" /> Invia via Email
+          <Button variant="default" size="sm" className="h-10 gap-2 font-black bg-[#227FD8] shadow-md" onClick={() => setIsEmailOpen(true)} disabled={isLoading}>
+            <Send className="h-4 w-4" /> Invia Report
           </Button>
         </div>
       </div>
 
-      <Card className="border-none shadow-sm overflow-hidden bg-white">
-        <CardHeader className="border-b bg-slate-50/50">
-          <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-            <Users className="h-4 w-4" /> Analisi Presenze e Contratto
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-slate-50/50">
-              <TableRow className="h-12">
-                <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Previste (h/mese)</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
-                <TableHead className="text-sm font-bold uppercase text-slate-500 text-center text-emerald-600">Extra (h)</TableHead>
-                <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /><p className="text-sm font-bold text-slate-400 mt-4">Analisi dati in corso...</p></TableCell></TableRow>
-              ) : reportData.length > 0 ? reportData.map((row) => (
-                <TableRow key={row.id} className="h-16 hover:bg-slate-50/50 transition-colors">
-                  <TableCell className="pl-8">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border shadow-sm"><AvatarImage src={row.photoUrl} /><AvatarFallback className="font-bold">{row.name.charAt(0)}</AvatarFallback></Avatar>
-                      <div className="flex flex-col"><span className="font-bold text-slate-900 text-base">{row.name}</span><span className="text-xs text-slate-400 font-bold uppercase tracking-tight">{row.jobTitle}</span></div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center"><span className="text-sm font-bold text-slate-400">{row.expectedHoursFormatted}</span></TableCell>
-                  <TableCell className="text-center"><span className="text-sm font-bold text-amber-600">{row.vacationHoursFormatted}</span></TableCell>
-                  <TableCell className="text-center"><span className="text-sm font-bold text-rose-600">{row.sickHoursFormatted}</span></TableCell>
-                  <TableCell className="text-center"><span className="text-sm font-bold text-cyan-600">{row.permitHoursFormatted}</span></TableCell>
-                  <TableCell className="text-center"><span className="text-sm font-black text-emerald-600">{row.overtimeHoursFormatted}</span></TableCell>
-                  <TableCell className="text-right pr-8"><span className={cn("text-lg font-black transition-colors", row.isAdded ? "text-emerald-600" : "text-[#227FD8]")}>{row.totalHoursFormatted}</span></TableCell>
-                </TableRow>
-              )) : (
-                <TableRow><TableCell colSpan={7} className="h-40 text-center text-slate-400 italic font-medium">Nessun dato trovato per il periodo selezionato.</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="summary" className="w-full">
+        <TabsList className="bg-slate-100 p-1 rounded-xl h-12 mb-6">
+          <TabsTrigger value="summary" className="px-8 font-black uppercase text-xs gap-2 data-[state=active]:bg-white">
+            <FileSpreadsheet className="h-4 w-4" /> Riepilogo Mensile
+          </TabsTrigger>
+          <TabsTrigger value="daily" className="px-8 font-black uppercase text-xs gap-2 data-[state=active]:bg-white">
+            <CalendarDays className="h-4 w-4" /> Dettaglio Giornaliero
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Dialog Invio Email */}
+        <TabsContent value="summary">
+          <Card className="border-none shadow-sm overflow-hidden bg-white">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader className="bg-slate-50/50">
+                  <TableRow className="h-12">
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Previste (h)</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center text-emerald-600">Extra (h)</TableHead>
+                    <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow><TableCell colSpan={7} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
+                  ) : processedData.summary.length > 0 ? processedData.summary.map((row) => (
+                    <TableRow key={row.id} className="h-16 hover:bg-slate-50/50 transition-colors">
+                      <TableCell className="pl-8">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 border shadow-sm"><AvatarImage src={row.photoUrl} /><AvatarFallback className="font-bold">{row.name.charAt(0)}</AvatarFallback></Avatar>
+                          <div className="flex flex-col"><span className="font-bold text-slate-900">{row.name}</span><span className="text-[10px] text-slate-400 font-bold uppercase">{row.jobTitle}</span></div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-bold text-slate-400">{row.expectedHoursFormatted}</TableCell>
+                      <TableCell className="text-center font-bold text-amber-600">{row.vacationHoursFormatted}</TableCell>
+                      <TableCell className="text-center font-bold text-rose-600">{row.sickHoursFormatted}</TableCell>
+                      <TableCell className="text-center font-bold text-cyan-600">{row.permitHoursFormatted}</TableCell>
+                      <TableCell className="text-center font-black text-emerald-600">{row.overtimeHoursFormatted}</TableCell>
+                      <TableCell className="text-right pr-8"><span className={cn("text-lg font-black", row.isAdded ? "text-emerald-600" : "text-[#227FD8]")}>{row.totalHoursFormatted}</span></TableCell>
+                    </TableRow>
+                  )) : <TableRow><TableCell colSpan={7} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="daily" className="space-y-8">
+          {isLoading ? (
+            <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
+          ) : Object.entries(processedData.daily).map(([empId, days]: [string, any]) => {
+            const emp = processedData.summary.find(s => s.id === empId);
+            return (
+              <Card key={empId} className="border-none shadow-sm overflow-hidden bg-white ring-1 ring-slate-200">
+                <CardHeader className="bg-slate-50 border-b p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8"><AvatarImage src={emp?.photoUrl} /><AvatarFallback>{emp?.name.charAt(0)}</AvatarFallback></Avatar>
+                    <CardTitle className="text-base font-black uppercase text-[#1e293b]">{emp?.name}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50/20">
+                        <TableHead className="w-[150px] font-bold text-[10px] uppercase pl-6">Data</TableHead>
+                        <TableHead className="font-bold text-[10px] uppercase text-center">Ore Lavoro</TableHead>
+                        <TableHead className="font-bold text-[10px] uppercase text-center">Straordinario</TableHead>
+                        <TableHead className="font-bold text-[10px] uppercase text-center">Assenza / Permesso</TableHead>
+                        <TableHead className="font-bold text-[10px] uppercase pr-6 text-right">Dettaglio</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {days.map((d: any, idx: number) => (
+                        <TableRow key={idx} className="h-12 hover:bg-slate-50/30">
+                          <TableCell className="pl-6 font-bold text-slate-600">{format(d.date, 'EEEE d MMM', { locale: it })}</TableCell>
+                          <TableCell className="text-center font-bold text-[#227FD8]">{d.work > 0 ? formatTime(d.work) : "---"}</TableCell>
+                          <TableCell className="text-center font-bold text-emerald-600">{d.overtime > 0 ? formatTime(d.overtime) : "---"}</TableCell>
+                          <TableCell className="text-center font-bold text-rose-500">{d.absence > 0 ? formatTime(d.absence) : "---"}</TableCell>
+                          <TableCell className="pr-6 text-right font-black text-[9px] uppercase text-slate-400">{d.absenceType || (d.work > 0 ? "Lavoro Regolare" : "")}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </TabsContent>
+      </Tabs>
+
       <Dialog open={isEmailOpen} onOpenChange={setIsEmailOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-black text-xl uppercase flex items-center gap-2">
-              <Mail className="h-6 w-6 text-[#227FD8]" /> Invia Report Mensile
-            </DialogTitle>
-            <DialogDescription>
-              Il sistema preparerà un'email professionale con il file CSV allegato per {MONTHS[parseInt(selectedMonth)].label} {selectedYear}.
-            </DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle className="font-black">Invia Report Mensile</DialogTitle><DialogDescription>Spedisci il report completo a un indirizzo email.</DialogDescription></DialogHeader>
           <div className="py-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="font-bold text-xs uppercase text-slate-500">Indirizzo Email Destinatario</Label>
-              <Input 
-                type="email" 
-                placeholder="es. consulente@studio.it" 
-                className="h-12"
-                value={destEmail}
-                onChange={(e) => setDestEmail(e.target.value)}
-              />
-            </div>
-            <div className="bg-slate-50 p-4 rounded-xl border border-dashed flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-500" />
-              <p className="text-xs font-medium text-slate-600">Il mittente sarà <b>tuls@laltrasigaretta.com</b></p>
-            </div>
+            <Label className="font-bold text-xs uppercase text-slate-500">Email Destinatario</Label>
+            <Input type="email" placeholder="es. consulente@tuls.it" className="h-12" value={destEmail} onChange={(e) => setDestEmail(e.target.value)} />
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsEmailOpen(false)} className="font-bold">Annulla</Button>
-            <Button 
-              onClick={handleSendEmail} 
-              disabled={isSending || !destEmail}
-              className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8 h-11 gap-2"
-            >
-              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {isSending ? "INVIO IN CORSO..." : "SPEDISCI REPORT"}
+            <Button onClick={handleSendEmail} disabled={isSending || !destEmail} className="bg-[#227FD8] font-black px-8">
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />} SPEDISCI REPORT
             </Button>
           </DialogFooter>
         </DialogContent>
