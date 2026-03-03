@@ -5,14 +5,12 @@ import { useState, useMemo } from "react"
 import { 
   Calculator, 
   Download, 
-  Users, 
   Loader2,
   RefreshCw,
   Send,
-  Mail,
-  CheckCircle2,
   CalendarDays,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Grid3X3
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,12 +42,13 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, query, where } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid, isSameDay } from "date-fns"
+import { collection, collectionGroup, query } from "firebase/firestore"
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { sendReportEmail } from "@/ai/flows/send-report-flow"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 
 const MONTHS = [
   { label: "Gennaio", value: "0" },
@@ -112,23 +111,12 @@ export default function ReportsPage() {
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
   const formatTime = (decimalHours: number) => {
-    const isNegative = decimalHours < 0;
-    const absHours = Math.abs(decimalHours);
-    const totalMinutes = Math.round(absHours * 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    if (hours === 0 && minutes === 0) return "0h";
-    let formatted = "";
-    if (hours > 0) formatted += `${hours}h`;
-    if (minutes > 0) {
-      if (hours > 0) formatted += " ";
-      formatted += `${minutes}m`;
-    }
-    return isNegative ? `-${formatted}` : formatted;
+    if (decimalHours === 0) return "0";
+    return decimalHours.toLocaleString('it-IT', { maximumFractionDigits: 1 });
   };
 
   const processedData = useMemo(() => {
-    if (!employees || !allEntries || !allRequests || !allShifts) return { summary: [], daily: {} };
+    if (!employees || !allEntries || !allRequests || !allShifts) return { summary: [], dailyGrid: [], monthDays: [], totalsByDay: [] };
 
     const selMonthInt = parseInt(selectedMonth);
     const selYearInt = parseInt(selectedYear);
@@ -136,7 +124,6 @@ export default function ReportsPage() {
     const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-    // Ottimizzazione: Raggruppamento dati per accesso rapido O(1) invece di O(N) find
     const entriesMap = new Map();
     allEntries.forEach(e => {
       const dateKey = e.checkInTime ? e.checkInTime.split('T')[0] : null;
@@ -165,54 +152,27 @@ export default function ReportsPage() {
       shiftsMap.set(key, list);
     });
 
-    const dailyMap: Record<string, any> = {};
+    const dailyGrid: any[] = [];
+    const totalsByDay = new Array(daysInMonth.length).fill(0);
 
     const summary = employees.filter(emp => {
       const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
       return !isFrancesco;
     }).map(emp => {
-      let monthlyExpectedHours = 0;
-      let actualWorkHours = 0;
+      let totalWorkHours = 0;
+      let totalDaysCount = 0;
       let vacationHours = 0;
       let sickHours = 0;
       let permitHours = 0;
       let overtimeHours = 0;
-      let detailEntries: string[] = [];
-      
-      const empDaily: Array<{ 
-        date: Date, 
-        work: number, 
-        overtime: number, 
-        absence: number, 
-        absenceType: string 
-      }> = [];
+      let monthlyExpectedHours = 0;
 
-      daysInMonth.forEach(day => {
+      const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
-        const dayOfWeekStr = day.getDay().toString();
-        
-        // Calcolo ore previste
-        if (dayOfWeekStr !== "0") {
-          const isRestDay = dayOfWeekStr === emp.restDay;
-          const rStart = emp.restStartTime || "00:00";
-          const rEnd = emp.restEndTime || "00:00";
-          const isSavino = emp.firstName?.toLowerCase().includes('savino') || emp.lastName?.toLowerCase().includes('savino');
+        let cellValue: string | number = "";
+        let cellType: 'work' | 'vacation' | 'sick' | 'permit' | 'rest' | 'none' = 'none';
 
-          if (isSavino) {
-            const dayIdx = day.getDay();
-            let amH = 1; if (dayIdx === 4) amH = 4; else if (dayIdx === 6) amH = 2;
-            monthlyExpectedHours += (amH + 3.333333);
-          } else {
-            if (emp.contractType === 'full-time') {
-              if (!(isRestDay && ("09:00" < rEnd && "13:00" > rStart))) monthlyExpectedHours += 4;
-              if (!(isRestDay && ("17:00" < rEnd && "20:20" > rStart))) monthlyExpectedHours += 3.333333;
-            } else {
-              if (!(isRestDay && ("17:00" < rEnd && "20:20" > rStart))) monthlyExpectedHours += 3.333333;
-            }
-          }
-        }
-
-        // Ore effettive del giorno (da Mappa)
+        // 1. Calcolo ore effettive
         let dayWork = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
@@ -221,99 +181,83 @@ export default function ReportsPage() {
             if (diff > 0) dayWork += diff;
           }
         });
-        actualWorkHours += dayWork;
 
-        // Straordinari del giorno (da Mappa)
+        // 2. Straordinari
         let dayOvertime = 0;
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
         dayShifts.filter((s: any) => s.type === 'OVERTIME').forEach((s: any) => {
           const diff = (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 3600000;
           if (diff > 0) dayOvertime += diff;
         });
-        overtimeHours += dayOvertime;
 
-        // Assenze del giorno
-        let dayAbsence = 0;
-        let dayAbsenceType = "";
-
-        // 1. Da richieste approvate (da Mappa)
+        // 3. Assenze
         const empRequests = requestsMap.get(emp.id) || [];
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
 
         if (req) {
-          if (req.type === "VACATION") { dayAbsence = 8; dayAbsenceType = "Ferie"; vacationHours += 8; }
-          else if (req.type === "SICK") { dayAbsence = 8; dayAbsenceType = "Malattia"; sickHours += 8; }
-          else if (req.type === "PERSONAL") { dayAbsence = 8; dayAbsenceType = "Permesso"; permitHours += 8; }
+          if (req.type === "VACATION") { cellValue = "F"; cellType = "vacation"; vacationHours += 8; }
+          else if (req.type === "SICK") { cellValue = "M"; cellType = "sick"; sickHours += 8; }
+          else if (req.type === "PERSONAL") { cellValue = "P"; cellType = "permit"; permitHours += 8; }
           else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
               const diff = (h2 + m2/60) - (h1 + m1/60);
-              if (diff > 0) { dayAbsence = diff; dayAbsenceType = "Permesso Orario"; permitHours += diff; }
+              if (diff > 0) { cellValue = formatTime(diff); cellType = "permit"; permitHours += diff; }
             }
           }
         } else {
-          // 2. Da badge manuali nel calendario
           const shiftAbs = dayShifts.find((s: any) => (s.type === 'ABSENCE' || s.type === 'SICK'));
           if (shiftAbs) {
-            dayAbsence = 8;
-            dayAbsenceType = shiftAbs.type === 'SICK' ? "Malattia" : "Assenza/Ferie";
+            cellValue = shiftAbs.type === 'SICK' ? "M" : "F";
+            cellType = shiftAbs.type === 'SICK' ? "sick" : "vacation";
             if (shiftAbs.type === 'SICK') sickHours += 8; else vacationHours += 8;
           }
         }
 
-        if (dayWork > 0 || dayOvertime > 0 || dayAbsence > 0) {
-          empDaily.push({ date: day, work: dayWork, overtime: dayOvertime, absence: dayAbsence, absenceType: dayAbsenceType });
-          if (dayAbsence > 0) {
-            detailEntries.push(`${format(day, 'dd/MM')} ${dayAbsenceType} [${formatTime(dayAbsence)}]`);
-          }
-          if (dayOvertime > 0) {
-            detailEntries.push(`${format(day, 'dd/MM')} Straord. [${formatTime(dayOvertime)}]`);
-          }
+        // Se c'è lavoro reale o straordinario, prevale il numero ore
+        if (dayWork > 0 || dayOvertime > 0) {
+          const totalVal = dayWork + dayOvertime;
+          cellValue = formatTime(totalVal);
+          cellType = 'work';
+          totalWorkHours += totalVal;
+          totalDaysCount++;
+          totalsByDay[idx]++;
+        } else if (cellValue) {
+          totalDaysCount++;
+          totalsByDay[idx]++;
         }
+
+        return { day, value: cellValue, type: cellType };
       });
 
-      dailyMap[emp.id] = empDaily;
+      dailyGrid.push({ emp, rowDays, totalDaysCount, totalWorkHours });
 
       return {
         id: emp.id,
         name: `${emp.firstName} ${emp.lastName}`,
         photoUrl: emp.photoUrl,
         jobTitle: emp.jobTitle,
-        expectedHoursFormatted: formatTime(monthlyExpectedHours),
-        workedHoursFormatted: formatTime(actualWorkHours),
-        vacationHoursFormatted: formatTime(vacationHours),
-        sickHoursFormatted: formatTime(sickHours),
-        permitHoursFormatted: formatTime(permitHours),
-        overtimeHoursFormatted: formatTime(overtimeHours),
-        totalHoursFormatted: formatTime(actualWorkHours + overtimeHours),
-        isAdded: overtimeHours > 0,
-        absenceDetailStr: detailEntries.join(" | ")
-      }
+        workedHours: totalWorkHours,
+        vacationHours,
+        sickHours,
+        permitHours,
+        overtimeHours,
+        totalNet: totalWorkHours
+      };
     });
 
-    return { summary, daily: dailyMap };
+    return { summary, dailyGrid, monthDays: daysInMonth, totalsByDay };
   }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
 
   const generateCSVContent = () => {
-    const { summary, daily } = processedData;
+    const { summary } = processedData;
     if (!summary.length) return "";
-    
     let csv = "REPORT RIEPILOGO MENSILE\n";
-    csv += "Collaboratore;Ruolo;Ore Previste;Ore Lavorate;Ferie;Malattia;Permessi;Straordinari;Ore Nette;Dettaglio\n";
+    csv += "Collaboratore;Ruolo;Ore Lavorate;Ferie;Malattia;Permessi;Totale Netto\n";
     summary.forEach(r => {
-      csv += `${r.name};${r.jobTitle};${r.expectedHoursFormatted};${r.workedHoursFormatted};${r.vacationHoursFormatted};${r.sickHoursFormatted};${r.permitHoursFormatted};${r.overtimeHoursFormatted};${r.totalHoursFormatted};"${r.absenceDetailStr}"\n`;
+      csv += `${r.name};${r.jobTitle};${r.workedHours};${r.vacationHours};${r.sickHours};${r.permitHours};${r.totalNet}\n`;
     });
-
-    csv += "\n\nDETTAGLIO ANALITICO GIORNALIERO\n";
-    csv += "Data;Collaboratore;Lavoro;Straordinario;Assenza;Tipo Assenza\n";
-    Object.entries(daily).forEach(([empId, days]: [string, any]) => {
-      const emp = summary.find(s => s.id === empId);
-      days.forEach((d: any) => {
-        csv += `${format(d.date, 'dd/MM/yyyy')};${emp?.name};${formatTime(d.work)};${formatTime(d.overtime)};${formatTime(d.absence)};${d.absenceType}\n`;
-      });
-    });
-
     return csv;
   }
 
@@ -361,7 +305,7 @@ export default function ReportsPage() {
           <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
             <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
           </h1>
-          <p className="text-slate-500 font-medium">Riepilogo ore contrattuali, straordinari e dettaglio giornaliero.</p>
+          <p className="text-slate-500 font-medium">Analisi presenze e assenze in formato tabellare.</p>
         </div>
         
         <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
@@ -386,15 +330,127 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="summary" className="w-full">
+      <Tabs defaultValue="grid" className="w-full">
         <TabsList className="bg-slate-100 p-1 rounded-xl h-12 mb-6">
+          <TabsTrigger value="grid" className="px-8 font-black uppercase text-xs gap-2 data-[state=active]:bg-white">
+            <Grid3X3 className="h-4 w-4" /> Griglia Presenze
+          </TabsTrigger>
           <TabsTrigger value="summary" className="px-8 font-black uppercase text-xs gap-2 data-[state=active]:bg-white">
             <FileSpreadsheet className="h-4 w-4" /> Riepilogo Mensile
           </TabsTrigger>
-          <TabsTrigger value="daily" className="px-8 font-black uppercase text-xs gap-2 data-[state=active]:bg-white">
-            <CalendarDays className="h-4 w-4" /> Dettaglio Giornaliero
-          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="grid">
+          <Card className="border-none shadow-sm overflow-hidden bg-[#F4F8FA]">
+            <CardHeader className="p-6 pb-2">
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-wrap items-center gap-6">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Chiave tipo di assenza</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-emerald-500 text-white flex items-center justify-center rounded text-[10px] font-black">F</div> <span className="text-[10px] font-bold text-slate-600">Ferie</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-400 text-white flex items-center justify-center rounded text-[10px] font-black">P</div> <span className="text-[10px] font-bold text-slate-600">Permesso Giornaliero</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-blue-600 text-white flex items-center justify-center rounded text-[10px] font-black">M</div> <span className="text-[10px] font-bold text-slate-600">Malattia</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-200 border border-amber-300 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Permesso orario</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-orange-800 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Personalizzata 2</span></div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-black text-[#1e293b] tracking-tight">Date Presenze e assenze</h2>
+                  <span className="text-2xl font-black text-slate-400">{selectedYear}</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="w-full">
+                <div className="min-w-[1200px]">
+                  <Table className="border-collapse">
+                    <TableHeader>
+                      <TableRow className="h-10 hover:bg-transparent border-none">
+                        <TableHead className="w-[200px] border-r"></TableHead>
+                        {processedData.monthDays.map((day, idx) => (
+                          <TableHead key={idx} className={cn(
+                            "w-10 text-center p-0 text-[10px] font-black uppercase border-r",
+                            day.getDay() === 0 ? "bg-rose-600 text-white" : "bg-slate-200 text-slate-500"
+                          )}>
+                            {format(day, 'eee', { locale: it })}
+                          </TableHead>
+                        ))}
+                        <TableHead className="w-24 text-center text-[10px] font-black uppercase border-l bg-slate-100">Totale giorni</TableHead>
+                        <TableHead className="w-24 text-center text-[10px] font-black uppercase bg-slate-100">SOMMA ORE</TableHead>
+                      </TableRow>
+                      <TableRow className="h-10 hover:bg-transparent">
+                        <TableHead className="w-[200px] border-r font-black text-[11px] uppercase bg-slate-50">Nome dipendente</TableHead>
+                        {processedData.monthDays.map((day, idx) => (
+                          <TableHead key={idx} className={cn(
+                            "w-10 text-center p-0 text-xs font-black border-r",
+                            day.getDay() === 0 ? "bg-rose-600 text-white" : "bg-slate-300 text-slate-700"
+                          )}>
+                            {format(day, 'd')}
+                          </TableHead>
+                        ))}
+                        <TableHead className="w-24 border-l bg-slate-200"></TableHead>
+                        <TableHead className="w-24 bg-slate-200"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {processedData.dailyGrid.map((row, rIdx) => (
+                        <TableRow key={rIdx} className="h-12 hover:bg-slate-100 group border-b border-slate-200">
+                          <TableCell className="w-[200px] border-r font-bold text-xs text-slate-700 bg-white">
+                            {row.emp.firstName} {row.emp.lastName}
+                          </TableCell>
+                          {row.rowDays.map((d: any, dIdx: number) => {
+                            const isSunday = d.day.getDay() === 0;
+                            return (
+                              <TableCell key={dIdx} className={cn(
+                                "w-10 p-0 text-center border-r transition-colors",
+                                isSunday ? "bg-rose-600/90" : "bg-white group-hover:bg-slate-50"
+                              )}>
+                                {d.value && (
+                                  <div className={cn(
+                                    "w-full h-full flex items-center justify-center font-black text-[10px]",
+                                    d.type === 'vacation' && "bg-emerald-500 text-white",
+                                    d.type === 'sick' && "bg-blue-600 text-white",
+                                    d.type === 'permit' && d.value === 'P' && "bg-slate-400 text-white",
+                                    d.type === 'permit' && d.value !== 'P' && "bg-amber-100 text-amber-900 border border-amber-200",
+                                    d.type === 'work' && "text-slate-700"
+                                  )}>
+                                    {d.value}
+                                  </div>
+                                )}
+                              </TableCell>
+                            )
+                          })}
+                          <TableCell className="w-24 text-center border-l bg-slate-300/50 font-black text-xs text-slate-700">
+                            {row.totalDaysCount}
+                          </TableCell>
+                          <TableCell className="w-24 text-center bg-slate-300/50 font-black text-xs text-rose-600">
+                            {row.totalWorkHours.toLocaleString('it-IT', { maximumFractionDigits: 1 })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {/* Totale Piè di Pagina */}
+                      <TableRow className="h-12 bg-slate-400/30 hover:bg-slate-400/40">
+                        <TableCell className="w-[200px] border-r font-black text-[11px] uppercase text-slate-700">
+                          {format(new Date(parseInt(selectedYear), parseInt(selectedMonth), 1), 'MMMM', { locale: it })} Totale
+                        </TableCell>
+                        {processedData.totalsByDay.map((val, idx) => (
+                          <TableCell key={idx} className="w-10 p-0 text-center border-r font-black text-xs text-slate-700">
+                            {val > 0 ? val : ""}
+                          </TableCell>
+                        ))}
+                        <TableCell className="w-24 border-l"></TableCell>
+                        <TableCell className="w-24 text-center font-black text-xs text-slate-700">
+                          {processedData.totalsByDay.reduce((a, b) => a + b, 0)}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="summary">
           <Card className="border-none shadow-sm overflow-hidden bg-white">
@@ -403,17 +459,15 @@ export default function ReportsPage() {
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="h-12">
                     <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
-                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Previste (h)</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
-                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center text-emerald-600">Extra (h)</TableHead>
-                    <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Nette</TableHead>
+                    <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Totali</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={7} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
                   ) : processedData.summary.length > 0 ? processedData.summary.map((row) => (
                     <TableRow key={row.id} className="h-16 hover:bg-slate-50/50 transition-colors">
                       <TableCell className="pl-8">
@@ -422,60 +476,16 @@ export default function ReportsPage() {
                           <div className="flex flex-col"><span className="font-bold text-slate-900">{row.name}</span><span className="text-[10px] text-slate-400 font-bold uppercase">{row.jobTitle}</span></div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center font-bold text-slate-400">{row.expectedHoursFormatted}</TableCell>
-                      <TableCell className="text-center font-bold text-amber-600">{row.vacationHoursFormatted}</TableCell>
-                      <TableCell className="text-center font-bold text-rose-600">{row.sickHoursFormatted}</TableCell>
-                      <TableCell className="text-center font-bold text-cyan-600">{row.permitHoursFormatted}</TableCell>
-                      <TableCell className="text-center font-black text-emerald-600">{row.overtimeHoursFormatted}</TableCell>
-                      <TableCell className="text-right pr-8"><span className={cn("text-lg font-black", row.isAdded ? "text-emerald-600" : "text-[#227FD8]")}>{row.totalHoursFormatted}</span></TableCell>
+                      <TableCell className="text-center font-bold text-emerald-600">{formatTime(row.vacationHours)}</TableCell>
+                      <TableCell className="text-center font-bold text-blue-600">{formatTime(row.sickHours)}</TableCell>
+                      <TableCell className="text-center font-bold text-slate-500">{formatTime(row.permitHours)}</TableCell>
+                      <TableCell className="text-right pr-8"><span className="text-lg font-black text-[#227FD8]">{formatTime(row.totalNet)}</span></TableCell>
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={7} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
+                  )) : <TableRow><TableCell colSpan={5} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="daily" className="space-y-8">
-          {isLoading ? (
-            <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
-          ) : Object.entries(processedData.daily).map(([empId, days]: [string, any]) => {
-            const emp = processedData.summary.find(s => s.id === empId);
-            return (
-              <Card key={empId} className="border-none shadow-sm overflow-hidden bg-white ring-1 ring-slate-200">
-                <CardHeader className="bg-slate-50 border-b p-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8"><AvatarImage src={emp?.photoUrl} /><AvatarFallback>{emp?.name.charAt(0)}</AvatarFallback></Avatar>
-                    <CardTitle className="text-base font-black uppercase text-[#1e293b]">{emp?.name}</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50/20">
-                        <TableHead className="w-[150px] font-bold text-[10px] uppercase pl-6">Data</TableHead>
-                        <TableHead className="font-bold text-[10px] uppercase text-center">Ore Lavoro</TableHead>
-                        <TableHead className="font-bold text-[10px] uppercase text-center">Straordinario</TableHead>
-                        <TableHead className="font-bold text-[10px] uppercase text-center">Assenza / Permesso</TableHead>
-                        <TableHead className="font-bold text-[10px] uppercase pr-6 text-right">Dettaglio</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {days.map((d: any, idx: number) => (
-                        <TableRow key={idx} className="h-12 hover:bg-slate-50/30">
-                          <TableCell className="pl-6 font-bold text-slate-600">{format(d.date, 'EEEE d MMM', { locale: it })}</TableCell>
-                          <TableCell className="text-center font-bold text-[#227FD8]">{d.work > 0 ? formatTime(d.work) : "---"}</TableCell>
-                          <TableCell className="text-center font-bold text-emerald-600">{d.overtime > 0 ? formatTime(d.overtime) : "---"}</TableCell>
-                          <TableCell className="text-center font-bold text-rose-500">{d.absence > 0 ? formatTime(d.absence) : "---"}</TableCell>
-                          <TableCell className="pr-6 text-right font-black text-[9px] uppercase text-slate-400">{d.absenceType || (d.work > 0 ? "Lavoro Regolare" : "")}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )
-          })}
         </TabsContent>
       </Tabs>
 
@@ -488,7 +498,7 @@ export default function ReportsPage() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsEmailOpen(false)} className="font-bold">Annulla</Button>
-            <Button onClick={handleSendEmail} disabled={isSending || !destEmail} className="bg-[#227FD8] font-black px-8">
+            <Button onClick={handleSendEmail} disabled={isSending || !destEmail} className="bg-[#227FD8] font-black h-12 px-8">
               {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />} SPEDISCI REPORT
             </Button>
           </DialogFooter>
