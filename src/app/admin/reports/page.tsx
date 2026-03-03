@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from "react"
@@ -266,59 +265,95 @@ export default function ReportsPage() {
     return { summary, dailyGrid, monthDays: daysInMonth, totalsByDay };
   }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
 
-  const generateCSVContent = () => {
+  // Genera un file Excel stilizzato (HTML format) che supporta i colori nelle celle
+  const generateStyledExcelHTML = () => {
     const { dailyGrid, monthDays, totalsByDay } = processedData;
     if (!dailyGrid.length) return "";
 
     const selMonthLabel = MONTHS[parseInt(selectedMonth)].label;
-    let csv = `REPORT PRESENZE - ${selMonthLabel} ${selectedYear}\n\n`;
+    const title = `REPORT PRESENZE - ${selMonthLabel} ${selectedYear}`;
 
-    // Riga 1: Giorno del mese
-    let row1 = "Nome dipendente;";
-    monthDays.forEach(day => {
-      row1 += `${format(day, 'd')};`;
-    });
-    row1 += "Totale giorni;SOMMA ORE\n";
+    let html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <style>
+          table { border-collapse: collapse; }
+          td, th { border: 1px solid #cccccc; padding: 8px; text-align: center; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; }
+          .header { background-color: #f1f5f9; font-weight: bold; }
+          .sunday { background-color: #ef4444; color: #ffffff; font-weight: bold; }
+          .employee-name { text-align: left; font-weight: bold; background-color: #ffffff; }
+          .total-col { background-color: #e2e8f0; font-weight: bold; }
+          .sum-hours { color: #ef4444; font-weight: bold; background-color: #e2e8f0; }
+          .vacation { background-color: #10b981; color: #ffffff; font-weight: bold; }
+          .sick { background-color: #2563eb; color: #ffffff; font-weight: bold; }
+          .permit { background-color: #94a3b8; color: #ffffff; font-weight: bold; }
+          .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="${monthDays.length + 3}" class="title-row">${title}</td></tr>
+          <tr><td></td></tr>
+          <tr class="header">
+            <td style="text-align: left;">Nome dipendente</td>
+            ${monthDays.map(day => `<td>${format(day, 'd')}</td>`).join('')}
+            <td>Totale giorni</td>
+            <td>SOMMA ORE</td>
+          </tr>
+          <tr class="header">
+            <td></td>
+            ${monthDays.map(day => {
+              const isSun = day.getDay() === 0;
+              return `<td class="${isSun ? 'sunday' : ''}">${format(day, 'eee', { locale: it }).toUpperCase()}</td>`;
+            }).join('')}
+            <td></td>
+            <td></td>
+          </tr>
+    `;
 
-    // Riga 2: Nome del giorno (Lun, Mar...)
-    let row2 = ";";
-    monthDays.forEach(day => {
-      row2 += `${format(day, 'eee', { locale: it }).toUpperCase()};`;
-    });
-    row2 += ";\n";
-
-    csv += row1 + row2;
-
-    // Righe dati per ogni dipendente
     dailyGrid.forEach(row => {
-      let empLine = `${row.emp.firstName} ${row.emp.lastName};`;
-      row.rowDays.forEach((d: any) => {
-        empLine += `${d.value || ""};`;
-      });
-      empLine += `${row.totalDaysCount};${formatTime(row.totalWorkHours)}\n`;
-      csv += empLine;
+      html += `
+        <tr>
+          <td class="employee-name">${row.emp.firstName} ${row.emp.lastName}</td>
+          ${row.rowDays.map((d: any) => {
+            const isSun = d.day.getDay() === 0;
+            let cssClass = isSun ? 'sunday' : '';
+            if (d.type === 'vacation') cssClass = 'vacation';
+            else if (d.type === 'sick') cssClass = 'sick';
+            else if (d.type === 'permit' && d.value === 'P') cssClass = 'permit';
+            
+            return `<td class="${cssClass}">${d.value || ""}</td>`;
+          }).join('')}
+          <td class="total-col">${row.totalDaysCount}</td>
+          <td class="sum-hours">${formatTime(row.totalWorkHours)}</td>
+        </tr>
+      `;
     });
 
-    // Riga finale totali
-    let totalsLine = "TOTALE GIORNALIERO;";
-    totalsByDay.forEach(val => {
-      totalsLine += `${val > 0 ? val : ""};`;
-    });
-    totalsLine += `;${totalsByDay.reduce((a, b) => a + b, 0)}\n`;
-    csv += totalsLine;
+    html += `
+          <tr class="total-col">
+            <td style="text-align: left;">TOTALE GIORNALIERO</td>
+            ${totalsByDay.map(val => `<td>${val > 0 ? val : ""}</td>`).join('')}
+            <td></td>
+            <td>${totalsByDay.reduce((a, b) => a + b, 0)}</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
 
-    return csv;
+    return html;
   }
 
-  const handleExportCSV = () => {
-    const csvContent = generateCSVContent();
-    if (!csvContent) return;
-    // Utilizziamo un BOM UTF-8 per garantire la corretta visualizzazione di accenti in Excel
-    const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' });
+  const handleExportStyledExcel = () => {
+    const content = generateStyledExcelHTML();
+    if (!content) return;
+    const blob = new Blob([content], { type: 'application/vnd.ms-excel' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `Report_TU.L.S._${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.csv`);
+    link.setAttribute("download", `Report_TU.L.S._${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.xls`);
     link.click();
   };
 
@@ -330,7 +365,7 @@ export default function ReportsPage() {
         recipientEmail: destEmail,
         monthLabel: MONTHS[parseInt(selectedMonth)].label,
         year: selectedYear,
-        csvContent: generateCSVContent(),
+        fileContent: generateStyledExcelHTML(),
         adminName: user?.displayName || "Amministrazione TU.L.S."
       });
       if (result.success) {
@@ -371,8 +406,8 @@ export default function ReportsPage() {
           <Button variant="ghost" size="sm" className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50" onClick={() => setIsRefreshing(true) || setTimeout(() => setIsRefreshing(false), 800)} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
           </Button>
-          <Button variant="outline" size="sm" className="h-10 gap-2 font-bold border-[#227FD8] text-[#227FD8]" onClick={handleExportCSV} disabled={isLoading}>
-            <Download className="h-4 w-4" /> Esporta
+          <Button variant="outline" size="sm" className="h-10 gap-2 font-bold border-[#227FD8] text-[#227FD8]" onClick={handleExportStyledExcel} disabled={isLoading}>
+            <Download className="h-4 w-4" /> Esporta Excel
           </Button>
           <Button variant="default" size="sm" className="h-10 gap-2 font-black bg-[#227FD8] shadow-md" onClick={() => setIsEmailOpen(true)} disabled={isLoading}>
             <Send className="h-4 w-4" /> Invia Report

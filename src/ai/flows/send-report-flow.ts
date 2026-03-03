@@ -3,7 +3,7 @@
  * @fileOverview Flusso Genkit per l'invio automatico del report mensile via email.
  * 
  * Esporta:
- * - sendReportEmail: Funzione per generare il testo con AI e inviare il CSV tramite SMTP Serverplan.
+ * - sendReportEmail: Funzione per generare il testo con AI e inviare il file Excel tramite SMTP Serverplan.
  */
 
 import {ai} from '@/ai/genkit';
@@ -14,7 +14,7 @@ const SendReportInputSchema = z.object({
   recipientEmail: z.string().email(),
   monthLabel: z.string(),
   year: z.string(),
-  csvContent: z.string(),
+  fileContent: z.string().describe('Contenuto del file (HTML Excel format)'),
   adminName: z.string(),
 });
 
@@ -32,11 +32,11 @@ OBIETTIVO: Scrivi una mail formale per inviare il report presenze mensile di {{{
 
 DATI:
 - Mittente: {{{adminName}}}
-- Allegato: Report presenze in formato CSV.
+- Allegato: Report presenze dettagliato in formato Excel con evidenziazione grafica delle festività.
 
 REGOLE:
 1. Tono professionale ed efficiente.
-2. Specifica che in allegato si trova il conteggio delle ore e delle assenze.
+2. Specifica che in allegato si trova il conteggio analitico delle ore, delle assenze e dei totali mensili.
 3. Oggetto: [TU.L.S.] Invio Report Presenze - {{{monthLabel}}} {{{year}}}.
 
 Restituisci solo oggetto e corpo.`,
@@ -61,20 +61,19 @@ const sendReportFlow = ai.defineFlow(
       const transporter = nodemailer.createTransport({
         host: "mail.laltrasigaretta.com",
         port: 465,
-        secure: true, // Port 465 uses SSL/TLS
+        secure: true, 
         auth: {
           user: "tuls@laltrasigaretta.com",
           pass: "c97bd8f3-cdab-4113-8771-7f77503331c2", 
         },
         tls: {
-          // Necessario per alcuni server condivisi
           rejectUnauthorized: false
         }
       });
 
-      const fileName = `Report_Presenze_${input.monthLabel.replace(/\s+/g, '_')}_${input.year}.csv`;
+      const fileName = `Report_TU.L.S._${input.monthLabel.replace(/\s+/g, '_')}_${input.year}.xls`;
 
-      // 3. Invia Email con allegato
+      // 3. Invia Email con allegato stilizzato
       await transporter.sendMail({
         from: '"TU.L.S. Cloud" <tuls@laltrasigaretta.com>',
         to: input.recipientEmail,
@@ -83,8 +82,8 @@ const sendReportFlow = ai.defineFlow(
         attachments: [
           {
             filename: fileName,
-            content: input.csvContent,
-            contentType: 'text/csv'
+            content: input.fileContent,
+            contentType: 'application/vnd.ms-excel'
           },
         ],
       });
