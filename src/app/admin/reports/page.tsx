@@ -334,7 +334,10 @@ export default function ReportsPage() {
     html += `
           <tr class="total-col">
             <td style="text-align: left;">TOTALE GIORNALIERO</td>
-            ${totalsByDay.map(val => `<td>${val > 0 ? val : ""}</td>`).join('')}
+            ${totalsByDay.map(val => {
+              const isSun = monthDays[totalsByDay.indexOf(val)].getDay() === 0;
+              return `<td class="${isSun ? 'sunday' : ''}">${val > 0 ? val : ""}</td>`;
+            }).join('')}
             <td></td>
             <td>${totalsByDay.reduce((a, b) => a + b, 0)}</td>
           </tr>
@@ -487,7 +490,7 @@ export default function ReportsPage() {
                             return (
                               <TableCell key={dIdx} className={cn(
                                 "w-10 p-0 text-center border-r transition-colors",
-                                isSunday ? "bg-rose-600/90" : "bg-white group-hover:bg-slate-50"
+                                isSunday ? "bg-rose-600/90 text-white" : "bg-white group-hover:bg-slate-50"
                               )}>
                                 {d.value && (
                                   <div className={cn(
@@ -496,7 +499,7 @@ export default function ReportsPage() {
                                     d.type === 'sick' && "bg-blue-600 text-white",
                                     d.type === 'permit' && d.value === 'P' && "bg-slate-400 text-white",
                                     d.type === 'permit' && d.value !== 'P' && "bg-amber-100 text-amber-900 border border-amber-200",
-                                    d.type === 'work' && "text-slate-700"
+                                    d.type === 'work' && (isSunday ? "text-white" : "text-slate-700")
                                   )}>
                                     {d.value}
                                   </div>
@@ -517,11 +520,17 @@ export default function ReportsPage() {
                         <TableCell className="w-[200px] border-r font-black text-[11px] uppercase text-slate-700">
                           {format(new Date(parseInt(selectedYear), parseInt(selectedMonth), 1), 'MMMM', { locale: it })} Totale
                         </TableCell>
-                        {processedData.totalsByDay.map((val, idx) => (
-                          <TableCell key={idx} className="w-10 p-0 text-center border-r font-black text-xs text-slate-700">
-                            {val > 0 ? val : ""}
-                          </TableCell>
-                        ))}
+                        {processedData.totalsByDay.map((val, idx) => {
+                          const isSunday = processedData.monthDays[idx].getDay() === 0;
+                          return (
+                            <TableCell key={idx} className={cn(
+                              "w-10 p-0 text-center border-r font-black text-xs",
+                              isSunday ? "bg-rose-600 text-white" : "text-slate-700"
+                            )}>
+                              {val > 0 ? val : ""}
+                            </TableCell>
+                          )
+                        })}
                         <TableCell className="w-24 border-l"></TableCell>
                         <TableCell className="w-24 text-center font-black text-xs text-slate-700">
                           {processedData.totalsByDay.reduce((a, b) => a + b, 0)}
