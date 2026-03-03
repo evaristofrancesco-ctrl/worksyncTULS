@@ -43,7 +43,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup, query } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -110,9 +110,20 @@ export default function ReportsPage() {
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
+  // Funzione per convertire ore decimali nel formato Ore.Minuti (es. 7.33 -> 7.2)
   const formatTime = (decimalHours: number) => {
-    if (decimalHours === 0) return "0";
-    return decimalHours.toLocaleString('it-IT', { maximumFractionDigits: 1 });
+    if (!decimalHours || decimalHours <= 0) return "0";
+    const totalMinutes = Math.round(decimalHours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (m === 0) return h.toString();
+    
+    // Formattazione minuti: se 20 min, visualizza .2 come richiesto (7.2)
+    // Se 5 min, visualizza .05 per evitare ambiguità
+    const mStr = m < 10 ? `0${m}` : m.toString();
+    const finalM = mStr.endsWith('0') ? mStr.substring(0, 1) : mStr;
+    
+    return `${h}.${finalM}`;
   };
 
   const processedData = useMemo(() => {
@@ -124,10 +135,11 @@ export default function ReportsPage() {
     const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
+    // Mappe per accesso rapido
     const entriesMap = new Map();
     allEntries.forEach(e => {
-      const dateKey = e.checkInTime ? e.checkInTime.split('T')[0] : null;
-      if (!dateKey) return;
+      if (!e.checkInTime) return;
+      const dateKey = e.checkInTime.split('T')[0];
       const key = `${e.employeeId}_${dateKey}`;
       const list = entriesMap.get(key) || [];
       list.push(e);
@@ -146,6 +158,7 @@ export default function ReportsPage() {
 
     const shiftsMap = new Map();
     allShifts.forEach(s => {
+      if (!s.date) return;
       const key = `${s.employeeId}_${s.date}`;
       const list = shiftsMap.get(key) || [];
       list.push(s);
@@ -164,33 +177,39 @@ export default function ReportsPage() {
       let vacationHours = 0;
       let sickHours = 0;
       let permitHours = 0;
-      let overtimeHours = 0;
-      let monthlyExpectedHours = 0;
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
         let cellValue: string | number = "";
         let cellType: 'work' | 'vacation' | 'sick' | 'permit' | 'rest' | 'none' = 'none';
 
-        // 1. Calcolo ore effettive
+        // 1. Ore effettive da timbrature
         let dayWork = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
           if (e.checkInTime && e.checkOutTime) {
-            const diff = (new Date(e.checkOutTime).getTime() - new Date(e.checkInTime).getTime()) / 3600000;
-            if (diff > 0) dayWork += diff;
+            const start = new Date(e.checkInTime);
+            const end = new Date(e.checkOutTime);
+            if (isValid(start) && isValid(end)) {
+              const diff = (end.getTime() - start.getTime()) / 3600000;
+              if (diff > 0) dayWork += diff;
+            }
           }
         });
 
-        // 2. Straordinari
+        // 2. Straordinari (OVERTIME) da pianificazione
         let dayOvertime = 0;
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
         dayShifts.filter((s: any) => s.type === 'OVERTIME').forEach((s: any) => {
-          const diff = (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 3600000;
-          if (diff > 0) dayOvertime += diff;
+          const start = new Date(s.startTime);
+          const end = new Date(s.endTime);
+          if (isValid(start) && isValid(end)) {
+            const diff = (end.getTime() - start.getTime()) / 3600000;
+            if (diff > 0) dayOvertime += diff;
+          }
         });
 
-        // 3. Assenze
+        // 3. Assenze da richieste o pianificazione
         const empRequests = requestsMap.get(emp.id) || [];
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
 
@@ -216,11 +235,11 @@ export default function ReportsPage() {
         }
 
         // Se c'è lavoro reale o straordinario, prevale il numero ore
-        if (dayWork > 0 || dayOvertime > 0) {
-          const totalVal = dayWork + dayOvertime;
-          cellValue = formatTime(totalVal);
+        const totalDayLavoro = dayWork + dayOvertime;
+        if (totalDayLavoro > 0) {
+          cellValue = formatTime(totalDayLavoro);
           cellType = 'work';
-          totalWorkHours += totalVal;
+          totalWorkHours += totalDayLavoro;
           totalDaysCount++;
           totalsByDay[idx]++;
         } else if (cellValue) {
@@ -242,7 +261,6 @@ export default function ReportsPage() {
         vacationHours,
         sickHours,
         permitHours,
-        overtimeHours,
         totalNet: totalWorkHours
       };
     });
@@ -256,7 +274,7 @@ export default function ReportsPage() {
     let csv = "REPORT RIEPILOGO MENSILE\n";
     csv += "Collaboratore;Ruolo;Ore Lavorate;Ferie;Malattia;Permessi;Totale Netto\n";
     summary.forEach(r => {
-      csv += `${r.name};${r.jobTitle};${r.workedHours};${r.vacationHours};${r.sickHours};${r.permitHours};${r.totalNet}\n`;
+      csv += `${r.name};${r.jobTitle};${formatTime(r.workedHours)};${formatTime(r.vacationHours)};${formatTime(r.sickHours)};${formatTime(r.permitHours)};${formatTime(r.totalNet)}\n`;
     });
     return csv;
   }
@@ -351,7 +369,6 @@ export default function ReportsPage() {
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-400 text-white flex items-center justify-center rounded text-[10px] font-black">P</div> <span className="text-[10px] font-bold text-slate-600">Permesso Giornaliero</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-blue-600 text-white flex items-center justify-center rounded text-[10px] font-black">M</div> <span className="text-[10px] font-bold text-slate-600">Malattia</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-200 border border-amber-300 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Permesso orario</span></div>
-                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-orange-800 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Personalizzata 2</span></div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -424,7 +441,7 @@ export default function ReportsPage() {
                             {row.totalDaysCount}
                           </TableCell>
                           <TableCell className="w-24 text-center bg-slate-300/50 font-black text-xs text-rose-600">
-                            {row.totalWorkHours.toLocaleString('it-IT', { maximumFractionDigits: 1 })}
+                            {formatTime(row.totalWorkHours)}
                           </TableCell>
                         </TableRow>
                       ))}
