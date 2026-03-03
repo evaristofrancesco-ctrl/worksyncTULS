@@ -119,7 +119,6 @@ export default function ReportsPage() {
     if (m === 0) return h.toString();
     
     // Formattazione minuti: se 20 min, visualizza .2 come richiesto (7.2)
-    // Se 5 min, visualizza .05 per evitare ambiguità
     const mStr = m < 10 ? `0${m}` : m.toString();
     const finalM = mStr.endsWith('0') ? mStr.substring(0, 1) : mStr;
     
@@ -234,7 +233,6 @@ export default function ReportsPage() {
           }
         }
 
-        // Se c'è lavoro reale o straordinario, prevale il numero ore
         const totalDayLavoro = dayWork + dayOvertime;
         if (totalDayLavoro > 0) {
           cellValue = formatTime(totalDayLavoro);
@@ -269,20 +267,54 @@ export default function ReportsPage() {
   }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
 
   const generateCSVContent = () => {
-    const { summary } = processedData;
-    if (!summary.length) return "";
-    let csv = "REPORT RIEPILOGO MENSILE\n";
-    csv += "Collaboratore;Ruolo;Ore Lavorate;Ferie;Malattia;Permessi;Totale Netto\n";
-    summary.forEach(r => {
-      csv += `${r.name};${r.jobTitle};${formatTime(r.workedHours)};${formatTime(r.vacationHours)};${formatTime(r.sickHours)};${formatTime(r.permitHours)};${formatTime(r.totalNet)}\n`;
+    const { dailyGrid, monthDays, totalsByDay } = processedData;
+    if (!dailyGrid.length) return "";
+
+    const selMonthLabel = MONTHS[parseInt(selectedMonth)].label;
+    let csv = `REPORT PRESENZE - ${selMonthLabel} ${selectedYear}\n\n`;
+
+    // Riga 1: Giorno del mese
+    let row1 = "Nome dipendente;";
+    monthDays.forEach(day => {
+      row1 += `${format(day, 'd')};`;
     });
+    row1 += "Totale giorni;SOMMA ORE\n";
+
+    // Riga 2: Nome del giorno (Lun, Mar...)
+    let row2 = ";";
+    monthDays.forEach(day => {
+      row2 += `${format(day, 'eee', { locale: it }).toUpperCase()};`;
+    });
+    row2 += ";\n";
+
+    csv += row1 + row2;
+
+    // Righe dati per ogni dipendente
+    dailyGrid.forEach(row => {
+      let empLine = `${row.emp.firstName} ${row.emp.lastName};`;
+      row.rowDays.forEach((d: any) => {
+        empLine += `${d.value || ""};`;
+      });
+      empLine += `${row.totalDaysCount};${formatTime(row.totalWorkHours)}\n`;
+      csv += empLine;
+    });
+
+    // Riga finale totali
+    let totalsLine = "TOTALE GIORNALIERO;";
+    totalsByDay.forEach(val => {
+      totalsLine += `${val > 0 ? val : ""};`;
+    });
+    totalsLine += `;${totalsByDay.reduce((a, b) => a + b, 0)}\n`;
+    csv += totalsLine;
+
     return csv;
   }
 
   const handleExportCSV = () => {
     const csvContent = generateCSVContent();
     if (!csvContent) return;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Utilizziamo un BOM UTF-8 per garantire la corretta visualizzazione di accenti in Excel
+    const blob = new Blob(["\ufeff", csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
