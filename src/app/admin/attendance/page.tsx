@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, doc, query, limit, orderBy } from "firebase/firestore"
+import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
 import { useState, useMemo } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -61,9 +61,10 @@ export default function AttendancePage() {
   }, [db, user])
   const { data: employees } = useCollection(employeesQuery)
 
+  // Rimosso orderBy per evitare l'errore di indice mancante che bloccava la visualizzazione
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collectionGroup(db, "timeentries"), orderBy("checkInTime", "desc"), limit(500));
+    return query(collectionGroup(db, "timeentries"), limit(1000));
   }, [db, user])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
 
@@ -147,8 +148,7 @@ export default function AttendancePage() {
         const dateA = a.checkInTime ? new Date(a.checkInTime).getTime() : 0;
         const dateB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
         return dateB - dateA;
-      })
-      .slice(0, 500);
+      });
   }, [unifiedEntries, employeeMap, searchQuery, filterDate, filterType, showAllHistory]);
 
   const groupedEntries = useMemo(() => {
