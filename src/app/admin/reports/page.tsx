@@ -111,17 +111,20 @@ export default function ReportsPage() {
 
   // Funzione per convertire ore decimali nel formato Ore.Minuti (es. 7.33 -> 7.2)
   const formatTime = (decimalHours: number) => {
-    if (decimalHours === undefined || decimalHours === null || decimalHours <= 0) return "0";
+    if (decimalHours === undefined || decimalHours === null) return "0";
     const totalMinutes = Math.round(decimalHours * 60);
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    if (m === 0) return h.toString();
+    const absMinutes = Math.abs(totalMinutes);
+    const h = Math.floor(absMinutes / 60);
+    const m = absMinutes % 60;
+    const sign = totalMinutes < 0 ? "-" : "";
+    
+    if (m === 0) return `${sign}${h}`;
     
     // Formattazione minuti: se 20 min, visualizza .2 come richiesto (7.2)
     const mStr = m < 10 ? `0${m}` : m.toString();
     const finalM = mStr.endsWith('0') ? mStr.substring(0, 1) : mStr;
     
-    return `${h}.${finalM}`;
+    return `${sign}${h}.${finalM}`;
   };
 
   const processedData = useMemo(() => {
@@ -267,14 +270,14 @@ export default function ReportsPage() {
         sickHours,
         permitHours,
         expectedHours,
-        totalNet: totalWorkHours + vacationHours + sickHours + permitHours
+        // NUOVA LOGICA: Sottrae le assenze dal totale lavorato
+        totalNet: totalWorkHours - (vacationHours + sickHours + permitHours)
       };
     });
 
     return { summary, dailyGrid, monthDays: daysInMonth, totalsByDay };
   }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
 
-  // Genera un file Excel stilizzato (HTML format) che supporta i colori nelle celle
   const generateStyledExcelHTML = () => {
     const { dailyGrid, monthDays, totalsByDay, summary } = processedData;
     if (!dailyGrid.length) return "";
@@ -297,6 +300,7 @@ export default function ReportsPage() {
           .vacation { background-color: #10b981; color: #ffffff; font-weight: bold; }
           .sick { background-color: #2563eb; color: #ffffff; font-weight: bold; }
           .permit { background-color: #94a3b8; color: #ffffff; font-weight: bold; }
+          .total-net-red { color: #ef4444; font-weight: bold; }
           .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; }
         </style>
       </head>
@@ -343,8 +347,8 @@ export default function ReportsPage() {
     html += `
           <tr class="total-col">
             <td style="text-align: left;">TOTALE GIORNALIERO</td>
-            ${totalsByDay.map(val => {
-              const isSun = monthDays[totalsByDay.indexOf(val)].getDay() === 0;
+            ${totalsByDay.map((val, idx) => {
+              const isSun = monthDays[idx].getDay() === 0;
               return `<td class="${isSun ? 'sunday' : ''}">${val > 0 ? val : ""}</td>`;
             }).join('')}
             <td></td>
@@ -361,7 +365,7 @@ export default function ReportsPage() {
             <td>Ferie (h)</td>
             <td>Malattia (h)</td>
             <td>Permessi (h)</td>
-            <td>Ore Totali</td>
+            <td>Ore Totali (Netto)</td>
           </tr>
           ${summary.map(s => `
             <tr>
@@ -371,7 +375,7 @@ export default function ReportsPage() {
               <td>${formatTime(s.vacationHours)}</td>
               <td>${formatTime(s.sickHours)}</td>
               <td>${formatTime(s.permitHours)}</td>
-              <td style="font-weight: bold; color: #227FD8;">${formatTime(s.totalNet)}</td>
+              <td class="total-net-red">${formatTime(s.totalNet)}</td>
             </tr>
           `).join('')}
         </table>
@@ -607,7 +611,7 @@ export default function ReportsPage() {
                       <TableCell className="text-center font-bold text-emerald-600">{formatTime(row.vacationHours)}</TableCell>
                       <TableCell className="text-center font-bold text-blue-600">{formatTime(row.sickHours)}</TableCell>
                       <TableCell className="text-center font-bold text-slate-500">{formatTime(row.permitHours)}</TableCell>
-                      <TableCell className="text-right pr-8"><span className="text-lg font-black text-[#227FD8]">{formatTime(row.totalNet)}</span></TableCell>
+                      <TableCell className="text-right pr-8"><span className="text-lg font-black text-rose-600">{formatTime(row.totalNet)}</span></TableCell>
                     </TableRow>
                   )) : <TableRow><TableCell colSpan={6} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
                 </TableBody>
