@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -259,6 +260,7 @@ export default function ReportsPage() {
       const weeklyHours = emp.weeklyHours || 40;
       const dailyAverage = weeklyHours / 6;
       const expectedHours = dailyAverage * workingDaysCount;
+      const hasAbsences = (vacationHours + sickHours + permitHours) > 0;
 
       return {
         id: emp.id,
@@ -270,7 +272,8 @@ export default function ReportsPage() {
         sickHours,
         permitHours,
         expectedHours,
-        // NUOVA LOGICA: Sottrae le assenze dal totale lavorato
+        hasAbsences,
+        // Sottrae le assenze dal totale lavorato
         totalNet: totalWorkHours - (vacationHours + sickHours + permitHours)
       };
     });
@@ -375,7 +378,7 @@ export default function ReportsPage() {
               <td>${formatTime(s.vacationHours)}</td>
               <td>${formatTime(s.sickHours)}</td>
               <td>${formatTime(s.permitHours)}</td>
-              <td class="total-net-red">${formatTime(s.totalNet)}</td>
+              <td class="${s.hasAbsences ? 'total-net-red' : ''}">${formatTime(s.totalNet)}</td>
             </tr>
           `).join('')}
         </table>
@@ -611,7 +614,11 @@ export default function ReportsPage() {
                       <TableCell className="text-center font-bold text-emerald-600">{formatTime(row.vacationHours)}</TableCell>
                       <TableCell className="text-center font-bold text-blue-600">{formatTime(row.sickHours)}</TableCell>
                       <TableCell className="text-center font-bold text-slate-500">{formatTime(row.permitHours)}</TableCell>
-                      <TableCell className="text-right pr-8"><span className="text-lg font-black text-rose-600">{formatTime(row.totalNet)}</span></TableCell>
+                      <TableCell className="text-right pr-8">
+                        <span className={cn("text-lg font-black", row.hasAbsences ? "text-rose-600" : "text-slate-900")}>
+                          {formatTime(row.totalNet)}
+                        </span>
+                      </TableCell>
                     </TableRow>
                   )) : <TableRow><TableCell colSpan={6} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
                 </TableBody>
