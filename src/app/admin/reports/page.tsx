@@ -110,15 +110,11 @@ export default function ReportsPage() {
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
-  // Arrotonda un timestamp in base alle regole dei 20 minuti
   const getRoundedTime = (date: Date) => {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
-    
-    // Target: 09:00, 13:00, 17:00, 20:20
     const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20];
-    
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
         const rounded = new Date(date);
@@ -129,7 +125,6 @@ export default function ReportsPage() {
     return date;
   };
 
-  // Funzione per convertire ore decimali nel formato Ore.Minuti (es. 7.33 -> 7.2)
   const formatTime = (decimalHours: number) => {
     if (decimalHours === undefined || decimalHours === null || Math.abs(decimalHours) < 0.01) return "0";
     const totalMinutes = Math.round(decimalHours * 60);
@@ -137,7 +132,6 @@ export default function ReportsPage() {
     const h = Math.floor(absMinutes / 60);
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
-    
     if (m === 0) return `${sign}${h}`;
     const mStr = m < 10 ? `0${m}` : m.toString();
     const finalM = mStr.endsWith('0') ? mStr.substring(0, 1) : mStr;
@@ -196,7 +190,7 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.3333; // 7 ore e 20 minuti
+      const STD_DAY_HOURS = 7.3333;
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
@@ -209,14 +203,11 @@ export default function ReportsPage() {
           if (e.checkInTime) {
             const start = getRoundedTime(new Date(e.checkInTime));
             let end;
-            
             if (e.checkOutTime) {
               end = getRoundedTime(new Date(e.checkOutTime));
             } else if (isSameDay(day, new Date())) {
-              // Se è oggi ed è ancora in corso, calcoliamo le ore maturate fino ad ora
               end = new Date();
             }
-
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
               if (diff > 0) dayWork += diff;
@@ -242,6 +233,7 @@ export default function ReportsPage() {
           if (req.type === "VACATION") { cellValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
           else if (req.type === "SICK") { cellValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
           else if (req.type === "PERSONAL") { cellValue = "P"; cellType = "permit"; permitHours += STD_DAY_HOURS; }
+          else if (req.type === "REST_SWAP") { cellValue = "R"; cellType = "rest"; }
           else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
@@ -251,11 +243,11 @@ export default function ReportsPage() {
             }
           }
         } else {
-          const shiftAbs = dayShifts.find((s: any) => (s.type === 'ABSENCE' || s.type === 'SICK'));
-          if (shiftAbs) {
-            cellValue = shiftAbs.type === 'SICK' ? "M" : "F";
-            cellType = shiftAbs.type === 'SICK' ? "sick" : "vacation";
-            if (shiftAbs.type === 'SICK') sickHours += STD_DAY_HOURS; else vacationHours += STD_DAY_HOURS;
+          const shiftSpec = dayShifts.find((s: any) => (s.type === 'ABSENCE' || s.type === 'SICK' || s.type === 'REST'));
+          if (shiftSpec) {
+            if (shiftSpec.type === 'SICK') { cellValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
+            else if (shiftSpec.type === 'REST') { cellValue = "R"; cellType = "rest"; }
+            else { cellValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
           }
         }
 
@@ -277,8 +269,7 @@ export default function ReportsPage() {
       dailyGrid.push({ emp, rowDays, totalDaysCount, totalWorkHours });
 
       const weeklyHours = emp.weeklyHours || 40;
-      const dailyAverage = weeklyHours / 6;
-      const expectedHours = dailyAverage * workingDaysCount;
+      const expectedHours = (weeklyHours / 6) * workingDaysCount;
       const hasAbsences = (vacationHours + sickHours + permitHours) > 0;
 
       return {
@@ -302,7 +293,6 @@ export default function ReportsPage() {
   const generateStyledExcelHTML = () => {
     const { dailyGrid, monthDays, totalsByDay, summary } = processedData;
     if (!dailyGrid.length) return "";
-
     const selMonthLabel = MONTHS[parseInt(selectedMonth)].label;
     const title = `REPORT PRESENZE - ${selMonthLabel} ${selectedYear}`;
 
@@ -321,6 +311,7 @@ export default function ReportsPage() {
           .vacation { background-color: #10b981; color: #ffffff; font-weight: bold; }
           .sick { background-color: #2563eb; color: #ffffff; font-weight: bold; }
           .permit { background-color: #94a3b8; color: #ffffff; font-weight: bold; }
+          .rest { background-color: #475569; color: #ffffff; font-weight: bold; }
           .total-net-red { color: #ef4444; font-weight: bold; }
           .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; }
         </style>
@@ -355,8 +346,8 @@ export default function ReportsPage() {
             let cssClass = isSun ? 'sunday' : '';
             if (d.type === 'vacation') cssClass = 'vacation';
             else if (d.type === 'sick') cssClass = 'sick';
-            else if (d.type === 'permit' && d.value === 'P') cssClass = 'permit';
-            
+            else if (d.type === 'rest') cssClass = 'rest';
+            else if (d.type === 'permit') cssClass = 'permit';
             return `<td class="${cssClass}">${d.value || ""}</td>`;
           }).join('')}
           <td class="total-col">${row.totalDaysCount}</td>
@@ -376,7 +367,6 @@ export default function ReportsPage() {
             <td>${totalsByDay.reduce((a, b) => a + b, 0)}</td>
           </tr>
         </table>
-        
         <br><br>
         <table>
           <tr class="header">
@@ -403,7 +393,6 @@ export default function ReportsPage() {
       </body>
       </html>
     `;
-
     return html;
   }
 
@@ -492,10 +481,11 @@ export default function ReportsPage() {
               <div className="flex flex-col gap-6">
                 <div className="flex flex-wrap items-center gap-6">
                   <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Chiave tipo di assenza</span>
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-emerald-500 text-white flex items-center justify-center rounded text-[10px] font-black">F</div> <span className="text-[10px] font-bold text-slate-600">Ferie</span></div>
-                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-400 text-white flex items-center justify-center rounded text-[10px] font-black">P</div> <span className="text-[10px] font-bold text-slate-600">Permesso Giornaliero</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-400 text-white flex items-center justify-center rounded text-[10px] font-black">P</div> <span className="text-[10px] font-bold text-slate-600">Permesso</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-blue-600 text-white flex items-center justify-center rounded text-[10px] font-black">M</div> <span className="text-[10px] font-bold text-slate-600">Malattia</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-600 text-white flex items-center justify-center rounded text-[10px] font-black">R</div> <span className="text-[10px] font-bold text-slate-600">Riposo</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-200 border border-amber-300 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Permesso orario</span></div>
                   </div>
                 </div>
@@ -555,6 +545,7 @@ export default function ReportsPage() {
                                     "w-full h-full flex items-center justify-center font-black text-[10px]",
                                     d.type === 'vacation' && "bg-emerald-500 text-white",
                                     d.type === 'sick' && "bg-blue-600 text-white",
+                                    d.type === 'rest' && "bg-slate-600 text-white",
                                     d.type === 'permit' && d.value === 'P' && "bg-slate-400 text-white",
                                     d.type === 'permit' && d.value !== 'P' && "bg-amber-100 text-amber-900 border border-amber-200",
                                     d.type === 'work' && (isSunday ? "text-white" : "text-slate-700")
@@ -573,26 +564,6 @@ export default function ReportsPage() {
                           </TableCell>
                         </TableRow>
                       ))}
-                      <TableRow className="h-12 bg-slate-400/30 hover:bg-slate-400/40">
-                        <TableCell className="w-[200px] border-r font-black text-[11px] uppercase text-slate-700">
-                          {format(new Date(parseInt(selectedYear), parseInt(selectedMonth), 1), 'MMMM', { locale: it })} Totale
-                        </TableCell>
-                        {processedData.totalsByDay.map((val, idx) => {
-                          const isSunday = processedData.monthDays[idx].getDay() === 0;
-                          return (
-                            <TableCell key={idx} className={cn(
-                              "w-10 p-0 text-center border-r font-black text-xs",
-                              isSunday ? "bg-rose-600 text-white" : "text-slate-700"
-                            )}>
-                              {val > 0 ? val : ""}
-                            </TableCell>
-                          )
-                        })}
-                        <TableCell className="w-24 border-l"></TableCell>
-                        <TableCell className="w-24 text-center font-black text-xs text-slate-700">
-                          {processedData.totalsByDay.reduce((a, b) => a + b, 0)}
-                        </TableCell>
-                      </TableRow>
                     </TableBody>
                   </Table>
                 </div>
