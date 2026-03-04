@@ -110,12 +110,12 @@ export default function ReportsPage() {
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
-  // Arrotondamento 20m per il calcolo report
+  // Arrotondamento intelligente per il calcolo report (soglia 20m)
   const getRoundedTime = (date: Date) => {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
-    const targets = [9 * 60, 13 * 60, 17 * 0, 20 * 60 + 20]; // 09:00, 13:00, 17:00, 20:20
+    const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; // 09:00, 13:00, 17:00, 20:20
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
         const rounded = new Date(date);
@@ -126,6 +126,7 @@ export default function ReportsPage() {
     return date;
   };
 
+  // Funzione critica per formattazione 7.2 (dove 20m = .2)
   const formatTime = (decimalHours: number) => {
     if (decimalHours === undefined || decimalHours === null || Math.abs(decimalHours) < 0.01) return "0";
     const totalMinutes = Math.round(decimalHours * 60);
@@ -134,8 +135,8 @@ export default function ReportsPage() {
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
     
-    // Converte i minuti in formato .X per la visualizzazione richiesta (es. 20m -> .2)
-    const displayMinutes = Math.round(m / 6); 
+    // Converte i minuti in formato .X richiesto (es. 20m -> .2)
+    const displayMinutes = Math.round(m / 10); 
     if (displayMinutes === 0) return `${sign}${h}`;
     return `${sign}${h}.${displayMinutes}`;
   };
@@ -192,14 +193,14 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.3333; // 7h 20m
+      const STD_DAY_HOURS = 7.3333; // 7h 20m per assenze
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
-        let cellValue: string | number = "";
+        let cellValue: string = "";
         let cellType: 'work' | 'vacation' | 'sick' | 'permit' | 'rest' | 'none' = 'none';
 
-        // 1. Calcolo ore lavorate effettive (con arrotondamento e gestione sessioni in corso)
+        // 1. Calcolo ore lavorate
         let dayWork = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
@@ -209,7 +210,7 @@ export default function ReportsPage() {
             if (e.checkOutTime) {
               end = getRoundedTime(new Date(e.checkOutTime));
             } else if (isSameDay(day, new Date())) {
-              end = new Date(); // Sessione in corso: usa l'ora attuale per il conteggio real-time
+              end = new Date();
             }
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
@@ -224,36 +225,35 @@ export default function ReportsPage() {
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
         const isRestShift = dayShifts.some((s: any) => s.type === 'REST');
 
+        let codeValue = "";
         if (req) {
-          if (req.type === "VACATION") { cellValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
-          else if (req.type === "SICK") { cellValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
-          else if (req.type === "PERSONAL") { cellValue = "P"; cellType = "permit"; permitHours += STD_DAY_HOURS; }
-          else if (req.type === "REST_SWAP") { cellValue = "R"; cellType = "rest"; }
+          if (req.type === "VACATION") { codeValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
+          else if (req.type === "SICK") { codeValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
+          else if (req.type === "PERSONAL") { codeValue = "P"; cellType = "permit"; permitHours += STD_DAY_HOURS; }
+          else if (req.type === "REST_SWAP") { codeValue = "R"; cellType = "rest"; }
           else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
               const diff = (h2 + m2/60) - (h1 + m1/60);
-              if (diff > 0) { 
-                // Se c'è lavoro, mostreremo il totale (lavoro + permesso orario)
-                dayWork += diff;
-                permitHours += diff;
-              }
+              if (diff > 0) { dayWork += diff; permitHours += diff; }
             }
           }
-        } else if (isRestShift && dayWork === 0) {
-          cellValue = "R";
+        } else if (isRestShift) {
+          codeValue = "R";
           cellType = "rest";
         }
 
-        // Priorità visualizzazione: se c'è lavoro, mostra le ore. Altrimenti mostra il codice assenza/riposo.
+        // 3. Unione dati (Richiesta specifica: mostrare sia R che lavoro se presenti)
         if (dayWork > 0) {
-          cellValue = formatTime(dayWork);
+          const formattedWork = formatTime(dayWork);
+          cellValue = codeValue === "R" ? `R + ${formattedWork}` : formattedWork;
           cellType = 'work';
           totalWorkHours += dayWork;
           totalDaysCount++;
           totalsByDay[idx]++;
-        } else if (cellValue) {
+        } else if (codeValue) {
+          cellValue = codeValue;
           totalDaysCount++;
           totalsByDay[idx]++;
         }
