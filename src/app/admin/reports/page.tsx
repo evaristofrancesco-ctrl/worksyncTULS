@@ -110,11 +110,12 @@ export default function ReportsPage() {
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
+  // Arrotondamento 20m per il calcolo report
   const getRoundedTime = (date: Date) => {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
-    const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20];
+    const targets = [9 * 60, 13 * 60, 17 * 0, 20 * 60 + 20]; // 09:00, 13:00, 17:00, 20:20
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
         const rounded = new Date(date);
@@ -132,10 +133,11 @@ export default function ReportsPage() {
     const h = Math.floor(absMinutes / 60);
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
-    if (m === 0) return `${sign}${h}`;
-    const mStr = m < 10 ? `0${m}` : m.toString();
-    const finalM = mStr.endsWith('0') ? mStr.substring(0, 1) : mStr;
-    return `${sign}${h}.${finalM}`;
+    
+    // Converte i minuti in formato .X per la visualizzazione richiesta (es. 20m -> .2)
+    const displayMinutes = Math.round(m / 6); 
+    if (displayMinutes === 0) return `${sign}${h}`;
+    return `${sign}${h}.${displayMinutes}`;
   };
 
   const processedData = useMemo(() => {
@@ -190,13 +192,14 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.3333;
+      const STD_DAY_HOURS = 7.3333; // 7h 20m
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
         let cellValue: string | number = "";
         let cellType: 'work' | 'vacation' | 'sick' | 'permit' | 'rest' | 'none' = 'none';
 
+        // 1. Calcolo ore lavorate effettive (con arrotondamento e gestione sessioni in corso)
         let dayWork = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
@@ -206,7 +209,7 @@ export default function ReportsPage() {
             if (e.checkOutTime) {
               end = getRoundedTime(new Date(e.checkOutTime));
             } else if (isSameDay(day, new Date())) {
-              end = new Date();
+              end = new Date(); // Sessione in corso: usa l'ora attuale per il conteggio real-time
             }
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
@@ -215,19 +218,11 @@ export default function ReportsPage() {
           }
         });
 
-        let dayOvertime = 0;
-        const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
-        dayShifts.filter((s: any) => s.type === 'OVERTIME').forEach((s: any) => {
-          const start = new Date(s.startTime);
-          const end = new Date(s.endTime);
-          if (isValid(start) && isValid(end)) {
-            const diff = (end.getTime() - start.getTime()) / 3600000;
-            if (diff > 0) dayOvertime += diff;
-          }
-        });
-
+        // 2. Controllo assenze e riposi
         const empRequests = requestsMap.get(emp.id) || [];
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
+        const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
+        const isRestShift = dayShifts.some((s: any) => s.type === 'REST');
 
         if (req) {
           if (req.type === "VACATION") { cellValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
@@ -239,23 +234,23 @@ export default function ReportsPage() {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
               const diff = (h2 + m2/60) - (h1 + m1/60);
-              if (diff > 0) { cellValue = formatTime(diff); cellType = "permit"; permitHours += diff; }
+              if (diff > 0) { 
+                // Se c'è lavoro, mostreremo il totale (lavoro + permesso orario)
+                dayWork += diff;
+                permitHours += diff;
+              }
             }
           }
-        } else {
-          const shiftSpec = dayShifts.find((s: any) => (s.type === 'ABSENCE' || s.type === 'SICK' || s.type === 'REST'));
-          if (shiftSpec) {
-            if (shiftSpec.type === 'SICK') { cellValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
-            else if (shiftSpec.type === 'REST') { cellValue = "R"; cellType = "rest"; }
-            else { cellValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
-          }
+        } else if (isRestShift && dayWork === 0) {
+          cellValue = "R";
+          cellType = "rest";
         }
 
-        const totalDayLavoro = dayWork + dayOvertime;
-        if (totalDayLavoro > 0) {
-          cellValue = formatTime(totalDayLavoro);
+        // Priorità visualizzazione: se c'è lavoro, mostra le ore. Altrimenti mostra il codice assenza/riposo.
+        if (dayWork > 0) {
+          cellValue = formatTime(dayWork);
           cellType = 'work';
-          totalWorkHours += totalDayLavoro;
+          totalWorkHours += dayWork;
           totalDaysCount++;
           totalsByDay[idx]++;
         } else if (cellValue) {
@@ -270,7 +265,7 @@ export default function ReportsPage() {
 
       const weeklyHours = emp.weeklyHours || 40;
       const expectedHours = (weeklyHours / 6) * workingDaysCount;
-      const hasAbsences = (vacationHours + sickHours + permitHours) > 0;
+      const totalAbsences = vacationHours + sickHours + permitHours;
 
       return {
         id: emp.id,
@@ -282,8 +277,8 @@ export default function ReportsPage() {
         sickHours,
         permitHours,
         expectedHours,
-        hasAbsences,
-        totalNet: totalWorkHours - (vacationHours + sickHours + permitHours)
+        hasAbsences: totalAbsences > 0,
+        totalNet: totalWorkHours - totalAbsences
       };
     });
 
