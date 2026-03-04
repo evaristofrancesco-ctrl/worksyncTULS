@@ -190,7 +190,7 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.333333; // 7h 20m precisi
+      const STD_DAY_HOURS = 7.333333; // 7h 20m
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
@@ -218,52 +218,39 @@ export default function ReportsPage() {
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
         
-        let codeLetter = "";
-        let codeType = "none";
-        let codeValue = "";
+        // Cerca codici speciali nel planner dei turni
+        const shiftRest = dayShifts.find((s: any) => s.type === 'REST');
+        const shiftSick = dayShifts.find((s: any) => s.type === 'SICK');
+        const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
+        const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
 
-        if (req) {
-          if (req.type === "VACATION") { codeLetter = "F"; codeType = "vacation"; vacationHours += STD_DAY_HOURS; }
-          else if (req.type === "SICK") { codeLetter = "M"; codeType = "sick"; sickHours += STD_DAY_HOURS; }
-          else if (req.type === "PERSONAL") { codeLetter = "P"; codeType = "permit"; permitHours += STD_DAY_HOURS; }
-          else if (req.type === "REST_SWAP") { codeLetter = "R"; codeType = "rest"; }
-          else if (req.type === "HOURLY_PERMIT") {
-            if (req.startTime && req.endTime) {
-              const [h1, m1] = req.startTime.split(':').map(Number);
-              const [h2, m2] = req.endTime.split(':').map(Number);
-              const diff = (h2 + m2/60) - (h1 + m1/60);
-              if (diff > 0) { codeValue = formatTime(diff); codeType = "permit"; permitHours += diff; }
-            }
-          }
-        } 
+        // Logica priorità: Se c'è una richiesta formale o un'impostazione nel planner
+        if (req?.type === "VACATION" || shiftAbsence) { dayParts.push({ value: "F", type: "vacation" }); vacationHours += STD_DAY_HOURS; }
+        else if (req?.type === "SICK" || shiftSick) { dayParts.push({ value: "M", type: "sick" }); sickHours += STD_DAY_HOURS; }
+        else if (req?.type === "PERSONAL") { dayParts.push({ value: "P", type: "permit" }); permitHours += STD_DAY_HOURS; }
+        else if (req?.type === "REST_SWAP" || shiftRest) { dayParts.push({ value: "R", type: "rest" }); }
         
-        if (!codeLetter && !codeValue) {
-          const shiftRest = dayShifts.find((s: any) => s.type === 'REST');
-          const shiftSick = dayShifts.find((s: any) => s.type === 'SICK');
-          const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
-          const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
-          
-          if (shiftSick) { codeLetter = "M"; codeType = "sick"; sickHours += STD_DAY_HOURS; }
-          else if (shiftAbsence) { codeLetter = "F"; codeType = "vacation"; vacationHours += STD_DAY_HOURS; }
-          else if (shiftRest) { codeLetter = "R"; codeType = "rest"; }
-          else if (shiftPermit) {
-            const sIn = parseISO(shiftPermit.startTime);
-            const sOut = parseISO(shiftPermit.endTime);
-            if (isValid(sIn) && isValid(sOut)) {
-              const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
-              if (diff > 0) { codeValue = formatTime(diff); codeType = "permit"; permitHours += diff; }
-            }
+        // Permessi orari
+        if (req?.type === "HOURLY_PERMIT" && req.startTime && req.endTime) {
+          const [h1, m1] = req.startTime.split(':').map(Number);
+          const [h2, m2] = req.endTime.split(':').map(Number);
+          const diff = (h2 + m2/60) - (h1 + m1/60);
+          if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; }
+        } else if (shiftPermit) {
+          const sIn = parseISO(shiftPermit.startTime);
+          const sOut = parseISO(shiftPermit.endTime);
+          if (isValid(sIn) && isValid(sOut)) {
+            const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
+            if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; }
           }
         }
 
-        if (codeLetter) dayParts.push({ value: codeLetter, type: codeType });
-        if (codeValue) dayParts.push({ value: codeValue, type: codeType });
         if (dayWork > 0) {
           dayParts.push({ value: formatTime(dayWork), type: 'work' });
           totalWorkHours += dayWork;
-          totalDaysCount++;
-          totalsByDay[idx]++;
-        } else if (codeLetter || codeValue) {
+        }
+
+        if (dayParts.length > 0) {
           totalDaysCount++;
           totalsByDay[idx]++;
         }
@@ -307,18 +294,20 @@ export default function ReportsPage() {
         <meta charset="utf-8">
         <style>
           table { border-collapse: collapse; }
-          td, th { border: 1px solid #cccccc; padding: 8px; text-align: center; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; }
+          td, th { border: 1px solid #cccccc; padding: 8px; text-align: center; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; }
           .header { background-color: #f1f5f9; font-weight: bold; }
           .sunday { background-color: #ef4444; color: #ffffff; font-weight: bold; }
-          .employee-name { text-align: left; font-weight: bold; background-color: #ffffff; }
+          .employee-name { text-align: left; font-weight: bold; background-color: #ffffff; width: 200px; }
           .total-col { background-color: #e2e8f0; font-weight: bold; }
           .sum-hours { color: #ef4444; font-weight: bold; background-color: #e2e8f0; }
           .vacation { background-color: #10b981; color: #ffffff; font-weight: bold; }
           .sick { background-color: #2563eb; color: #ffffff; font-weight: bold; }
           .permit { background-color: #94a3b8; color: #ffffff; font-weight: bold; }
           .rest { background-color: #475569; color: #ffffff; font-weight: bold; }
+          .permit-hourly { background-color: #fef3c7; color: #92400e; font-weight: bold; }
           .total-net-red { color: #ef4444; font-weight: bold; }
           .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; }
+          .legend-title { background-color: #f1f5f9; font-weight: bold; text-align: left; }
         </style>
       </head>
       <body>
@@ -354,7 +343,7 @@ export default function ReportsPage() {
               if (firstType === 'vacation') cssClass = 'vacation';
               else if (firstType === 'sick') cssClass = 'sick';
               else if (firstType === 'rest') cssClass = 'rest';
-              else if (firstType === 'permit') cssClass = 'permit';
+              else if (firstType === 'permit') cssClass = d.parts[0].value === 'P' ? 'permit' : 'permit-hourly';
             }
             return `<td class="${cssClass}">${d.value || ""}</td>`;
           }).join('')}
@@ -397,6 +386,18 @@ export default function ReportsPage() {
               <td class="${s.hasAbsences ? 'total-net-red' : ''}">${formatTime(s.totalNet)}</td>
             </tr>
           `).join('')}
+        </table>
+        <br><br>
+        <table>
+          <tr><td colspan="2" class="legend-title">LEGENDA</td></tr>
+          <tr><td class="vacation" style="width: 40px;">F</td><td style="text-align: left;">Ferie (calcolate come 7.2 ore)</td></tr>
+          <tr><td class="sick" style="width: 40px;">M</td><td style="text-align: left;">Malattia (calcolata come 7.2 ore)</td></tr>
+          <tr><td class="permit" style="width: 40px;">P</td><td style="text-align: left;">Permesso Giornaliero (calcolato come 7.2 ore)</td></tr>
+          <tr><td class="rest" style="width: 40px;">R</td><td style="text-align: left;">Riposo Settimanale / Festività</td></tr>
+          <tr><td class="permit-hourly" style="width: 40px;">X.X</td><td style="text-align: left;">Permesso Orario (valore in ore e decimi)</td></tr>
+          <tr><td style="background-color: #ffffff; color: #1e293b; font-weight: bold; width: 40px;">X.X</td><td style="text-align: left;">Ore di Lavoro Effettivo</td></tr>
+          <tr><td class="sunday" style="width: 40px;"></td><td style="text-align: left;">Domenica (Evidenziata in rosso)</td></tr>
+          <tr><td></td><td style="text-align: left; font-size: 8pt; italic: true;">* Nota: 7.2 corrisponde a 7 ore e 20 minuti.</td></tr>
         </table>
       </body>
       </html>
