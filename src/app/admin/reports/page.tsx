@@ -196,7 +196,6 @@ export default function ReportsPage() {
         const dStr = format(day, 'yyyy-MM-dd');
         const dayParts: { value: string, type: string }[] = [];
 
-        // 1. Calcolo ore lavorate (Timbrature Reali)
         let dayWork = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
@@ -215,7 +214,6 @@ export default function ReportsPage() {
           }
         });
 
-        // 2. Controllo assenze e riposi
         const empRequests = requestsMap.get(emp.id) || [];
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
@@ -258,7 +256,6 @@ export default function ReportsPage() {
           }
         }
 
-        // Composizione parti cella
         if (codeLetter) dayParts.push({ value: codeLetter, type: codeType });
         if (codeValue) dayParts.push({ value: codeValue, type: codeType });
         if (dayWork > 0) {
@@ -352,7 +349,6 @@ export default function ReportsPage() {
           ${row.rowDays.map((d: any) => {
             const isSun = d.day.getDay() === 0;
             let cssClass = isSun ? 'sunday' : '';
-            // Per excel usiamo la prima parte per determinare il colore di sfondo principale
             if (d.parts.length > 0) {
               const firstType = d.parts[0].type;
               if (firstType === 'vacation') cssClass = 'vacation';
