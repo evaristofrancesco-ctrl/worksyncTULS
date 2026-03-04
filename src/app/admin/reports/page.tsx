@@ -114,6 +114,7 @@ export default function ReportsPage() {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
+    // Arrotondamento fisso per turni Savino e altri
     const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; 
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
@@ -133,6 +134,7 @@ export default function ReportsPage() {
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
     
+    // Regola specifica: 20 min = .2
     const displayMinutes = Math.floor(m / 10); 
     if (displayMinutes === 0) return `${sign}${h}`;
     return `${sign}${h}.${displayMinutes}`;
@@ -161,7 +163,7 @@ export default function ReportsPage() {
     const requestsMap = new Map();
     allRequests.forEach(r => {
       const status = (r.status || "").toUpperCase();
-      if (!(status === "APPROVATO" || status === "APPROVED" || status === "IN ATTESA" || status === "PENDING" || status === "Approvato")) return;
+      if (!(status === "APPROVATO" || status === "APPROVED" || status === "Approvato")) return;
       const key = r.employeeId;
       const list = requestsMap.get(key) || [];
       list.push(r);
@@ -190,7 +192,7 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.333333; // 7h 20m
+      const STD_DAY_HOURS = 7.333333; // 7h 20m = 7.33 decimali
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
@@ -205,8 +207,9 @@ export default function ReportsPage() {
             if (e.checkOutTime) {
               end = getRoundedTime(new Date(e.checkOutTime));
             } else if (isSameDay(day, new Date())) {
-              end = new Date();
+              end = new Date(); // Conteggio live per oggi
             }
+            
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
               if (diff > 0) dayWork += diff;
@@ -218,17 +221,16 @@ export default function ReportsPage() {
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
         
-        // Cerca codici speciali nel planner dei turni
         const shiftRest = dayShifts.find((s: any) => s.type === 'REST');
         const shiftSick = dayShifts.find((s: any) => s.type === 'SICK');
         const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
         const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
 
-        // Logica priorità: Se c'è una richiesta formale o un'impostazione nel planner
+        // Aggiunta priorità e accumulo
+        if (shiftRest) { dayParts.push({ value: "R", type: "rest" }); }
         if (req?.type === "VACATION" || shiftAbsence) { dayParts.push({ value: "F", type: "vacation" }); vacationHours += STD_DAY_HOURS; }
-        else if (req?.type === "SICK" || shiftSick) { dayParts.push({ value: "M", type: "sick" }); sickHours += STD_DAY_HOURS; }
-        else if (req?.type === "PERSONAL") { dayParts.push({ value: "P", type: "permit" }); permitHours += STD_DAY_HOURS; }
-        else if (req?.type === "REST_SWAP" || shiftRest) { dayParts.push({ value: "R", type: "rest" }); }
+        if (req?.type === "SICK" || shiftSick) { dayParts.push({ value: "M", type: "sick" }); sickHours += STD_DAY_HOURS; }
+        if (req?.type === "PERSONAL") { dayParts.push({ value: "P", type: "permit" }); permitHours += STD_DAY_HOURS; }
         
         // Permessi orari
         if (req?.type === "HOURLY_PERMIT" && req.startTime && req.endTime) {
@@ -255,7 +257,7 @@ export default function ReportsPage() {
           totalsByDay[idx]++;
         }
 
-        return { day, parts: dayParts, value: dayParts.map(p => p.value).join(' + ') };
+        return { day, parts: dayParts };
       });
 
       dailyGrid.push({ emp, rowDays, totalDaysCount, totalWorkHours });
@@ -294,20 +296,26 @@ export default function ReportsPage() {
         <meta charset="utf-8">
         <style>
           table { border-collapse: collapse; }
-          td, th { border: 1px solid #cccccc; padding: 8px; text-align: center; font-family: 'Segoe UI', Arial, sans-serif; font-size: 10pt; }
-          .header { background-color: #f1f5f9; font-weight: bold; }
+          td, th { border: 1px solid #cccccc; padding: 0; text-align: center; font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; }
+          .header { background-color: #f1f5f9; font-weight: bold; height: 30px; }
           .sunday { background-color: #ef4444; color: #ffffff; font-weight: bold; }
-          .employee-name { text-align: left; font-weight: bold; background-color: #ffffff; width: 200px; }
-          .total-col { background-color: #e2e8f0; font-weight: bold; }
+          .employee-name { text-align: left; font-weight: bold; background-color: #ffffff; width: 200px; padding-left: 8px; }
+          .total-col { background-color: #e2e8f0; font-weight: bold; width: 80px; }
           .sum-hours { color: #ef4444; font-weight: bold; background-color: #e2e8f0; }
-          .vacation { background-color: #10b981; color: #ffffff; font-weight: bold; }
-          .sick { background-color: #2563eb; color: #ffffff; font-weight: bold; }
-          .permit { background-color: #94a3b8; color: #ffffff; font-weight: bold; }
-          .rest { background-color: #475569; color: #ffffff; font-weight: bold; }
-          .permit-hourly { background-color: #fef3c7; color: #92400e; font-weight: bold; }
+          .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; padding-left: 8px; }
+          
+          /* Stili per i blocchi stacked */
+          .block { display: block; width: 100%; padding: 4px 0; font-weight: bold; font-size: 8pt; border-bottom: 1px solid rgba(0,0,0,0.05); }
+          .vacation { background-color: #10b981; color: #ffffff; }
+          .sick { background-color: #2563eb; color: #ffffff; }
+          .permit { background-color: #94a3b8; color: #ffffff; }
+          .rest { background-color: #475569; color: #ffffff; }
+          .permit-hourly { background-color: #fef3c7; color: #92400e; }
+          .work { color: #1e293b; background-color: transparent; }
+          .work-sun { color: #ffffff; }
+          
+          .legend-title { background-color: #f1f5f9; font-weight: bold; text-align: left; padding-left: 8px; height: 25px; }
           .total-net-red { color: #ef4444; font-weight: bold; }
-          .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; }
-          .legend-title { background-color: #f1f5f9; font-weight: bold; text-align: left; }
         </style>
       </head>
       <body>
@@ -315,9 +323,9 @@ export default function ReportsPage() {
           <tr><td colspan="${monthDays.length + 3}" class="title-row">${title}</td></tr>
           <tr><td></td></tr>
           <tr class="header">
-            <td style="text-align: left;">Nome dipendente</td>
+            <td style="text-align: left; padding-left: 8px;">Nome dipendente</td>
             ${monthDays.map(day => `<td>${format(day, 'd')}</td>`).join('')}
-            <td>Totale giorni</td>
+            <td>Totale gg</td>
             <td>SOMMA ORE</td>
           </tr>
           <tr class="header">
@@ -337,15 +345,19 @@ export default function ReportsPage() {
           <td class="employee-name">${row.emp.firstName} ${row.emp.lastName}</td>
           ${row.rowDays.map((d: any) => {
             const isSun = d.day.getDay() === 0;
-            let cssClass = isSun ? 'sunday' : '';
-            if (d.parts.length > 0) {
-              const firstType = d.parts[0].type;
-              if (firstType === 'vacation') cssClass = 'vacation';
-              else if (firstType === 'sick') cssClass = 'sick';
-              else if (firstType === 'rest') cssClass = 'rest';
-              else if (firstType === 'permit') cssClass = d.parts[0].value === 'P' ? 'permit' : 'permit-hourly';
+            let cellContent = "";
+            if (d.parts && d.parts.length > 0) {
+              cellContent = d.parts.map((p: any) => {
+                let css = "block ";
+                if (p.type === 'vacation') css += "vacation";
+                else if (p.type === 'sick') css += "sick";
+                else if (p.type === 'rest') css += "rest";
+                else if (p.type === 'permit') css += (p.value === 'P' ? "permit" : "permit-hourly");
+                else if (p.type === 'work') css += (isSun ? "work-sun" : "work");
+                return `<div class="${css}">${p.value}</div>`;
+              }).join('');
             }
-            return `<td class="${cssClass}">${d.value || ""}</td>`;
+            return `<td class="${isSun ? 'sunday' : ''}" style="vertical-align: top;">${cellContent}</td>`;
           }).join('')}
           <td class="total-col">${row.totalDaysCount}</td>
           <td class="sum-hours">${formatTime(row.totalWorkHours)}</td>
@@ -354,8 +366,8 @@ export default function ReportsPage() {
     });
 
     html += `
-          <tr class="total-col">
-            <td style="text-align: left;">TOTALE GIORNALIERO</td>
+          <tr class="total-col" style="height: 30px;">
+            <td style="text-align: left; padding-left: 8px;">TOTALE GG</td>
             ${totalsByDay.map((val, idx) => {
               const isSun = monthDays[idx].getDay() === 0;
               return `<td class="${isSun ? 'sunday' : ''}">${val > 0 ? val : ""}</td>`;
@@ -367,7 +379,7 @@ export default function ReportsPage() {
         <br><br>
         <table>
           <tr class="header">
-            <td style="text-align: left;">Riepilogo Totale</td>
+            <td style="text-align: left; padding-left: 8px;">Riepilogo Totale</td>
             <td>Ore Previste</td>
             <td>Ore Lavorate</td>
             <td>Ferie (h)</td>
@@ -377,7 +389,7 @@ export default function ReportsPage() {
           </tr>
           ${summary.map(s => `
             <tr>
-              <td style="text-align: left;">${s.name}</td>
+              <td style="text-align: left; padding-left: 8px;">${s.name}</td>
               <td>${formatTime(s.expectedHours)}</td>
               <td>${formatTime(s.workedHours)}</td>
               <td>${formatTime(s.vacationHours)}</td>
@@ -390,14 +402,13 @@ export default function ReportsPage() {
         <br><br>
         <table>
           <tr><td colspan="2" class="legend-title">LEGENDA</td></tr>
-          <tr><td class="vacation" style="width: 40px;">F</td><td style="text-align: left;">Ferie (calcolate come 7.2 ore)</td></tr>
-          <tr><td class="sick" style="width: 40px;">M</td><td style="text-align: left;">Malattia (calcolata come 7.2 ore)</td></tr>
-          <tr><td class="permit" style="width: 40px;">P</td><td style="text-align: left;">Permesso Giornaliero (calcolato come 7.2 ore)</td></tr>
-          <tr><td class="rest" style="width: 40px;">R</td><td style="text-align: left;">Riposo Settimanale / Festività</td></tr>
-          <tr><td class="permit-hourly" style="width: 40px;">X.X</td><td style="text-align: left;">Permesso Orario (valore in ore e decimi)</td></tr>
-          <tr><td style="background-color: #ffffff; color: #1e293b; font-weight: bold; width: 40px;">X.X</td><td style="text-align: left;">Ore di Lavoro Effettivo</td></tr>
-          <tr><td class="sunday" style="width: 40px;"></td><td style="text-align: left;">Domenica (Evidenziata in rosso)</td></tr>
-          <tr><td></td><td style="text-align: left; font-size: 8pt; italic: true;">* Nota: 7.2 corrisponde a 7 ore e 20 minuti.</td></tr>
+          <tr><td class="vacation" style="width: 50px; height: 25px;">F</td><td style="text-align: left; padding-left: 8px;">Ferie (7.2 ore giornaliere)</td></tr>
+          <tr><td class="sick" style="width: 50px; height: 25px;">M</td><td style="text-align: left; padding-left: 8px;">Malattia (7.2 ore giornaliere)</td></tr>
+          <tr><td class="permit" style="width: 50px; height: 25px;">P</td><td style="text-align: left; padding-left: 8px;">Permesso Giornaliero (7.2 ore)</td></tr>
+          <tr><td class="rest" style="width: 50px; height: 25px;">R</td><td style="text-align: left; padding-left: 8px;">Riposo Settimanale</td></tr>
+          <tr><td class="permit-hourly" style="width: 50px; height: 25px;">X.X</td><td style="text-align: left; padding-left: 8px;">Permesso Orario</td></tr>
+          <tr><td style="background-color: #ffffff; color: #1e293b; font-weight: bold; width: 50px; height: 25px;">X.X</td><td style="text-align: left; padding-left: 8px;">Ore di Lavoro Effettivo</td></tr>
+          <tr><td class="sunday" style="width: 50px; height: 25px;"></td><td style="text-align: left; padding-left: 8px;">Domenica / Festivo</td></tr>
         </table>
       </body>
       </html>
@@ -519,7 +530,7 @@ export default function ReportsPage() {
                             {format(day, 'eee', { locale: it })}
                           </TableHead>
                         ))}
-                        <TableHead className="w-24 text-center text-[10px] font-black uppercase border-l bg-slate-100">Totale giorni</TableHead>
+                        <TableHead className="w-24 text-center text-[10px] font-black uppercase border-l bg-slate-100">Totale gg</TableHead>
                         <TableHead className="w-24 text-center text-[10px] font-black uppercase bg-slate-100">SOMMA ORE</TableHead>
                       </TableRow>
                       <TableRow className="h-10 hover:bg-transparent">
