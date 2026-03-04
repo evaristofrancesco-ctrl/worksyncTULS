@@ -73,13 +73,10 @@ export default function AdminDashboard() {
 
   const missingClockIns = useMemo(() => {
     if (!allShifts || !allEntries || !employees) return [];
-    
     const todayStr = now.toISOString().split('T')[0];
 
     return allShifts.filter(shift => {
       if (shift.date !== todayStr) return false;
-      
-      // ESCLUDI RIPOSI E ASSENZE (Malattia, Ferie, Permessi)
       if (shift.type === 'REST' || shift.type === 'ABSENCE' || shift.type === 'SICK') return false;
       
       const emp = employeeMap[shift.employeeId];
@@ -95,17 +92,13 @@ export default function AdminDashboard() {
         
         const entryIn = new Date(entry.checkInTime);
         const shiftIn = new Date(shift.startTime);
-        // Soglia tolleranza estesa a 4 ore per identificare l'ingresso corretto, 
-        // ma l'arrotondamento database gestisce il valore reale.
         return Math.abs(entryIn.getTime() - shiftIn.getTime()) <= 4 * 60 * 60 * 1000;
       });
 
       if (hasEntry) return false;
 
       const startTime = new Date(shift.startTime);
-      // Allarme dopo 20 minuti di ritardo (coerente con regola arrotondamento)
       const limitTime = addMinutes(startTime, 20);
-      
       return isAfter(now, limitTime);
     }).map(s => ({
       ...s,
@@ -115,7 +108,6 @@ export default function AdminDashboard() {
 
   const todayAttendance = useMemo(() => {
     if (!allShifts || !allEntries || !employees) return [];
-    
     const todayStr = now.toISOString().split('T')[0];
     
     const employeeIdsScheduledToday = Array.from(new Set(
@@ -144,7 +136,6 @@ export default function AdminDashboard() {
         .sort((a, b) => new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime())
         .map(entry => {
           const entryIn = new Date(entry.checkInTime);
-          
           const matchedShift = empShifts.find(s => {
             const shiftIn = new Date(s.startTime);
             return Math.abs(entryIn.getTime() - shiftIn.getTime()) < 4 * 60 * 60 * 1000;
@@ -154,12 +145,10 @@ export default function AdminDashboard() {
           if (matchedShift) {
             const shiftIn = new Date(matchedShift.startTime);
             const inDiff = Math.abs(entryIn.getTime() - shiftIn.getTime()) / 60000;
-            // Considera anomalo se fuori dai 20 minuti di arrotondamento
             if (inDiff > 20) isWrong = true;
           } else {
             isWrong = true;
           }
-
           return { ...entry, isWrong };
         });
 
@@ -180,7 +169,6 @@ export default function AdminDashboard() {
 
   const myWeeklyHours = useMemo(() => {
     if (!allEntries || !employeeId) return 0;
-    
     const monday = startOfWeek(now, { weekStartsOn: 1 });
     monday.setHours(0, 0, 0, 0);
 

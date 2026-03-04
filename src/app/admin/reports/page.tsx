@@ -110,6 +110,25 @@ export default function ReportsPage() {
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
+  // Arrotonda un timestamp in base alle regole dei 20 minuti
+  const getRoundedTime = (date: Date) => {
+    const h = date.getHours();
+    const m = date.getMinutes();
+    const totalM = h * 60 + m;
+    
+    // Target: 09:00, 13:00, 17:00, 20:20
+    const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20];
+    
+    for (const target of targets) {
+      if (Math.abs(totalM - target) <= 20) {
+        const rounded = new Date(date);
+        rounded.setHours(Math.floor(target / 60), target % 60, 0, 0);
+        return rounded;
+      }
+    }
+    return date;
+  };
+
   // Funzione per convertire ore decimali nel formato Ore.Minuti (es. 7.33 -> 7.2)
   const formatTime = (decimalHours: number) => {
     if (decimalHours === undefined || decimalHours === null) return "0";
@@ -120,11 +139,8 @@ export default function ReportsPage() {
     const sign = totalMinutes < 0 ? "-" : "";
     
     if (m === 0) return `${sign}${h}`;
-    
-    // Formattazione minuti: se 20 min, visualizza .2 come richiesto (7.2)
     const mStr = m < 10 ? `0${m}` : m.toString();
     const finalM = mStr.endsWith('0') ? mStr.substring(0, 1) : mStr;
-    
     return `${sign}${h}.${finalM}`;
   };
 
@@ -138,7 +154,6 @@ export default function ReportsPage() {
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
     const workingDaysCount = daysInMonth.filter(d => d.getDay() !== 0).length;
 
-    // Mappe per accesso rapido
     const entriesMap = new Map();
     allEntries.forEach(e => {
       if (!e.checkInTime) return;
@@ -181,20 +196,19 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.3333; // 7 ore e 20 minuti in formato decimale
+      const STD_DAY_HOURS = 7.3333; // 7 ore e 20 minuti
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
         let cellValue: string | number = "";
         let cellType: 'work' | 'vacation' | 'sick' | 'permit' | 'rest' | 'none' = 'none';
 
-        // 1. Ore effettive da timbrature
         let dayWork = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
           if (e.checkInTime && e.checkOutTime) {
-            const start = new Date(e.checkInTime);
-            const end = new Date(e.checkOutTime);
+            const start = getRoundedTime(new Date(e.checkInTime));
+            const end = getRoundedTime(new Date(e.checkOutTime));
             if (isValid(start) && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
               if (diff > 0) dayWork += diff;
@@ -202,7 +216,6 @@ export default function ReportsPage() {
           }
         });
 
-        // 2. Straordinari (OVERTIME) da pianificazione
         let dayOvertime = 0;
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
         dayShifts.filter((s: any) => s.type === 'OVERTIME').forEach((s: any) => {
@@ -214,7 +227,6 @@ export default function ReportsPage() {
           }
         });
 
-        // 3. Assenze da richieste o pianificazione
         const empRequests = requestsMap.get(emp.id) || [];
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
 
@@ -256,7 +268,6 @@ export default function ReportsPage() {
 
       dailyGrid.push({ emp, rowDays, totalDaysCount, totalWorkHours });
 
-      // Calcolo ore previste basato sulle ore settimanali e giorni lavorativi (Lun-Sab)
       const weeklyHours = emp.weeklyHours || 40;
       const dailyAverage = weeklyHours / 6;
       const expectedHours = dailyAverage * workingDaysCount;
@@ -273,7 +284,6 @@ export default function ReportsPage() {
         permitHours,
         expectedHours,
         hasAbsences,
-        // Sottrae le assenze dal totale lavorato
         totalNet: totalWorkHours - (vacationHours + sickHours + permitHours)
       };
     });
@@ -555,7 +565,6 @@ export default function ReportsPage() {
                           </TableCell>
                         </TableRow>
                       ))}
-                      {/* Totale Piè di Pagina */}
                       <TableRow className="h-12 bg-slate-400/30 hover:bg-slate-400/40">
                         <TableCell className="w-[200px] border-r font-black text-[11px] uppercase text-slate-700">
                           {format(new Date(parseInt(selectedYear), parseInt(selectedMonth), 1), 'MMMM', { locale: it })} Totale

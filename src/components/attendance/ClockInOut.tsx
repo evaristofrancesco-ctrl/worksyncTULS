@@ -77,10 +77,11 @@ export function ClockInOut() {
         return d;
       };
 
-      // Definizione slot: Mattina (09:00-13:00) e Pomeriggio (17:20-20:20)
+      // Definizione slot aggiornata: Mattina (09:00-13:00) e Pomeriggio (17:00-20:20)
+      // Usiamo 17:00 per garantire il totale di 7h 20m giornaliere.
       const slots = isClockedIn 
         ? [getPrecise(13, 0), getPrecise(20, 20)] // Slot per uscita
-        : [getPrecise(9, 0), getPrecise(17, 20)]; // Slot per entrata
+        : [getPrecise(9, 0), getPrecise(17, 0)]; // Slot per entrata
 
       let minDiff = Infinity;
       let targetPrecise: Date | null = null;
@@ -93,7 +94,7 @@ export function ClockInOut() {
         }
       });
 
-      // Nuova Regola: Arrotondamento 20 minuti (prima e dopo)
+      // Arrotondamento 20 minuti (prima e dopo)
       if (minDiff <= 20 && targetPrecise) {
         effectiveTime = (targetPrecise as Date).toISOString();
       } else {
