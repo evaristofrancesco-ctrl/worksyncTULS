@@ -111,7 +111,7 @@ export default function ReportsPage() {
 
   // Funzione per convertire ore decimali nel formato Ore.Minuti (es. 7.33 -> 7.2)
   const formatTime = (decimalHours: number) => {
-    if (!decimalHours || decimalHours <= 0) return "0";
+    if (decimalHours === undefined || decimalHours === null || decimalHours <= 0) return "0";
     const totalMinutes = Math.round(decimalHours * 60);
     const h = Math.floor(totalMinutes / 60);
     const m = totalMinutes % 60;
@@ -132,6 +132,7 @@ export default function ReportsPage() {
     const monthStart = startOfMonth(new Date(selYearInt, selMonthInt, 1));
     const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    const workingDaysCount = daysInMonth.filter(d => d.getDay() !== 0).length;
 
     // Mappe per accesso rapido
     const entriesMap = new Map();
@@ -175,6 +176,8 @@ export default function ReportsPage() {
       let vacationHours = 0;
       let sickHours = 0;
       let permitHours = 0;
+      
+      const STD_DAY_HOURS = 7.3333; // 7 ore e 20 minuti in formato decimale
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
@@ -212,9 +215,9 @@ export default function ReportsPage() {
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
 
         if (req) {
-          if (req.type === "VACATION") { cellValue = "F"; cellType = "vacation"; vacationHours += 8; }
-          else if (req.type === "SICK") { cellValue = "M"; cellType = "sick"; sickHours += 8; }
-          else if (req.type === "PERSONAL") { cellValue = "P"; cellType = "permit"; permitHours += 8; }
+          if (req.type === "VACATION") { cellValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
+          else if (req.type === "SICK") { cellValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
+          else if (req.type === "PERSONAL") { cellValue = "P"; cellType = "permit"; permitHours += STD_DAY_HOURS; }
           else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
@@ -228,7 +231,7 @@ export default function ReportsPage() {
           if (shiftAbs) {
             cellValue = shiftAbs.type === 'SICK' ? "M" : "F";
             cellType = shiftAbs.type === 'SICK' ? "sick" : "vacation";
-            if (shiftAbs.type === 'SICK') sickHours += 8; else vacationHours += 8;
+            if (shiftAbs.type === 'SICK') sickHours += STD_DAY_HOURS; else vacationHours += STD_DAY_HOURS;
           }
         }
 
@@ -249,6 +252,11 @@ export default function ReportsPage() {
 
       dailyGrid.push({ emp, rowDays, totalDaysCount, totalWorkHours });
 
+      // Calcolo ore previste basato sulle ore settimanali e giorni lavorativi (Lun-Sab)
+      const weeklyHours = emp.weeklyHours || 40;
+      const dailyAverage = weeklyHours / 6;
+      const expectedHours = dailyAverage * workingDaysCount;
+
       return {
         id: emp.id,
         name: `${emp.firstName} ${emp.lastName}`,
@@ -258,7 +266,8 @@ export default function ReportsPage() {
         vacationHours,
         sickHours,
         permitHours,
-        totalNet: totalWorkHours
+        expectedHours,
+        totalNet: totalWorkHours + vacationHours + sickHours + permitHours
       };
     });
 
@@ -267,7 +276,7 @@ export default function ReportsPage() {
 
   // Genera un file Excel stilizzato (HTML format) che supporta i colori nelle celle
   const generateStyledExcelHTML = () => {
-    const { dailyGrid, monthDays, totalsByDay } = processedData;
+    const { dailyGrid, monthDays, totalsByDay, summary } = processedData;
     if (!dailyGrid.length) return "";
 
     const selMonthLabel = MONTHS[parseInt(selectedMonth)].label;
@@ -341,6 +350,30 @@ export default function ReportsPage() {
             <td></td>
             <td>${totalsByDay.reduce((a, b) => a + b, 0)}</td>
           </tr>
+        </table>
+        
+        <br><br>
+        <table>
+          <tr class="header">
+            <td style="text-align: left;">Riepilogo Totale</td>
+            <td>Ore Previste</td>
+            <td>Ore Lavorate</td>
+            <td>Ferie (h)</td>
+            <td>Malattia (h)</td>
+            <td>Permessi (h)</td>
+            <td>Ore Totali</td>
+          </tr>
+          ${summary.map(s => `
+            <tr>
+              <td style="text-align: left;">${s.name}</td>
+              <td>${formatTime(s.expectedHours)}</td>
+              <td>${formatTime(s.workedHours)}</td>
+              <td>${formatTime(s.vacationHours)}</td>
+              <td>${formatTime(s.sickHours)}</td>
+              <td>${formatTime(s.permitHours)}</td>
+              <td style="font-weight: bold; color: #227FD8;">${formatTime(s.totalNet)}</td>
+            </tr>
+          `).join('')}
         </table>
       </body>
       </html>
@@ -552,6 +585,7 @@ export default function ReportsPage() {
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="h-12">
                     <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ore Previste</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
@@ -560,7 +594,7 @@ export default function ReportsPage() {
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={5} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
                   ) : processedData.summary.length > 0 ? processedData.summary.map((row) => (
                     <TableRow key={row.id} className="h-16 hover:bg-slate-50/50 transition-colors">
                       <TableCell className="pl-8">
@@ -569,12 +603,13 @@ export default function ReportsPage() {
                           <div className="flex flex-col"><span className="font-bold text-slate-900">{row.name}</span><span className="text-[10px] text-slate-400 font-bold uppercase">{row.jobTitle}</span></div>
                         </div>
                       </TableCell>
+                      <TableCell className="text-center font-bold text-slate-400">{formatTime(row.expectedHours)}</TableCell>
                       <TableCell className="text-center font-bold text-emerald-600">{formatTime(row.vacationHours)}</TableCell>
                       <TableCell className="text-center font-bold text-blue-600">{formatTime(row.sickHours)}</TableCell>
                       <TableCell className="text-center font-bold text-slate-500">{formatTime(row.permitHours)}</TableCell>
                       <TableCell className="text-right pr-8"><span className="text-lg font-black text-[#227FD8]">{formatTime(row.totalNet)}</span></TableCell>
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={5} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
+                  )) : <TableRow><TableCell colSpan={6} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent>
