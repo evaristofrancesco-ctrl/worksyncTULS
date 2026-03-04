@@ -114,7 +114,6 @@ export default function ReportsPage() {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
-    // Arrotondamento fisso per turni Savino e altri
     const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; 
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
@@ -133,8 +132,6 @@ export default function ReportsPage() {
     const h = Math.floor(absMinutes / 60);
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
-    
-    // Regola specifica: 20 min = .2
     const displayMinutes = Math.floor(m / 10); 
     if (displayMinutes === 0) return `${sign}${h}`;
     return `${sign}${h}.${displayMinutes}`;
@@ -188,11 +185,12 @@ export default function ReportsPage() {
     }).map(emp => {
       let totalWorkHours = 0;
       let totalDaysCount = 0;
+      let totalAbsenceHours = 0;
       let vacationHours = 0;
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.333333; // 7h 20m = 7.33 decimali
+      const STD_DAY_HOURS = 7.333333; 
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
@@ -207,9 +205,8 @@ export default function ReportsPage() {
             if (e.checkOutTime) {
               end = getRoundedTime(new Date(e.checkOutTime));
             } else if (isSameDay(day, new Date())) {
-              end = new Date(); // Conteggio live per oggi
+              end = new Date(); 
             }
-            
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
               if (diff > 0) dayWork += diff;
@@ -226,24 +223,22 @@ export default function ReportsPage() {
         const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
         const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
 
-        // Aggiunta priorità e accumulo
         if (shiftRest) { dayParts.push({ value: "R", type: "rest" }); }
-        if (req?.type === "VACATION" || shiftAbsence) { dayParts.push({ value: "F", type: "vacation" }); vacationHours += STD_DAY_HOURS; }
-        if (req?.type === "SICK" || shiftSick) { dayParts.push({ value: "M", type: "sick" }); sickHours += STD_DAY_HOURS; }
-        if (req?.type === "PERSONAL") { dayParts.push({ value: "P", type: "permit" }); permitHours += STD_DAY_HOURS; }
+        if (req?.type === "VACATION" || shiftAbsence) { dayParts.push({ value: "F", type: "vacation" }); vacationHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
+        if (req?.type === "SICK" || shiftSick) { dayParts.push({ value: "M", type: "sick" }); sickHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
+        if (req?.type === "PERSONAL") { dayParts.push({ value: "P", type: "permit" }); permitHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
         
-        // Permessi orari
         if (req?.type === "HOURLY_PERMIT" && req.startTime && req.endTime) {
           const [h1, m1] = req.startTime.split(':').map(Number);
           const [h2, m2] = req.endTime.split(':').map(Number);
           const diff = (h2 + m2/60) - (h1 + m1/60);
-          if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; }
+          if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; totalAbsenceHours += diff; }
         } else if (shiftPermit) {
           const sIn = parseISO(shiftPermit.startTime);
           const sOut = parseISO(shiftPermit.endTime);
           if (isValid(sIn) && isValid(sOut)) {
             const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
-            if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; }
+            if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; totalAbsenceHours += diff; }
           }
         }
 
@@ -264,7 +259,6 @@ export default function ReportsPage() {
 
       const weeklyHours = emp.weeklyHours || 40;
       const expectedHours = (weeklyHours / 6) * workingDaysCount;
-      const totalAbsences = vacationHours + sickHours + permitHours;
 
       return {
         id: emp.id,
@@ -276,8 +270,8 @@ export default function ReportsPage() {
         sickHours,
         permitHours,
         expectedHours,
-        hasAbsences: totalAbsences > 0,
-        totalNet: totalWorkHours - totalAbsences
+        hasAbsences: totalAbsenceHours > 0,
+        totalNet: totalWorkHours - totalAbsenceHours
       };
     });
 
@@ -303,19 +297,7 @@ export default function ReportsPage() {
           .total-col { background-color: #e2e8f0; font-weight: bold; width: 80px; }
           .sum-hours { color: #ef4444; font-weight: bold; background-color: #e2e8f0; }
           .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; padding-left: 8px; }
-          
-          /* Stili per i blocchi stacked */
-          .block { display: block; width: 100%; padding: 4px 0; font-weight: bold; font-size: 8pt; border-bottom: 1px solid rgba(0,0,0,0.05); }
-          .vacation { background-color: #10b981; color: #ffffff; }
-          .sick { background-color: #2563eb; color: #ffffff; }
-          .permit { background-color: #94a3b8; color: #ffffff; }
-          .rest { background-color: #475569; color: #ffffff; }
-          .permit-hourly { background-color: #fef3c7; color: #92400e; }
-          .work { color: #1e293b; background-color: transparent; }
-          .work-sun { color: #ffffff; }
-          
           .legend-title { background-color: #f1f5f9; font-weight: bold; text-align: left; padding-left: 8px; height: 25px; }
-          .total-net-red { color: #ef4444; font-weight: bold; }
         </style>
       </head>
       <body>
@@ -348,16 +330,22 @@ export default function ReportsPage() {
             let cellContent = "";
             if (d.parts && d.parts.length > 0) {
               cellContent = d.parts.map((p: any) => {
-                let css = "block ";
-                if (p.type === 'vacation') css += "vacation";
-                else if (p.type === 'sick') css += "sick";
-                else if (p.type === 'rest') css += "rest";
-                else if (p.type === 'permit') css += (p.value === 'P' ? "permit" : "permit-hourly");
-                else if (p.type === 'work') css += (isSun ? "work-sun" : "work");
-                return `<div class="${css}">${p.value}</div>`;
+                let bgColor = "transparent";
+                let textColor = isSun ? "#ffffff" : "#1e293b";
+                
+                if (p.type === 'vacation') { bgColor = "#10b981"; textColor = "#ffffff"; }
+                else if (p.type === 'sick') { bgColor = "#2563eb"; textColor = "#ffffff"; }
+                else if (p.type === 'rest') { bgColor = "#475569"; textColor = "#ffffff"; }
+                else if (p.type === 'permit') { 
+                  if (p.value === 'P') { bgColor = "#94a3b8"; textColor = "#ffffff"; }
+                  else { bgColor = "#fef3c7"; textColor = "#92400e"; }
+                }
+                
+                return `<div style="display: block; width: 100%; padding: 4px 0; font-weight: bold; font-size: 8pt; background-color: ${bgColor}; color: ${textColor}; border-bottom: 1px solid rgba(0,0,0,0.05);">${p.value}</div>`;
               }).join('');
             }
-            return `<td class="${isSun ? 'sunday' : ''}" style="vertical-align: top;">${cellContent}</td>`;
+            const tdStyle = isSun ? 'background-color: #ef4444; color: #ffffff;' : '';
+            return `<td style="vertical-align: top; width: 35px; ${tdStyle}">${cellContent}</td>`;
           }).join('')}
           <td class="total-col">${row.totalDaysCount}</td>
           <td class="sum-hours">${formatTime(row.totalWorkHours)}</td>
@@ -370,7 +358,8 @@ export default function ReportsPage() {
             <td style="text-align: left; padding-left: 8px;">TOTALE GG</td>
             ${totalsByDay.map((val, idx) => {
               const isSun = monthDays[idx].getDay() === 0;
-              return `<td class="${isSun ? 'sunday' : ''}">${val > 0 ? val : ""}</td>`;
+              const tdStyle = isSun ? 'background-color: #ef4444; color: #ffffff;' : '';
+              return `<td style="${tdStyle}">${val > 0 ? val : ""}</td>`;
             }).join('')}
             <td></td>
             <td>${totalsByDay.reduce((a, b) => a + b, 0)}</td>
@@ -387,28 +376,31 @@ export default function ReportsPage() {
             <td>Permessi (h)</td>
             <td>Ore Totali (Netto)</td>
           </tr>
-          ${summary.map(s => `
-            <tr>
-              <td style="text-align: left; padding-left: 8px;">${s.name}</td>
-              <td>${formatTime(s.expectedHours)}</td>
-              <td>${formatTime(s.workedHours)}</td>
-              <td>${formatTime(s.vacationHours)}</td>
-              <td>${formatTime(s.sickHours)}</td>
-              <td>${formatTime(s.permitHours)}</td>
-              <td class="${s.hasAbsences ? 'total-net-red' : ''}">${formatTime(s.totalNet)}</td>
-            </tr>
-          `).join('')}
+          ${summary.map(s => {
+            const netColor = s.hasAbsences ? 'color: #ef4444; font-weight: bold;' : 'font-weight: bold;';
+            return `
+              <tr>
+                <td style="text-align: left; padding-left: 8px;">${s.name}</td>
+                <td style="color: #94a3b8; font-weight: bold;">${formatTime(s.expectedHours)}</td>
+                <td>${formatTime(s.workedHours)}</td>
+                <td style="color: #10b981;">${formatTime(s.vacationHours)}</td>
+                <td style="color: #2563eb;">${formatTime(s.sickHours)}</td>
+                <td style="color: #94a3b8;">${formatTime(s.permitHours)}</td>
+                <td style="${netColor}">${formatTime(s.totalNet)}</td>
+              </tr>
+            `;
+          }).join('')}
         </table>
         <br><br>
         <table>
           <tr><td colspan="2" class="legend-title">LEGENDA</td></tr>
-          <tr><td class="vacation" style="width: 50px; height: 25px;">F</td><td style="text-align: left; padding-left: 8px;">Ferie (7.2 ore giornaliere)</td></tr>
-          <tr><td class="sick" style="width: 50px; height: 25px;">M</td><td style="text-align: left; padding-left: 8px;">Malattia (7.2 ore giornaliere)</td></tr>
-          <tr><td class="permit" style="width: 50px; height: 25px;">P</td><td style="text-align: left; padding-left: 8px;">Permesso Giornaliero (7.2 ore)</td></tr>
-          <tr><td class="rest" style="width: 50px; height: 25px;">R</td><td style="text-align: left; padding-left: 8px;">Riposo Settimanale</td></tr>
-          <tr><td class="permit-hourly" style="width: 50px; height: 25px;">X.X</td><td style="text-align: left; padding-left: 8px;">Permesso Orario</td></tr>
-          <tr><td style="background-color: #ffffff; color: #1e293b; font-weight: bold; width: 50px; height: 25px;">X.X</td><td style="text-align: left; padding-left: 8px;">Ore di Lavoro Effettivo</td></tr>
-          <tr><td class="sunday" style="width: 50px; height: 25px;"></td><td style="text-align: left; padding-left: 8px;">Domenica / Festivo</td></tr>
+          <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">F</td><td style="text-align: left; padding-left: 8px;">Ferie (7.2 ore giornaliere)</td></tr>
+          <tr><td style="background-color: #2563eb; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">M</td><td style="text-align: left; padding-left: 8px;">Malattia (7.2 ore giornaliere)</td></tr>
+          <tr><td style="background-color: #94a3b8; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">P</td><td style="text-align: left; padding-left: 8px;">Permesso Giornaliero (7.2 ore)</td></tr>
+          <tr><td style="background-color: #475569; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">R</td><td style="text-align: left; padding-left: 8px;">Riposo Settimanale</td></tr>
+          <tr><td style="background-color: #fef3c7; color: #92400e; width: 50px; height: 25px; font-weight: bold;">X.X</td><td style="text-align: left; padding-left: 8px;">Permesso Orario</td></tr>
+          <tr><td style="background-color: #ffffff; color: #1e293b; width: 50px; height: 25px; font-weight: bold; border: 1px solid #cccccc;">X.X</td><td style="text-align: left; padding-left: 8px;">Ore di Lavoro Effettivo</td></tr>
+          <tr><td style="background-color: #ef4444; color: #ffffff; width: 50px; height: 25px; font-weight: bold;"></td><td style="text-align: left; padding-left: 8px;">Domenica / Festivo</td></tr>
         </table>
       </body>
       </html>
@@ -604,6 +596,7 @@ export default function ReportsPage() {
                   <TableRow className="h-12">
                     <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ore Previste</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ore Lavorate</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
@@ -612,7 +605,7 @@ export default function ReportsPage() {
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={6} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
                   ) : processedData.summary.length > 0 ? processedData.summary.map((row) => (
                     <TableRow key={row.id} className="h-16 hover:bg-slate-50/50 transition-colors">
                       <TableCell className="pl-8">
@@ -622,6 +615,7 @@ export default function ReportsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center font-bold text-slate-400">{formatTime(row.expectedHours)}</TableCell>
+                      <TableCell className="text-center font-bold text-slate-700">{formatTime(row.workedHours)}</TableCell>
                       <TableCell className="text-center font-bold text-emerald-600">{formatTime(row.vacationHours)}</TableCell>
                       <TableCell className="text-center font-bold text-blue-600">{formatTime(row.sickHours)}</TableCell>
                       <TableCell className="text-center font-bold text-slate-500">{formatTime(row.permitHours)}</TableCell>
@@ -631,7 +625,7 @@ export default function ReportsPage() {
                         </span>
                       </TableCell>
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={6} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
+                  )) : <TableRow><TableCell colSpan={7} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent>
