@@ -110,12 +110,10 @@ export default function ReportsPage() {
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
-  // Arrotondamento intelligente per il calcolo report (soglia 20m)
   const getRoundedTime = (date: Date) => {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
-    // Slot standard: 09:00, 13:00, 17:00, 20:20
     const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; 
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
@@ -127,7 +125,6 @@ export default function ReportsPage() {
     return date;
   };
 
-  // Funzione critica per formattazione 7.2 (dove 20m = .2)
   const formatTime = (decimalHours: number) => {
     if (decimalHours === undefined || decimalHours === null || Math.abs(decimalHours) < 0.01) return "0";
     const totalMinutes = Math.round(decimalHours * 60);
@@ -136,7 +133,6 @@ export default function ReportsPage() {
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
     
-    // Converte i minuti in formato .X richiesto (es. 20m -> .2)
     const displayMinutes = Math.floor(m / 10); 
     if (displayMinutes === 0) return `${sign}${h}`;
     return `${sign}${h}.${displayMinutes}`;
@@ -165,7 +161,6 @@ export default function ReportsPage() {
     const requestsMap = new Map();
     allRequests.forEach(r => {
       const status = (r.status || "").toUpperCase();
-      // Includiamo anche quelli in attesa per visibilità immediata in griglia
       if (!(status === "APPROVATO" || status === "APPROVED" || status === "IN ATTESA" || status === "PENDING" || status === "Approvato")) return;
       const key = r.employeeId;
       const list = requestsMap.get(key) || [];
@@ -195,14 +190,13 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.333333; // 7h 20m precisi per il calcolo
+      const STD_DAY_HOURS = 7.333333; // 7h 20m precisi
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
-        let cellValue: string = "";
-        let cellType: 'work' | 'vacation' | 'sick' | 'permit' | 'rest' | 'none' = 'none';
+        const dayParts: { value: string, type: string }[] = [];
 
-        // 1. Calcolo ore lavorate
+        // 1. Calcolo ore lavorate (Timbrature Reali)
         let dayWork = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
@@ -212,7 +206,7 @@ export default function ReportsPage() {
             if (e.checkOutTime) {
               end = getRoundedTime(new Date(e.checkOutTime));
             } else if (isSameDay(day, new Date())) {
-              end = new Date(); // Sessione in corso
+              end = new Date();
             }
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
@@ -221,64 +215,63 @@ export default function ReportsPage() {
           }
         });
 
-        // 2. Controllo assenze e riposi (da Richieste e da Planner)
+        // 2. Controllo assenze e riposi
         const empRequests = requestsMap.get(emp.id) || [];
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
         
+        let codeLetter = "";
+        let codeType = "none";
         let codeValue = "";
-        
-        // Priorità 1: Richieste approvate/pendenti
+
         if (req) {
-          if (req.type === "VACATION") { codeValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
-          else if (req.type === "SICK") { codeValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
-          else if (req.type === "PERSONAL") { codeValue = "P"; cellType = "permit"; permitHours += STD_DAY_HOURS; }
-          else if (req.type === "REST_SWAP") { codeValue = "R"; cellType = "rest"; }
+          if (req.type === "VACATION") { codeLetter = "F"; codeType = "vacation"; vacationHours += STD_DAY_HOURS; }
+          else if (req.type === "SICK") { codeLetter = "M"; codeType = "sick"; sickHours += STD_DAY_HOURS; }
+          else if (req.type === "PERSONAL") { codeLetter = "P"; codeType = "permit"; permitHours += STD_DAY_HOURS; }
+          else if (req.type === "REST_SWAP") { codeLetter = "R"; codeType = "rest"; }
           else if (req.type === "HOURLY_PERMIT") {
             if (req.startTime && req.endTime) {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
               const diff = (h2 + m2/60) - (h1 + m1/60);
-              if (diff > 0) { codeValue = formatTime(diff); cellType = "permit"; permitHours += diff; }
+              if (diff > 0) { codeValue = formatTime(diff); codeType = "permit"; permitHours += diff; }
             }
           }
         } 
         
-        // Priorità 2: Planner Turni (se non c'è richiesta o per Riposo)
-        if (!codeValue) {
+        if (!codeLetter && !codeValue) {
           const shiftRest = dayShifts.find((s: any) => s.type === 'REST');
           const shiftSick = dayShifts.find((s: any) => s.type === 'SICK');
           const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
           const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
           
-          if (shiftSick) { codeValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
-          else if (shiftAbsence) { codeValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
-          else if (shiftRest) { codeValue = "R"; cellType = "rest"; }
+          if (shiftSick) { codeLetter = "M"; codeType = "sick"; sickHours += STD_DAY_HOURS; }
+          else if (shiftAbsence) { codeLetter = "F"; codeType = "vacation"; vacationHours += STD_DAY_HOURS; }
+          else if (shiftRest) { codeLetter = "R"; codeType = "rest"; }
           else if (shiftPermit) {
             const sIn = parseISO(shiftPermit.startTime);
             const sOut = parseISO(shiftPermit.endTime);
             if (isValid(sIn) && isValid(sOut)) {
               const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
-              if (diff > 0) { codeValue = formatTime(diff); cellType = "permit"; permitHours += diff; }
+              if (diff > 0) { codeValue = formatTime(diff); codeType = "permit"; permitHours += diff; }
             }
           }
         }
 
-        // 3. Unione dati (R + Lavoro, M + Lavoro, ecc.)
+        // Composizione parti cella
+        if (codeLetter) dayParts.push({ value: codeLetter, type: codeType });
+        if (codeValue) dayParts.push({ value: codeValue, type: codeType });
         if (dayWork > 0) {
-          const formattedWork = formatTime(dayWork);
-          cellValue = codeValue ? `${codeValue} + ${formattedWork}` : formattedWork;
-          cellType = 'work';
+          dayParts.push({ value: formatTime(dayWork), type: 'work' });
           totalWorkHours += dayWork;
           totalDaysCount++;
           totalsByDay[idx]++;
-        } else if (codeValue) {
-          cellValue = codeValue;
+        } else if (codeLetter || codeValue) {
           totalDaysCount++;
           totalsByDay[idx]++;
         }
 
-        return { day, value: cellValue, type: cellType };
+        return { day, parts: dayParts, value: dayParts.map(p => p.value).join(' + ') };
       });
 
       dailyGrid.push({ emp, rowDays, totalDaysCount, totalWorkHours });
@@ -359,10 +352,14 @@ export default function ReportsPage() {
           ${row.rowDays.map((d: any) => {
             const isSun = d.day.getDay() === 0;
             let cssClass = isSun ? 'sunday' : '';
-            if (d.type === 'vacation') cssClass = 'vacation';
-            else if (d.type === 'sick') cssClass = 'sick';
-            else if (d.type === 'rest') cssClass = 'rest';
-            else if (d.type === 'permit') cssClass = 'permit';
+            // Per excel usiamo la prima parte per determinare il colore di sfondo principale
+            if (d.parts.length > 0) {
+              const firstType = d.parts[0].type;
+              if (firstType === 'vacation') cssClass = 'vacation';
+              else if (firstType === 'sick') cssClass = 'sick';
+              else if (firstType === 'rest') cssClass = 'rest';
+              else if (firstType === 'permit') cssClass = 'permit';
+            }
             return `<td class="${cssClass}">${d.value || ""}</td>`;
           }).join('')}
           <td class="total-col">${row.totalDaysCount}</td>
@@ -501,7 +498,7 @@ export default function ReportsPage() {
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-400 text-white flex items-center justify-center rounded text-[10px] font-black">P</div> <span className="text-[10px] font-bold text-slate-600">Permesso</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-blue-600 text-white flex items-center justify-center rounded text-[10px] font-black">M</div> <span className="text-[10px] font-bold text-slate-600">Malattia</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-600 text-white flex items-center justify-center rounded text-[10px] font-black">R</div> <span className="text-[10px] font-bold text-slate-600">Riposo</span></div>
-                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-200 border border-amber-300 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Permesso orario</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-100 border border-amber-300 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Permesso orario</span></div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between">
@@ -552,20 +549,23 @@ export default function ReportsPage() {
                             const isSunday = d.day.getDay() === 0;
                             return (
                               <TableCell key={dIdx} className={cn(
-                                "w-10 p-0 text-center border-r transition-colors",
+                                "w-10 p-0 text-center border-r transition-colors h-12",
                                 isSunday ? "bg-rose-600/90 text-white" : "bg-white group-hover:bg-slate-50"
                               )}>
-                                {d.value && (
-                                  <div className={cn(
-                                    "w-full h-full flex items-center justify-center font-black text-[10px]",
-                                    d.type === 'vacation' && "bg-emerald-500 text-white",
-                                    d.type === 'sick' && "bg-blue-600 text-white",
-                                    d.type === 'rest' && "bg-slate-600 text-white",
-                                    d.type === 'permit' && d.value === 'P' && "bg-slate-400 text-white",
-                                    d.type === 'permit' && d.value !== 'P' && "bg-amber-100 text-amber-900 border border-amber-200",
-                                    d.type === 'work' && (isSunday ? "text-white" : "text-slate-700")
-                                  )}>
-                                    {d.value}
+                                {d.parts && d.parts.length > 0 && (
+                                  <div className="flex flex-col h-full w-full">
+                                    {d.parts.map((p: any, pIdx: number) => (
+                                      <div key={pIdx} className={cn(
+                                        "flex-1 flex items-center justify-center font-black text-[9px] leading-tight",
+                                        p.type === 'vacation' && "bg-emerald-500 text-white",
+                                        p.type === 'sick' && "bg-blue-600 text-white",
+                                        p.type === 'rest' && "bg-slate-600 text-white",
+                                        p.type === 'permit' && (p.value === 'P' ? "bg-slate-400 text-white" : "bg-amber-100 text-amber-900 border-y border-amber-200"),
+                                        p.type === 'work' && (isSunday ? "text-white" : "text-slate-700")
+                                      )}>
+                                        {p.value}
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </TableCell>
