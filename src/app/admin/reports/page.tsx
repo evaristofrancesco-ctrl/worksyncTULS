@@ -115,7 +115,8 @@ export default function ReportsPage() {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
-    const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; // 09:00, 13:00, 17:00, 20:20
+    // Slot standard: 09:00, 13:00, 17:00, 20:20
+    const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; 
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
         const rounded = new Date(date);
@@ -136,7 +137,7 @@ export default function ReportsPage() {
     const sign = totalMinutes < 0 ? "-" : "";
     
     // Converte i minuti in formato .X richiesto (es. 20m -> .2)
-    const displayMinutes = Math.round(m / 10); 
+    const displayMinutes = Math.floor(m / 10); 
     if (displayMinutes === 0) return `${sign}${h}`;
     return `${sign}${h}.${displayMinutes}`;
   };
@@ -164,7 +165,8 @@ export default function ReportsPage() {
     const requestsMap = new Map();
     allRequests.forEach(r => {
       const status = (r.status || "").toUpperCase();
-      if (!(status === "APPROVATO" || status === "APPROVED" || status === "Approvato")) return;
+      // Includiamo anche quelli in attesa per visibilità immediata in griglia
+      if (!(status === "APPROVATO" || status === "APPROVED" || status === "IN ATTESA" || status === "PENDING")) return;
       const key = r.employeeId;
       const list = requestsMap.get(key) || [];
       list.push(r);
@@ -193,7 +195,7 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.3333; // 7h 20m per assenze
+      const STD_DAY_HOURS = 7.333333; // 7h 20m precisi per il calcolo
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
@@ -210,7 +212,7 @@ export default function ReportsPage() {
             if (e.checkOutTime) {
               end = getRoundedTime(new Date(e.checkOutTime));
             } else if (isSameDay(day, new Date())) {
-              end = new Date();
+              end = new Date(); // Sessione in corso
             }
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
@@ -219,13 +221,14 @@ export default function ReportsPage() {
           }
         });
 
-        // 2. Controllo assenze e riposi
+        // 2. Controllo assenze e riposi (da Richieste e da Planner)
         const empRequests = requestsMap.get(emp.id) || [];
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
-        const isRestShift = dayShifts.some((s: any) => s.type === 'REST');
-
+        
         let codeValue = "";
+        
+        // Priorità 1: Richieste approvate/pendenti
         if (req) {
           if (req.type === "VACATION") { codeValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
           else if (req.type === "SICK") { codeValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
@@ -239,15 +242,23 @@ export default function ReportsPage() {
               if (diff > 0) { dayWork += diff; permitHours += diff; }
             }
           }
-        } else if (isRestShift) {
-          codeValue = "R";
-          cellType = "rest";
+        } 
+        
+        // Priorità 2: Planner Turni (se non c'è richiesta o per Riposo)
+        if (!codeValue) {
+          const shiftRest = dayShifts.find((s: any) => s.type === 'REST');
+          const shiftSick = dayShifts.find((s: any) => s.type === 'SICK');
+          const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
+          
+          if (shiftSick) { codeValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
+          else if (shiftAbsence) { codeValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
+          else if (shiftRest) { codeValue = "R"; cellType = "rest"; }
         }
 
-        // 3. Unione dati (Richiesta specifica: mostrare sia R che lavoro se presenti)
+        // 3. Unione dati (R + Lavoro, M + Lavoro, ecc.)
         if (dayWork > 0) {
           const formattedWork = formatTime(dayWork);
-          cellValue = codeValue === "R" ? `R + ${formattedWork}` : formattedWork;
+          cellValue = codeValue ? `${codeValue} + ${formattedWork}` : formattedWork;
           cellType = 'work';
           totalWorkHours += dayWork;
           totalDaysCount++;
