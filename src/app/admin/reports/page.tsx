@@ -166,7 +166,7 @@ export default function ReportsPage() {
     allRequests.forEach(r => {
       const status = (r.status || "").toUpperCase();
       // Includiamo anche quelli in attesa per visibilità immediata in griglia
-      if (!(status === "APPROVATO" || status === "APPROVED" || status === "IN ATTESA" || status === "PENDING")) return;
+      if (!(status === "APPROVATO" || status === "APPROVED" || status === "IN ATTESA" || status === "PENDING" || status === "Approvato")) return;
       const key = r.employeeId;
       const list = requestsMap.get(key) || [];
       list.push(r);
@@ -239,7 +239,7 @@ export default function ReportsPage() {
               const [h1, m1] = req.startTime.split(':').map(Number);
               const [h2, m2] = req.endTime.split(':').map(Number);
               const diff = (h2 + m2/60) - (h1 + m1/60);
-              if (diff > 0) { dayWork += diff; permitHours += diff; }
+              if (diff > 0) { codeValue = formatTime(diff); cellType = "permit"; permitHours += diff; }
             }
           }
         } 
@@ -249,10 +249,19 @@ export default function ReportsPage() {
           const shiftRest = dayShifts.find((s: any) => s.type === 'REST');
           const shiftSick = dayShifts.find((s: any) => s.type === 'SICK');
           const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
+          const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
           
           if (shiftSick) { codeValue = "M"; cellType = "sick"; sickHours += STD_DAY_HOURS; }
           else if (shiftAbsence) { codeValue = "F"; cellType = "vacation"; vacationHours += STD_DAY_HOURS; }
           else if (shiftRest) { codeValue = "R"; cellType = "rest"; }
+          else if (shiftPermit) {
+            const sIn = parseISO(shiftPermit.startTime);
+            const sOut = parseISO(shiftPermit.endTime);
+            if (isValid(sIn) && isValid(sOut)) {
+              const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
+              if (diff > 0) { codeValue = formatTime(diff); cellType = "permit"; permitHours += diff; }
+            }
+          }
         }
 
         // 3. Unione dati (R + Lavoro, M + Lavoro, ecc.)

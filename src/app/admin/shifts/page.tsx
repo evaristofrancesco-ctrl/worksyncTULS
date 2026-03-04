@@ -17,7 +17,8 @@ import {
   CalendarDays,
   Building2,
   Zap,
-  Activity
+  Activity,
+  Timer
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -496,6 +497,7 @@ export default function ShiftsPage() {
                   <SelectItem value="REST" className="font-bold">Riposo Settimanale</SelectItem>
                   <SelectItem value="ABSENCE" className="font-bold">Assenza / Ferie</SelectItem>
                   <SelectItem value="SICK" className="font-bold">Malattia</SelectItem>
+                  <SelectItem value="HOURLY_PERMIT" className="font-bold">Permesso Orario</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -557,6 +559,9 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
   } else if (ev.type === 'OVERTIME') {
     colorClass = "border-l-emerald-600 bg-emerald-50 text-emerald-900";
     icon = <Zap className="h-4 w-4 text-emerald-600" />;
+  } else if (ev.type === 'HOURLY_PERMIT') {
+    colorClass = "border-l-amber-600 bg-amber-50 text-amber-900";
+    icon = <Timer className="h-4 w-4 text-amber-600" />;
   } else if (!isMorning) {
     colorClass = "border-l-indigo-600 bg-indigo-50 text-indigo-900";
     icon = <Moon className="h-4 w-4 text-indigo-600" />;
@@ -575,7 +580,7 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
       <div className="flex flex-col gap-1 pointer-events-none">
         <div className="flex items-center justify-between">
           <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
-            {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : ev.type === 'SICK' ? 'MALATTIA' : ev.type === 'OVERTIME' ? 'EXTRA' : 'LAVORO'}
+            {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : ev.type === 'SICK' ? 'MALATTIA' : ev.type === 'OVERTIME' ? 'EXTRA' : ev.type === 'HOURLY_PERMIT' ? 'PERMESSO' : 'LAVORO'}
           </span>
           {icon}
         </div>
