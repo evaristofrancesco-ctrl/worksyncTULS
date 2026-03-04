@@ -43,7 +43,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
 import { collection, collectionGroup, query } from "firebase/firestore"
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid } from "date-fns"
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid, isSameDay } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -131,7 +131,7 @@ export default function ReportsPage() {
 
   // Funzione per convertire ore decimali nel formato Ore.Minuti (es. 7.33 -> 7.2)
   const formatTime = (decimalHours: number) => {
-    if (decimalHours === undefined || decimalHours === null) return "0";
+    if (decimalHours === undefined || decimalHours === null || Math.abs(decimalHours) < 0.01) return "0";
     const totalMinutes = Math.round(decimalHours * 60);
     const absMinutes = Math.abs(totalMinutes);
     const h = Math.floor(absMinutes / 60);
@@ -206,10 +206,18 @@ export default function ReportsPage() {
         let dayWork = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
-          if (e.checkInTime && e.checkOutTime) {
+          if (e.checkInTime) {
             const start = getRoundedTime(new Date(e.checkInTime));
-            const end = getRoundedTime(new Date(e.checkOutTime));
-            if (isValid(start) && isValid(end)) {
+            let end;
+            
+            if (e.checkOutTime) {
+              end = getRoundedTime(new Date(e.checkOutTime));
+            } else if (isSameDay(day, new Date())) {
+              // Se è oggi ed è ancora in corso, calcoliamo le ore maturate fino ad ora
+              end = new Date();
+            }
+
+            if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
               if (diff > 0) dayWork += diff;
             }
