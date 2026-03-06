@@ -190,7 +190,7 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.333333; 
+      const STD_DAY_HOURS = 7.333333; // 7h 20m in decimale
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
@@ -222,6 +222,7 @@ export default function ReportsPage() {
         const shiftSick = dayShifts.find((s: any) => s.type === 'SICK');
         const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
         const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
+        const shiftOvertime = dayShifts.find((s: any) => s.type === 'OVERTIME');
 
         if (shiftRest) { dayParts.push({ value: "R", type: "rest" }); }
         if (req?.type === "VACATION" || shiftAbsence) { dayParts.push({ value: "F", type: "vacation" }); vacationHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
@@ -239,6 +240,15 @@ export default function ReportsPage() {
           if (isValid(sIn) && isValid(sOut)) {
             const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
             if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; totalAbsenceHours += diff; }
+          }
+        }
+
+        if (shiftOvertime) {
+          const sIn = parseISO(shiftOvertime.startTime);
+          const sOut = parseISO(shiftOvertime.endTime);
+          if (isValid(sIn) && isValid(sOut)) {
+            const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
+            if (diff > 0) { dayParts.push({ value: "S", type: "overtime" }); dayWork += diff; }
           }
         }
 
@@ -295,7 +305,7 @@ export default function ReportsPage() {
           .sunday { background-color: #ef4444; color: #ffffff; font-weight: bold; }
           .employee-name { text-align: left; font-weight: bold; background-color: #ffffff; width: 200px; padding-left: 8px; }
           .total-col { background-color: #e2e8f0; font-weight: bold; width: 80px; }
-          .sum-hours { color: #ef4444; font-weight: bold; background-color: #e2e8f0; }
+          .sum-hours { color: #1e293b; font-weight: bold; background-color: #e2e8f0; }
           .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; padding-left: 8px; }
           .legend-title { background-color: #f1f5f9; font-weight: bold; text-align: left; padding-left: 8px; height: 25px; }
         </style>
@@ -336,6 +346,7 @@ export default function ReportsPage() {
                 if (p.type === 'vacation') { bgColor = "#10b981"; textColor = "#ffffff"; }
                 else if (p.type === 'sick') { bgColor = "#2563eb"; textColor = "#ffffff"; }
                 else if (p.type === 'rest') { bgColor = "#475569"; textColor = "#ffffff"; }
+                else if (p.type === 'overtime') { bgColor = "#10b981"; textColor = "#ffffff"; }
                 else if (p.type === 'permit') { 
                   if (p.value === 'P') { bgColor = "#94a3b8"; textColor = "#ffffff"; }
                   else { bgColor = "#fef3c7"; textColor = "#92400e"; }
@@ -397,6 +408,7 @@ export default function ReportsPage() {
           <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">F</td><td style="text-align: left; padding-left: 8px;">Ferie (7.2 ore giornaliere)</td></tr>
           <tr><td style="background-color: #2563eb; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">M</td><td style="text-align: left; padding-left: 8px;">Malattia (7.2 ore giornaliere)</td></tr>
           <tr><td style="background-color: #94a3b8; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">P</td><td style="text-align: left; padding-left: 8px;">Permesso Giornaliero (7.2 ore)</td></tr>
+          <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">S</td><td style="text-align: left; padding-left: 8px;">Straordinario</td></tr>
           <tr><td style="background-color: #475569; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">R</td><td style="text-align: left; padding-left: 8px;">Riposo Settimanale</td></tr>
           <tr><td style="background-color: #fef3c7; color: #92400e; width: 50px; height: 25px; font-weight: bold;">X.X</td><td style="text-align: left; padding-left: 8px;">Permesso Orario</td></tr>
           <tr><td style="background-color: #ffffff; color: #1e293b; width: 50px; height: 25px; font-weight: bold; border: 1px solid #cccccc;">X.X</td><td style="text-align: left; padding-left: 8px;">Ore di Lavoro Effettivo</td></tr>
@@ -497,6 +509,7 @@ export default function ReportsPage() {
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-emerald-500 text-white flex items-center justify-center rounded text-[10px] font-black">F</div> <span className="text-[10px] font-bold text-slate-600">Ferie</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-400 text-white flex items-center justify-center rounded text-[10px] font-black">P</div> <span className="text-[10px] font-bold text-slate-600">Permesso</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-blue-600 text-white flex items-center justify-center rounded text-[10px] font-black">M</div> <span className="text-[10px] font-bold text-slate-600">Malattia</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-emerald-500 text-white flex items-center justify-center rounded text-[10px] font-black">S</div> <span className="text-[10px] font-bold text-slate-600">Straordinario</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-600 text-white flex items-center justify-center rounded text-[10px] font-black">R</div> <span className="text-[10px] font-bold text-slate-600">Riposo</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-100 border border-amber-300 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Permesso orario</span></div>
                   </div>
@@ -560,6 +573,7 @@ export default function ReportsPage() {
                                         p.type === 'vacation' && "bg-emerald-500 text-white",
                                         p.type === 'sick' && "bg-blue-600 text-white",
                                         p.type === 'rest' && "bg-slate-600 text-white",
+                                        p.type === 'overtime' && "bg-emerald-500 text-white",
                                         p.type === 'permit' && (p.value === 'P' ? "bg-slate-400 text-white" : "bg-amber-100 text-amber-900 border-y border-amber-200"),
                                         p.type === 'work' && (isSunday ? "text-white" : "text-slate-700")
                                       )}>
@@ -574,7 +588,7 @@ export default function ReportsPage() {
                           <TableCell className="w-24 text-center border-l bg-slate-300/50 font-black text-xs text-slate-700">
                             {row.totalDaysCount}
                           </TableCell>
-                          <TableCell className="w-24 text-center bg-slate-300/50 font-black text-xs text-rose-600">
+                          <TableCell className="w-24 text-center bg-slate-300/50 font-black text-xs text-slate-900">
                             {formatTime(row.totalWorkHours)}
                           </TableCell>
                         </TableRow>
