@@ -132,6 +132,8 @@ export default function ReportsPage() {
     const h = Math.floor(absMinutes / 60);
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
+    
+    // Regola specifica: 20 minuti = .2
     const displayMinutes = Math.floor(m / 10); 
     if (displayMinutes === 0) return `${sign}${h}`;
     return `${sign}${h}.${displayMinutes}`;
@@ -147,8 +149,11 @@ export default function ReportsPage() {
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
     const workingDaysCount = daysInMonth.filter(d => d.getDay() !== 0).length;
 
+    // Deduplicazione timbrature per ID
+    const uniqueEntries = Array.from(new Map(allEntries.map(e => [e.id, e])).values());
+
     const entriesMap = new Map();
-    allEntries.forEach(e => {
+    uniqueEntries.forEach(e => {
       if (!e.checkInTime) return;
       const dateKey = e.checkInTime.split('T')[0];
       const key = `${e.employeeId}_${dateKey}`;
@@ -190,7 +195,7 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.333333; // 7h 20m in decimale
+      const STD_DAY_HOURS = 7.333333; // 7h 20m in decimale (usato per ferie/malattia)
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
@@ -209,7 +214,8 @@ export default function ReportsPage() {
             }
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
-              if (diff > 0) dayWork += diff;
+              // Limita la durata di una singola timbratura a 14 ore per evitare errori di mancata chiusura
+              if (diff > 0 && diff < 14) dayWork += diff;
             }
           }
         });
@@ -243,13 +249,10 @@ export default function ReportsPage() {
           }
         }
 
+        // Lo straordinario aggiunge solo il badge "S". 
+        // Le ore reali sono già in dayWork se l'utente ha timbrato.
         if (shiftOvertime) {
-          const sIn = parseISO(shiftOvertime.startTime);
-          const sOut = parseISO(shiftOvertime.endTime);
-          if (isValid(sIn) && isValid(sOut)) {
-            const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
-            if (diff > 0) { dayParts.push({ value: "S", type: "overtime" }); dayWork += diff; }
-          }
+          dayParts.push({ value: "S", type: "overtime" });
         }
 
         if (dayWork > 0) {
@@ -340,8 +343,8 @@ export default function ReportsPage() {
             let cellContent = "";
             if (d.parts && d.parts.length > 0) {
               cellContent = d.parts.map((p: any) => {
-                let bgColor = "transparent";
-                let textColor = isSun ? "#ffffff" : "#1e293b";
+                let bgColor = "#ffffff";
+                let textColor = "#1e293b";
                 
                 if (p.type === 'vacation') { bgColor = "#10b981"; textColor = "#ffffff"; }
                 else if (p.type === 'sick') { bgColor = "#2563eb"; textColor = "#ffffff"; }
