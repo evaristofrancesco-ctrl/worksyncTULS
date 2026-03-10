@@ -42,7 +42,7 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, query } from "firebase/firestore"
+import { collection, collectionGroup, query, limit } from "firebase/firestore"
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, parseISO, isValid, isSameDay } from "date-fns"
 import { it } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -94,19 +94,19 @@ export default function ReportsPage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return collectionGroup(db, "timeentries");
+    return query(collectionGroup(db, "timeentries"), limit(5000));
   }, [db, user])
   const { data: allEntries, isLoading: entriesLoading } = useCollection(timeEntriesQuery)
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return collectionGroup(db, "requests");
+    return query(collectionGroup(db, "requests"), limit(500));
   }, [db, user])
   const { data: allRequests, isLoading: requestsLoading } = useCollection(requestsQuery)
 
   const shiftsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return collectionGroup(db, "shifts");
+    return query(collectionGroup(db, "shifts"), limit(3000));
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
@@ -114,6 +114,7 @@ export default function ReportsPage() {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
+    // Slot standard: 09:00, 13:00, 17:00, 20:20
     const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; 
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
@@ -133,7 +134,7 @@ export default function ReportsPage() {
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
     
-    // Regola specifica: 20 minuti = .2
+    // Regola richiesta: 20 minuti = .2, 40 minuti = .4
     const displayMinutes = Math.floor(m / 10); 
     if (displayMinutes === 0) return `${sign}${h}`;
     return `${sign}${h}.${displayMinutes}`;
@@ -149,11 +150,8 @@ export default function ReportsPage() {
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
     const workingDaysCount = daysInMonth.filter(d => d.getDay() !== 0).length;
 
-    // Deduplicazione timbrature per ID
-    const uniqueEntries = Array.from(new Map(allEntries.map(e => [e.id, e])).values());
-
     const entriesMap = new Map();
-    uniqueEntries.forEach(e => {
+    allEntries.forEach(e => {
       if (!e.checkInTime) return;
       const dateKey = e.checkInTime.split('T')[0];
       const key = `${e.employeeId}_${dateKey}`;
@@ -189,7 +187,6 @@ export default function ReportsPage() {
       return !isFrancesco;
     }).map(emp => {
       let totalWorkHours = 0;
-      let totalDaysCount = 0;
       let totalAbsenceHours = 0;
       let vacationHours = 0;
       let sickHours = 0;
@@ -214,7 +211,6 @@ export default function ReportsPage() {
             }
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
-              // Limita la durata di una singola timbratura a 14 ore per evitare errori di mancata chiusura
               if (diff > 0 && diff < 14) dayWork += diff;
             }
           }
@@ -249,8 +245,6 @@ export default function ReportsPage() {
           }
         }
 
-        // Lo straordinario aggiunge solo il badge "S". 
-        // Le ore reali sono già in dayWork se l'utente ha timbrato.
         if (shiftOvertime) {
           dayParts.push({ value: "S", type: "overtime" });
         }
@@ -260,15 +254,12 @@ export default function ReportsPage() {
           totalWorkHours += dayWork;
         }
 
-        if (dayParts.length > 0) {
-          totalDaysCount++;
-          totalsByDay[idx]++;
-        }
+        if (dayParts.length > 0) totalsByDay[idx]++;
 
         return { day, parts: dayParts };
       });
 
-      dailyGrid.push({ emp, rowDays, totalDaysCount, totalWorkHours });
+      dailyGrid.push({ emp, rowDays });
 
       const weeklyHours = emp.weeklyHours || 40;
       const expectedHours = (weeklyHours / 6) * workingDaysCount;
@@ -310,7 +301,6 @@ export default function ReportsPage() {
           .total-col { background-color: #e2e8f0; font-weight: bold; width: 80px; }
           .sum-hours { color: #1e293b; font-weight: bold; background-color: #e2e8f0; }
           .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; padding-left: 8px; }
-          .legend-title { background-color: #f1f5f9; font-weight: bold; text-align: left; padding-left: 8px; height: 25px; }
         </style>
       </head>
       <body>
@@ -320,7 +310,6 @@ export default function ReportsPage() {
           <tr class="header">
             <td style="text-align: left; padding-left: 8px;">Nome dipendente</td>
             ${monthDays.map(day => `<td>${format(day, 'd')}</td>`).join('')}
-            <td>Totale gg</td>
             <td>SOMMA ORE</td>
           </tr>
           <tr class="header">
@@ -329,7 +318,6 @@ export default function ReportsPage() {
               const isSun = day.getDay() === 0;
               return `<td class="${isSun ? 'sunday' : ''}">${format(day, 'eee', { locale: it }).toUpperCase()}</td>`;
             }).join('')}
-            <td></td>
             <td></td>
           </tr>
     `;
@@ -345,7 +333,6 @@ export default function ReportsPage() {
               cellContent = d.parts.map((p: any) => {
                 let bgColor = "#ffffff";
                 let textColor = "#1e293b";
-                
                 if (p.type === 'vacation') { bgColor = "#10b981"; textColor = "#ffffff"; }
                 else if (p.type === 'sick') { bgColor = "#2563eb"; textColor = "#ffffff"; }
                 else if (p.type === 'rest') { bgColor = "#475569"; textColor = "#ffffff"; }
@@ -354,68 +341,49 @@ export default function ReportsPage() {
                   if (p.value === 'P') { bgColor = "#94a3b8"; textColor = "#ffffff"; }
                   else { bgColor = "#fef3c7"; textColor = "#92400e"; }
                 }
-                
                 return `<div style="display: block; width: 100%; padding: 4px 0; font-weight: bold; font-size: 8pt; background-color: ${bgColor}; color: ${textColor}; border-bottom: 1px solid rgba(0,0,0,0.05);">${p.value}</div>`;
               }).join('');
             }
             const tdStyle = isSun ? 'background-color: #ef4444; color: #ffffff;' : '';
-            return `<td style="vertical-align: top; width: 35px; ${tdStyle}">${cellContent}</td>`;
+            return `<td style="vertical-align: top; width: 45px; ${tdStyle}">${cellContent}</td>`;
           }).join('')}
-          <td class="total-col">${row.totalDaysCount}</td>
-          <td class="sum-hours">${formatTime(row.totalWorkHours)}</td>
+          <td class="sum-hours">${formatTime(row.rowDays.reduce((acc: number, d: any) => {
+            const workPart = d.parts.find((p:any) => p.type === 'work');
+            return acc + (workPart ? parseFloat(workPart.value.replace(',', '.')) : 0);
+          }, 0))}</td>
         </tr>
       `;
     });
 
     html += `
-          <tr class="total-col" style="height: 30px;">
-            <td style="text-align: left; padding-left: 8px;">TOTALE GG</td>
-            ${totalsByDay.map((val, idx) => {
-              const isSun = monthDays[idx].getDay() === 0;
-              const tdStyle = isSun ? 'background-color: #ef4444; color: #ffffff;' : '';
-              return `<td style="${tdStyle}">${val > 0 ? val : ""}</td>`;
-            }).join('')}
-            <td></td>
-            <td>${totalsByDay.reduce((a, b) => a + b, 0)}</td>
-          </tr>
         </table>
         <br><br>
         <table>
           <tr class="header">
             <td style="text-align: left; padding-left: 8px;">Riepilogo Totale</td>
-            <td>Ore Previste</td>
             <td>Ore Lavorate</td>
-            <td>Ferie (h)</td>
-            <td>Malattia (h)</td>
-            <td>Permessi (h)</td>
+            <td>Assenze (Ferie/Mal/Per)</td>
             <td>Ore Totali (Netto)</td>
           </tr>
-          ${summary.map(s => {
-            const netColor = s.hasAbsences ? 'color: #ef4444; font-weight: bold;' : 'font-weight: bold;';
-            return `
-              <tr>
-                <td style="text-align: left; padding-left: 8px;">${s.name}</td>
-                <td style="color: #94a3b8; font-weight: bold;">${formatTime(s.expectedHours)}</td>
-                <td>${formatTime(s.workedHours)}</td>
-                <td style="color: #10b981;">${formatTime(s.vacationHours)}</td>
-                <td style="color: #2563eb;">${formatTime(s.sickHours)}</td>
-                <td style="color: #94a3b8;">${formatTime(s.permitHours)}</td>
-                <td style="${netColor}">${formatTime(s.totalNet)}</td>
-              </tr>
-            `;
-          }).join('')}
+          ${summary.map(s => `
+            <tr>
+              <td style="text-align: left; padding-left: 8px;">${s.name}</td>
+              <td>${formatTime(s.workedHours)}</td>
+              <td style="color: #ef4444;">${formatTime(s.vacationHours + s.sickHours + s.permitHours)}</td>
+              <td style="${s.hasAbsences ? 'color: #ef4444;' : ''} font-weight: bold;">${formatTime(s.totalNet)}</td>
+            </tr>
+          `).join('')}
         </table>
         <br><br>
         <table>
-          <tr><td colspan="2" class="legend-title">LEGENDA</td></tr>
-          <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">F</td><td style="text-align: left; padding-left: 8px;">Ferie (7.2 ore giornaliere)</td></tr>
-          <tr><td style="background-color: #2563eb; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">M</td><td style="text-align: left; padding-left: 8px;">Malattia (7.2 ore giornaliere)</td></tr>
-          <tr><td style="background-color: #94a3b8; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">P</td><td style="text-align: left; padding-left: 8px;">Permesso Giornaliero (7.2 ore)</td></tr>
-          <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">S</td><td style="text-align: left; padding-left: 8px;">Straordinario</td></tr>
-          <tr><td style="background-color: #475569; color: #ffffff; width: 50px; height: 25px; font-weight: bold;">R</td><td style="text-align: left; padding-left: 8px;">Riposo Settimanale</td></tr>
-          <tr><td style="background-color: #fef3c7; color: #92400e; width: 50px; height: 25px; font-weight: bold;">X.X</td><td style="text-align: left; padding-left: 8px;">Permesso Orario</td></tr>
-          <tr><td style="background-color: #ffffff; color: #1e293b; width: 50px; height: 25px; font-weight: bold; border: 1px solid #cccccc;">X.X</td><td style="text-align: left; padding-left: 8px;">Ore di Lavoro Effettivo</td></tr>
-          <tr><td style="background-color: #ef4444; color: #ffffff; width: 50px; height: 25px; font-weight: bold;"></td><td style="text-align: left; padding-left: 8px;">Domenica / Festivo</td></tr>
+          <tr><td colspan="2" style="background-color: #f1f5f9; font-weight: bold; text-align: left; padding-left: 8px;">LEGENDA</td></tr>
+          <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; font-weight: bold;">F</td><td style="text-align: left; padding-left: 8px;">Ferie</td></tr>
+          <tr><td style="background-color: #2563eb; color: #ffffff; width: 50px; font-weight: bold;">M</td><td style="text-align: left; padding-left: 8px;">Malattia</td></tr>
+          <tr><td style="background-color: #94a3b8; color: #ffffff; width: 50px; font-weight: bold;">P</td><td style="text-align: left; padding-left: 8px;">Permesso Giornaliero</td></tr>
+          <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; font-weight: bold;">S</td><td style="text-align: left; padding-left: 8px;">Straordinario</td></tr>
+          <tr><td style="background-color: #475569; color: #ffffff; width: 50px; font-weight: bold;">R</td><td style="text-align: left; padding-left: 8px;">Riposo Settimanale</td></tr>
+          <tr><td style="background-color: #fef3c7; color: #92400e; width: 50px; font-weight: bold;">X.X</td><td style="text-align: left; padding-left: 8px;">Permesso Orario</td></tr>
+          <tr><td style="background-color: #ffffff; color: #1e293b; width: 50px; font-weight: bold; border: 1px solid #cccccc;">X.X</td><td style="text-align: left; padding-left: 8px;">Ore di Lavoro Effettivo</td></tr>
         </table>
       </body>
       </html>
@@ -428,9 +396,8 @@ export default function ReportsPage() {
     if (!content) return;
     const blob = new Blob([content], { type: 'application/vnd.ms-excel' });
     const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `Report_TU.L.S._${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.xls`);
+    link.href = URL.createObjectURL(blob);
+    link.download = `Report_TU.L.S._${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.xls`;
     link.click();
   };
 
@@ -538,8 +505,7 @@ export default function ReportsPage() {
                             {format(day, 'eee', { locale: it })}
                           </TableHead>
                         ))}
-                        <TableHead className="w-24 text-center text-[10px] font-black uppercase border-l bg-slate-100">Totale gg</TableHead>
-                        <TableHead className="w-24 text-center text-[10px] font-black uppercase bg-slate-100">SOMMA ORE</TableHead>
+                        <TableHead className="w-24 text-center text-[10px] font-black uppercase border-l bg-slate-100">SOMMA ORE</TableHead>
                       </TableRow>
                       <TableRow className="h-10 hover:bg-transparent">
                         <TableHead className="w-[200px] border-r font-black text-[11px] uppercase bg-slate-50">Nome dipendente</TableHead>
@@ -552,7 +518,6 @@ export default function ReportsPage() {
                           </TableHead>
                         ))}
                         <TableHead className="w-24 border-l bg-slate-200"></TableHead>
-                        <TableHead className="w-24 bg-slate-200"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -588,11 +553,11 @@ export default function ReportsPage() {
                               </TableCell>
                             )
                           })}
-                          <TableCell className="w-24 text-center border-l bg-slate-300/50 font-black text-xs text-slate-700">
-                            {row.totalDaysCount}
-                          </TableCell>
-                          <TableCell className="w-24 text-center bg-slate-300/50 font-black text-xs text-slate-900">
-                            {formatTime(row.totalWorkHours)}
+                          <TableCell className="w-24 text-center border-l bg-slate-300/50 font-black text-xs text-slate-900">
+                            {formatTime(row.rowDays.reduce((acc: number, d: any) => {
+                              const workPart = d.parts.find((p:any) => p.type === 'work');
+                              return acc + (workPart ? parseFloat(workPart.value.replace(',', '.')) : 0);
+                            }, 0))}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -612,17 +577,14 @@ export default function ReportsPage() {
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="h-12">
                     <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
-                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ore Previste</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ore Lavorate</TableHead>
-                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ferie (h)</TableHead>
-                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Malattia (h)</TableHead>
-                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Permessi (h)</TableHead>
-                    <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Totali</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Assenze (h)</TableHead>
+                    <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Totali (Netto)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={7} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-[#227FD8]" /></TableCell></TableRow>
                   ) : processedData.summary.length > 0 ? processedData.summary.map((row) => (
                     <TableRow key={row.id} className="h-16 hover:bg-slate-50/50 transition-colors">
                       <TableCell className="pl-8">
@@ -631,18 +593,15 @@ export default function ReportsPage() {
                           <div className="flex flex-col"><span className="font-bold text-slate-900">{row.name}</span><span className="text-[10px] text-slate-400 font-bold uppercase">{row.jobTitle}</span></div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center font-bold text-slate-400">{formatTime(row.expectedHours)}</TableCell>
                       <TableCell className="text-center font-bold text-slate-700">{formatTime(row.workedHours)}</TableCell>
-                      <TableCell className="text-center font-bold text-emerald-600">{formatTime(row.vacationHours)}</TableCell>
-                      <TableCell className="text-center font-bold text-blue-600">{formatTime(row.sickHours)}</TableCell>
-                      <TableCell className="text-center font-bold text-slate-500">{formatTime(row.permitHours)}</TableCell>
+                      <TableCell className="text-center font-bold text-rose-500">{formatTime(row.vacationHours + row.sickHours + row.permitHours)}</TableCell>
                       <TableCell className="text-right pr-8">
                         <span className={cn("text-lg font-black", row.hasAbsences ? "text-rose-600" : "text-slate-900")}>
                           {formatTime(row.totalNet)}
                         </span>
                       </TableCell>
                     </TableRow>
-                  )) : <TableRow><TableCell colSpan={7} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
+                  )) : <TableRow><TableCell colSpan={4} className="h-40 text-center italic">Nessun dato trovato.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </CardContent>
