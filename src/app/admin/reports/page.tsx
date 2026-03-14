@@ -94,19 +94,19 @@ export default function ReportsPage() {
 
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collectionGroup(db, "timeentries"), limit(5000));
+    return query(collectionGroup(db, "timeentries"), limit(10000));
   }, [db, user])
   const { data: allEntries, isLoading: entriesLoading } = useCollection(timeEntriesQuery)
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collectionGroup(db, "requests"), limit(500));
+    return query(collectionGroup(db, "requests"), limit(1000));
   }, [db, user])
   const { data: allRequests, isLoading: requestsLoading } = useCollection(requestsQuery)
 
   const shiftsQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collectionGroup(db, "shifts"), limit(3000));
+    return query(collectionGroup(db, "shifts"), limit(5000));
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
@@ -114,7 +114,6 @@ export default function ReportsPage() {
     const h = date.getHours();
     const m = date.getMinutes();
     const totalM = h * 60 + m;
-    // Slot standard: 09:00, 13:00, 17:00, 20:20
     const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; 
     for (const target of targets) {
       if (Math.abs(totalM - target) <= 20) {
@@ -134,7 +133,6 @@ export default function ReportsPage() {
     const m = absMinutes % 60;
     const sign = totalMinutes < 0 ? "-" : "";
     
-    // Regola richiesta: 20 minuti = .2, 40 minuti = .4
     const displayMinutes = Math.floor(m / 10); 
     if (displayMinutes === 0) return `${sign}${h}`;
     return `${sign}${h}.${displayMinutes}`;
@@ -148,10 +146,12 @@ export default function ReportsPage() {
     const monthStart = startOfMonth(new Date(selYearInt, selMonthInt, 1));
     const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-    const workingDaysCount = daysInMonth.filter(d => d.getDay() !== 0).length;
+
+    // Deduplicazione timbrature per ID
+    const uniqueEntries = Array.from(new Map(allEntries.map(e => [e.id, e])).values());
 
     const entriesMap = new Map();
-    allEntries.forEach(e => {
+    uniqueEntries.forEach(e => {
       if (!e.checkInTime) return;
       const dateKey = e.checkInTime.split('T')[0];
       const key = `${e.employeeId}_${dateKey}`;
@@ -192,13 +192,13 @@ export default function ReportsPage() {
       let sickHours = 0;
       let permitHours = 0;
       
-      const STD_DAY_HOURS = 7.333333; // 7h 20m in decimale (usato per ferie/malattia)
+      const STD_DAY_HOURS = 7.333333; // 7h 20m reale
 
       const rowDays = daysInMonth.map((day, idx) => {
         const dStr = format(day, 'yyyy-MM-dd');
-        const dayParts: { value: string, type: string }[] = [];
+        const dayParts: { value: string, type: string, raw: number }[] = [];
 
-        let dayWork = 0;
+        let dayWorkRaw = 0;
         const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
         dayEntries.forEach((e: any) => {
           if (e.checkInTime) {
@@ -211,7 +211,7 @@ export default function ReportsPage() {
             }
             if (isValid(start) && end && isValid(end)) {
               const diff = (end.getTime() - start.getTime()) / 3600000;
-              if (diff > 0 && diff < 14) dayWork += diff;
+              if (diff > 0 && diff < 14) dayWorkRaw += diff;
             }
           }
         });
@@ -220,49 +220,55 @@ export default function ReportsPage() {
         const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
         const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
         
-        const shiftRest = dayShifts.find((s: any) => s.type === 'REST');
-        const shiftSick = dayShifts.find((s: any) => s.type === 'SICK');
-        const shiftAbsence = dayShifts.find((s: any) => s.type === 'ABSENCE');
-        const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
-        const shiftOvertime = dayShifts.find((s: any) => s.type === 'OVERTIME');
-
-        if (shiftRest) { dayParts.push({ value: "R", type: "rest" }); }
-        if (req?.type === "VACATION" || shiftAbsence) { dayParts.push({ value: "F", type: "vacation" }); vacationHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
-        if (req?.type === "SICK" || shiftSick) { dayParts.push({ value: "M", type: "sick" }); sickHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
-        if (req?.type === "PERSONAL") { dayParts.push({ value: "P", type: "permit" }); permitHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
+        const hasRest = dayShifts.some((s: any) => s.type === 'REST');
+        const hasSick = dayShifts.some((s: any) => s.type === 'SICK') || req?.type === "SICK";
+        const hasVacation = dayShifts.some((s: any) => s.type === 'ABSENCE') || req?.type === "VACATION";
+        const hasOvertime = dayShifts.some((s: any) => s.type === 'OVERTIME');
         
+        if (hasRest) { dayParts.push({ value: "R", type: "rest", raw: 0 }); }
+        if (hasVacation) { dayParts.push({ value: "F", type: "vacation", raw: STD_DAY_HOURS }); vacationHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
+        if (hasSick) { dayParts.push({ value: "M", type: "sick", raw: STD_DAY_HOURS }); sickHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
+        if (req?.type === "PERSONAL") { dayParts.push({ value: "P", type: "permit", raw: STD_DAY_HOURS }); permitHours += STD_DAY_HOURS; totalAbsenceHours += STD_DAY_HOURS; }
+        
+        // Permessi orari
+        let dayPermitRaw = 0;
         if (req?.type === "HOURLY_PERMIT" && req.startTime && req.endTime) {
           const [h1, m1] = req.startTime.split(':').map(Number);
           const [h2, m2] = req.endTime.split(':').map(Number);
-          const diff = (h2 + m2/60) - (h1 + m1/60);
-          if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; totalAbsenceHours += diff; }
-        } else if (shiftPermit) {
-          const sIn = parseISO(shiftPermit.startTime);
-          const sOut = parseISO(shiftPermit.endTime);
-          if (isValid(sIn) && isValid(sOut)) {
-            const diff = (sOut.getTime() - sIn.getTime()) / 3600000;
-            if (diff > 0) { dayParts.push({ value: formatTime(diff), type: "permit" }); permitHours += diff; totalAbsenceHours += diff; }
+          dayPermitRaw = (h2 + m2/60) - (h1 + m1/60);
+        } else {
+          const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
+          if (shiftPermit) {
+            const sIn = parseISO(shiftPermit.startTime);
+            const sOut = parseISO(shiftPermit.endTime);
+            if (isValid(sIn) && isValid(sOut)) {
+              dayPermitRaw = (sOut.getTime() - sIn.getTime()) / 3600000;
+            }
           }
         }
-
-        if (shiftOvertime) {
-          dayParts.push({ value: "S", type: "overtime" });
+        if (dayPermitRaw > 0) {
+          dayParts.push({ value: formatTime(dayPermitRaw), type: "permit", raw: dayPermitRaw });
+          permitHours += dayPermitRaw;
+          totalAbsenceHours += dayPermitRaw;
         }
 
-        if (dayWork > 0) {
-          dayParts.push({ value: formatTime(dayWork), type: 'work' });
-          totalWorkHours += dayWork;
+        if (hasOvertime) {
+          dayParts.push({ value: "S", type: "overtime", raw: 0 });
+        }
+
+        if (dayWorkRaw > 0) {
+          dayParts.push({ value: formatTime(dayWorkRaw), type: 'work', raw: dayWorkRaw });
+          totalWorkHours += dayWorkRaw;
         }
 
         if (dayParts.length > 0) totalsByDay[idx]++;
 
-        return { day, parts: dayParts };
+        return { day, parts: dayParts, dayWorkRaw };
       });
 
-      dailyGrid.push({ emp, rowDays });
+      const totalRawWorkedInMonth = rowDays.reduce((acc, d) => acc + d.dayWorkRaw, 0);
 
-      const weeklyHours = emp.weeklyHours || 40;
-      const expectedHours = (weeklyHours / 6) * workingDaysCount;
+      dailyGrid.push({ emp, rowDays, totalRawWorkedInMonth });
 
       return {
         id: emp.id,
@@ -273,7 +279,6 @@ export default function ReportsPage() {
         vacationHours,
         sickHours,
         permitHours,
-        expectedHours,
         hasAbsences: totalAbsenceHours > 0,
         totalNet: totalWorkHours - totalAbsenceHours
       };
@@ -283,7 +288,7 @@ export default function ReportsPage() {
   }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
 
   const generateStyledExcelHTML = () => {
-    const { dailyGrid, monthDays, totalsByDay, summary } = processedData;
+    const { dailyGrid, monthDays, summary } = processedData;
     if (!dailyGrid.length) return "";
     const selMonthLabel = MONTHS[parseInt(selectedMonth)].label;
     const title = `REPORT PRESENZE - ${selMonthLabel} ${selectedYear}`;
@@ -296,11 +301,11 @@ export default function ReportsPage() {
           table { border-collapse: collapse; }
           td, th { border: 1px solid #cccccc; padding: 0; text-align: center; font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; }
           .header { background-color: #f1f5f9; font-weight: bold; height: 30px; }
-          .sunday { background-color: #ef4444; color: #ffffff; font-weight: bold; }
+          .sunday { background-color: #ef4444 !important; color: #ffffff !important; font-weight: bold; }
           .employee-name { text-align: left; font-weight: bold; background-color: #ffffff; width: 200px; padding-left: 8px; }
-          .total-col { background-color: #e2e8f0; font-weight: bold; width: 80px; }
           .sum-hours { color: #1e293b; font-weight: bold; background-color: #e2e8f0; }
           .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; padding-left: 8px; }
+          .block { display: block; width: 100%; padding: 4px 0; font-weight: bold; font-size: 8pt; border-bottom: 1px solid rgba(0,0,0,0.05); }
         </style>
       </head>
       <body>
@@ -341,16 +346,13 @@ export default function ReportsPage() {
                   if (p.value === 'P') { bgColor = "#94a3b8"; textColor = "#ffffff"; }
                   else { bgColor = "#fef3c7"; textColor = "#92400e"; }
                 }
-                return `<div style="display: block; width: 100%; padding: 4px 0; font-weight: bold; font-size: 8pt; background-color: ${bgColor}; color: ${textColor}; border-bottom: 1px solid rgba(0,0,0,0.05);">${p.value}</div>`;
+                return `<div class="block" style="background-color: ${bgColor}; color: ${textColor};">${p.value}</div>`;
               }).join('');
             }
             const tdStyle = isSun ? 'background-color: #ef4444; color: #ffffff;' : '';
             return `<td style="vertical-align: top; width: 45px; ${tdStyle}">${cellContent}</td>`;
           }).join('')}
-          <td class="sum-hours">${formatTime(row.rowDays.reduce((acc: number, d: any) => {
-            const workPart = d.parts.find((p:any) => p.type === 'work');
-            return acc + (workPart ? parseFloat(workPart.value.replace(',', '.')) : 0);
-          }, 0))}</td>
+          <td class="sum-hours">${formatTime(row.totalRawWorkedInMonth)}</td>
         </tr>
       `;
     });
@@ -554,10 +556,7 @@ export default function ReportsPage() {
                             )
                           })}
                           <TableCell className="w-24 text-center border-l bg-slate-300/50 font-black text-xs text-slate-900">
-                            {formatTime(row.rowDays.reduce((acc: number, d: any) => {
-                              const workPart = d.parts.find((p:any) => p.type === 'work');
-                              return acc + (workPart ? parseFloat(workPart.value.replace(',', '.')) : 0);
-                            }, 0))}
+                            {formatTime(row.totalRawWorkedInMonth)}
                           </TableCell>
                         </TableRow>
                       ))}
