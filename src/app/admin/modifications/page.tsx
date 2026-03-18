@@ -13,7 +13,8 @@ import {
   Trash2,
   Mail,
   Copy,
-  Sparkles
+  Sparkles,
+  Clock
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -228,6 +229,7 @@ export default function AdminModificationsPage() {
 
 function ModificationCard({ req, emp, onUpdate, onDelete, onDraft, isPending }: { req: any, emp: any, onUpdate: any, onDelete: any, onDraft: any, isPending: boolean }) {
   const isApproved = req.status === "APPROVED";
+  const fullDateTime = req.submittedAt ? new Date(req.submittedAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '--';
   
   if (!isPending) {
     return (
@@ -240,7 +242,7 @@ function ModificationCard({ req, emp, onUpdate, onDelete, onDraft, isPending }: 
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold truncate text-[#1e293b]">{emp ? `${emp.firstName} ${emp.lastName}` : "Dipendente Sconosciuto"}</p>
             <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-black uppercase">
-              <span>{req.submittedAt ? new Date(req.submittedAt).toLocaleDateString('it-IT') : '--'}</span>
+              <span className="flex items-center gap-1"><Clock className="h-2 w-2" /> {fullDateTime}</span>
               <span className="opacity-20">|</span>
               <MapPin className="h-2.5 w-2.5" />
               <span>{req.locationName || "Sede N.D."}</span>
@@ -288,7 +290,9 @@ function ModificationCard({ req, emp, onUpdate, onDelete, onDraft, isPending }: 
             <div>
               <h3 className="font-bold text-sm text-[#1e293b]">{emp ? `${emp.firstName} ${emp.lastName}` : "Dipendente Sconosciuto"}</h3>
               <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                <span>Inviato alle {req.submittedAt ? new Date(req.submittedAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '--'}</span>
+                <span className="flex items-center gap-1 font-bold text-[10px] text-[#227FD8] uppercase">
+                  <Clock className="h-3 w-3" /> Inviato il {fullDateTime}
+                </span>
                 <span className="opacity-20">|</span>
                 <MapPin className="h-3 w-3 text-[#227FD8]" />
                 <span className="font-black uppercase tracking-widest text-[10px]">{req.locationName || "Sede N.D."}</span>

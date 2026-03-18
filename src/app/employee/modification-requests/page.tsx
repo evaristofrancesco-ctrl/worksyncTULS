@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -258,7 +257,10 @@ export default function ModificationRequestsPage() {
               allRequests.map((req) => (
                 <Card key={req.id} className="border-none shadow-sm overflow-hidden bg-white">
                   <div className={`px-4 py-2 flex justify-between items-center text-[11px] font-bold ${req.status === 'PENDING' ? 'bg-amber-50' : 'bg-slate-50'}`}>
-                    <span>{new Date(req.submittedAt).toLocaleString('it-IT')} | {req.locationName}</span>
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-3 w-3 text-slate-400" />
+                      {new Date(req.submittedAt).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} | {req.locationName}
+                    </span>
                     <Badge className={`h-5 text-[9px] font-black uppercase ${req.status === 'PENDING' ? 'bg-amber-200 text-amber-900' : 'bg-slate-200 text-slate-700'}`}>
                       {req.status}
                     </Badge>
