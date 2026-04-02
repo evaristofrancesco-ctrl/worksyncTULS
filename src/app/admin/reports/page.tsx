@@ -10,8 +10,15 @@ import {
   Send,
   CalendarDays,
   FileSpreadsheet,
-  Grid3X3
+  Grid3X3,
+  Star,
+  Sparkles,
+  Users,
+  Clock,
+  ClipboardList,
+  Zap
 } from "lucide-react"
+import { StatCard } from "@/components/dashboard/StatCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
@@ -49,6 +56,11 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { sendReportEmail } from "@/ai/flows/send-report-flow"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import { 
+  calculateMonthlyReportsData, 
+  generateExcelHTML, 
+  formatMinutesToDisplay 
+} from "@/lib/report-utils"
 
 const MONTHS = [
   { label: "Gennaio", value: "0" },
@@ -110,296 +122,37 @@ export default function ReportsPage() {
   }, [db, user])
   const { data: allShifts, isLoading: shiftsLoading } = useCollection(shiftsQuery)
 
-  // Arrotonda ai target aziendali se entro 20 minuti
-  const getRoundedTime = (date: Date) => {
-    const h = date.getHours();
-    const m = date.getMinutes();
-    const totalM = h * 60 + m;
-    const targets = [9 * 60, 13 * 60, 17 * 60, 20 * 60 + 20]; 
-    for (const target of targets) {
-      if (Math.abs(totalM - target) <= 20) {
-        const rounded = new Date(date);
-        rounded.setHours(Math.floor(target / 60), target % 60, 0, 0);
-        return rounded;
-      }
-    }
-    return date;
-  };
+  const holidaysQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, "holidays");
+  }, [db])
+  const { data: allHolidays } = useCollection(holidaysQuery)
 
-  // Converte i minuti nel formato richiesto (es. 440 min -> 7.2)
-  const formatMinutesToDisplay = (totalMinutes: number) => {
-    if (totalMinutes <= 0) return "0";
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    const displayM = Math.round(m / 10);
-    if (displayM === 0) return `${h}.0`;
-    if (displayM === 6) return `${h + 1}.0`;
-    return `${h}.${displayM}`;
-  };
+
 
   const processedData = useMemo(() => {
-    if (!employees || !allEntries || !allRequests || !allShifts) return { summary: [], dailyGrid: [], monthDays: [], totalsByDay: [] };
-
-    const selMonthInt = parseInt(selectedMonth);
-    const selYearInt = parseInt(selectedYear);
-    const monthStart = startOfMonth(new Date(selYearInt, selMonthInt, 1));
-    const monthEnd = endOfMonth(new Date(selYearInt, selMonthInt, 1));
-    const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-    const entriesMap = new Map();
-    allEntries.forEach(e => {
-      if (!e.checkInTime) return;
-      const dateKey = e.checkInTime.split('T')[0];
-      const key = `${e.employeeId}_${dateKey}`;
-      const list = entriesMap.get(key) || [];
-      list.push(e);
-      entriesMap.set(key, list);
+    if (!employees || !allEntries || !allRequests || !allShifts || !allHolidays) {
+      return { summary: [], dailyGrid: [], monthDays: [], totals: { theo: 0, worked: 0, absence: 0, net: 0 } };
+    }
+    return calculateMonthlyReportsData({
+      employees,
+      allEntries,
+      allRequests,
+      allShifts,
+      allHolidays,
+      selectedMonth,
+      selectedYear
     });
-
-    const requestsMap = new Map();
-    allRequests.forEach(r => {
-      const status = (r.status || "").toUpperCase();
-      if (!(status === "APPROVATO" || status === "APPROVED" || status === "Approvato")) return;
-      const key = r.employeeId;
-      const list = requestsMap.get(key) || [];
-      list.push(r);
-      requestsMap.set(key, list);
-    });
-
-    const shiftsMap = new Map();
-    allShifts.forEach(s => {
-      if (!s.date) return;
-      const key = `${s.employeeId}_${s.date}`;
-      const list = shiftsMap.get(key) || [];
-      list.push(s);
-      shiftsMap.set(key, list);
-    });
-
-    const dailyGrid: any[] = [];
-    const totalsByDay = new Array(daysInMonth.length).fill(0);
-
-    const summary = employees.filter(emp => {
-      const isFrancesco = emp.firstName?.toLowerCase() === 'francesco' && emp.lastName?.toLowerCase() === 'evaristo';
-      return !isFrancesco;
-    }).map(emp => {
-      let totalWorkMinutes = 0;
-      let totalAbsenceMinutes = 0;
-      let vacationMinutes = 0;
-      let sickMinutes = 0;
-      let permitMinutes = 0;
-      
-      const STD_DAY_MINUTES = 440; // 7 ore e 20 minuti reali
-
-      const rowDays = daysInMonth.map((day, idx) => {
-        const dStr = format(day, 'yyyy-MM-dd');
-        const dayParts: { value: string, type: string, minutes: number }[] = [];
-
-        // 1. Calcolo lavoro reale da timbrature (somma minuti di tutte le sessioni)
-        let dayWorkMinutes = 0;
-        const dayEntries = entriesMap.get(`${emp.id}_${dStr}`) || [];
-        dayEntries.forEach((e: any) => {
-          if (e.checkInTime) {
-            const start = getRoundedTime(new Date(e.checkInTime));
-            let end;
-            if (e.checkOutTime) {
-              end = getRoundedTime(new Date(e.checkOutTime));
-            } else if (isSameDay(day, new Date())) {
-              end = new Date(); 
-            }
-            if (isValid(start) && end && isValid(end)) {
-              const diffMs = end.getTime() - start.getTime();
-              const diffMin = Math.round(diffMs / 60000);
-              if (diffMin > 0 && diffMin < 840) { // Max 14 ore
-                dayWorkMinutes += diffMin;
-              }
-            }
-          }
-        });
-
-        // 2. Controllo assenze e riposi dal planner e richieste
-        const empRequests = requestsMap.get(emp.id) || [];
-        const req = empRequests.find((r: any) => r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
-        const dayShifts = shiftsMap.get(`${emp.id}_${dStr}`) || [];
-        
-        const hasRest = dayShifts.some((s: any) => s.type === 'REST');
-        const hasSick = dayShifts.some((s: any) => s.type === 'SICK') || req?.type === "SICK";
-        const hasVacation = dayShifts.some((s: any) => s.type === 'ABSENCE') || req?.type === "VACATION";
-        const hasOvertime = dayShifts.some((s: any) => s.type === 'OVERTIME');
-        
-        if (hasRest) { dayParts.push({ value: "R", type: "rest", minutes: 0 }); }
-        if (hasVacation) { dayParts.push({ value: "F", type: "vacation", minutes: STD_DAY_MINUTES }); vacationMinutes += STD_DAY_MINUTES; totalAbsenceMinutes += STD_DAY_MINUTES; }
-        if (hasSick) { dayParts.push({ value: "M", type: "sick", minutes: STD_DAY_MINUTES }); sickMinutes += STD_DAY_MINUTES; totalAbsenceMinutes += STD_DAY_MINUTES; }
-        if (req?.type === "PERSONAL") { dayParts.push({ value: "P", type: "permit", minutes: STD_DAY_MINUTES }); permitMinutes += STD_DAY_MINUTES; totalAbsenceMinutes += STD_DAY_MINUTES; }
-        
-        // Permessi orari
-        let dayPermitMin = 0;
-        if (req?.type === "HOURLY_PERMIT" && req.startTime && req.endTime) {
-          const [h1, m1] = req.startTime.split(':').map(Number);
-          const [h2, m2] = req.endTime.split(':').map(Number);
-          dayPermitMin = (h2 * 60 + m2) - (h1 * 60 + m1);
-        } else {
-          const shiftPermit = dayShifts.find((s: any) => s.type === 'HOURLY_PERMIT');
-          if (shiftPermit) {
-            const sIn = parseISO(shiftPermit.startTime);
-            const sOut = parseISO(shiftPermit.endTime);
-            if (isValid(sIn) && isValid(sOut)) {
-              dayPermitMin = Math.round((sOut.getTime() - sIn.getTime()) / 60000);
-            }
-          }
-        }
-        if (dayPermitMin > 0) {
-          dayParts.push({ value: formatMinutesToDisplay(dayPermitMin), type: "permit", minutes: dayPermitMin });
-          permitMinutes += dayPermitMin;
-          totalAbsenceMinutes += dayPermitMin;
-        }
-
-        if (hasOvertime) {
-          dayParts.push({ value: "S", type: "overtime", minutes: 0 });
-        }
-
-        if (dayWorkMinutes > 0) {
-          dayParts.push({ value: formatMinutesToDisplay(dayWorkMinutes), type: 'work', minutes: dayWorkMinutes });
-          totalWorkMinutes += dayWorkMinutes;
-        }
-
-        if (dayParts.length > 0) totalsByDay[idx]++;
-
-        return { day, parts: dayParts, dayWorkMinutes };
-      });
-
-      dailyGrid.push({ emp, rowDays, totalWorkMinutesInMonth: totalWorkMinutes });
-
-      return {
-        id: emp.id,
-        name: `${emp.firstName} ${emp.lastName}`,
-        photoUrl: emp.photoUrl,
-        jobTitle: emp.jobTitle,
-        workedHoursStr: formatMinutesToDisplay(totalWorkMinutes),
-        vacationHoursStr: formatMinutesToDisplay(vacationMinutes),
-        sickHoursStr: formatMinutesToDisplay(sickMinutes),
-        permitHoursStr: formatMinutesToDisplay(permitMinutes),
-        absenceHoursStr: formatMinutesToDisplay(totalAbsenceMinutes),
-        hasAbsences: totalAbsenceMinutes > 0,
-        totalNetStr: formatMinutesToDisplay(totalWorkMinutes - totalAbsenceMinutes)
-      };
-    });
-
-    return { summary, dailyGrid, monthDays: daysInMonth, totalsByDay };
-  }, [employees, allEntries, allRequests, allShifts, selectedMonth, selectedYear]);
-
-  const generateStyledExcelHTML = () => {
-    const { dailyGrid, monthDays, summary } = processedData;
-    if (!dailyGrid.length) return "";
-    const selMonthLabel = MONTHS[parseInt(selectedMonth)].label;
-    const title = `REPORT PRESENZE - ${selMonthLabel} ${selectedYear}`;
-
-    let html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8">
-        <style>
-          table { border-collapse: collapse; }
-          td, th { border: 1px solid #cccccc; padding: 0; text-align: center; font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; }
-          .header { background-color: #f1f5f9; font-weight: bold; height: 30px; }
-          .sunday { background-color: #ef4444 !important; color: #ffffff !important; font-weight: bold; }
-          .employee-name { text-align: left; font-weight: bold; background-color: #ffffff; width: 200px; padding-left: 8px; }
-          .sum-hours { color: #1e293b; font-weight: bold; background-color: #e2e8f0; }
-          .title-row { font-size: 16pt; font-weight: bold; height: 40px; text-align: left; border: none; color: #1e293b; padding-left: 8px; }
-          .block { display: block; width: 100%; padding: 4px 0; font-weight: bold; font-size: 8pt; border-bottom: 1px solid rgba(0,0,0,0.05); }
-        </style>
-      </head>
-      <body>
-        <table>
-          <tr><td colspan="${monthDays.length + 3}" class="title-row">${title}</td></tr>
-          <tr><td></td></tr>
-          <tr class="header">
-            <td style="text-align: left; padding-left: 8px;">Nome dipendente</td>
-            ${monthDays.map(day => `<td>${format(day, 'd')}</td>`).join('')}
-            <td>SOMMA ORE</td>
-          </tr>
-          <tr class="header">
-            <td></td>
-            ${monthDays.map(day => {
-              const isSun = day.getDay() === 0;
-              return `<td class="${isSun ? 'sunday' : ''}">${format(day, 'eee', { locale: it }).toUpperCase()}</td>`;
-            }).join('')}
-            <td></td>
-          </tr>
-    `;
-
-    dailyGrid.forEach(row => {
-      html += `
-        <tr>
-          <td class="employee-name">${row.emp.firstName} ${row.emp.lastName}</td>
-          ${row.rowDays.map((d: any) => {
-            const isSun = d.day.getDay() === 0;
-            let cellContent = "";
-            if (d.parts && d.parts.length > 0) {
-              cellContent = d.parts.map((p: any) => {
-                let bgColor = "#ffffff";
-                let textColor = "#1e293b";
-                if (p.type === 'vacation') { bgColor = "#10b981"; textColor = "#ffffff"; }
-                else if (p.type === 'sick') { bgColor = "#2563eb"; textColor = "#ffffff"; }
-                else if (p.type === 'rest') { bgColor = "#475569"; textColor = "#ffffff"; }
-                else if (p.type === 'overtime') { bgColor = "#10b981"; textColor = "#ffffff"; }
-                else if (p.type === 'permit') { 
-                  if (p.value === 'P') { bgColor = "#94a3b8"; textColor = "#ffffff"; }
-                  else { bgColor = "#fef3c7"; textColor = "#92400e"; }
-                }
-                return `<div class="block" style="background-color: ${bgColor}; color: ${textColor};">${p.value}</div>`;
-              }).join('');
-            }
-            const tdStyle = isSun ? 'background-color: #ef4444; color: #ffffff;' : '';
-            return `<td style="vertical-align: top; width: 45px; ${tdStyle}">${cellContent}</td>`;
-          }).join('')}
-          <td class="sum-hours">${formatMinutesToDisplay(row.totalWorkMinutesInMonth)}</td>
-        </tr>
-      `;
-    });
-
-    html += `
-        </table>
-        <br><br>
-        <table>
-          <tr class="header">
-            <td style="text-align: left; padding-left: 8px;">Riepilogo Totale</td>
-            <td>Ore Lavorate</td>
-            <td>Assenze (Ferie/Mal/Per)</td>
-            <td>Ore Totali (Netto)</td>
-          </tr>
-          ${summary.map(s => `
-            <tr>
-              <td style="text-align: left; padding-left: 8px;">${s.name}</td>
-              <td>${s.workedHoursStr}</td>
-              <td style="color: #ef4444;">${s.absenceHoursStr}</td>
-              <td style="${s.hasAbsences ? 'color: #ef4444;' : ''} font-weight: bold;">${s.totalNetStr}</td>
-            </tr>
-          `).join('')}
-        </table>
-        <br><br>
-        <table>
-          <tr><td colspan="2" style="background-color: #f1f5f9; font-weight: bold; text-align: left; padding-left: 8px;">LEGENDA</td></tr>
-          <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; font-weight: bold;">F</td><td style="text-align: left; padding-left: 8px;">Ferie</td></tr>
-          <tr><td style="background-color: #2563eb; color: #ffffff; width: 50px; font-weight: bold;">M</td><td style="text-align: left; padding-left: 8px;">Malattia</td></tr>
-          <tr><td style="background-color: #94a3b8; color: #ffffff; width: 50px; font-weight: bold;">P</td><td style="text-align: left; padding-left: 8px;">Permesso Giornaliero</td></tr>
-          <tr><td style="background-color: #10b981; color: #ffffff; width: 50px; font-weight: bold;">S</td><td style="text-align: left; padding-left: 8px;">Straordinario</td></tr>
-          <tr><td style="background-color: #475569; color: #ffffff; width: 50px; font-weight: bold;">R</td><td style="text-align: left; padding-left: 8px;">Riposo Settimanale</td></tr>
-          <tr><td style="background-color: #fef3c7; color: #92400e; width: 50px; font-weight: bold;">X.X</td><td style="text-align: left; padding-left: 8px;">Permesso Orario</td></tr>
-          <tr><td style="background-color: #ffffff; color: #1e293b; width: 50px; font-weight: bold; border: 1px solid #cccccc;">X.X</td><td style="text-align: left; padding-left: 8px;">Ore di Lavoro Effettivo</td></tr>
-        </table>
-      </body>
-      </html>
-    `;
-    return html;
-  }
+  }, [employees, allEntries, allRequests, allShifts, allHolidays, selectedMonth, selectedYear]);
 
   const handleExportStyledExcel = () => {
-    const content = generateStyledExcelHTML();
+    const selMonthLabel = MONTHS[parseInt(selectedMonth)].label;
+    const content = generateExcelHTML(processedData, selMonthLabel, selectedYear);
     if (!content) return;
     const blob = new Blob([content], { type: 'application/vnd.ms-excel' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `Report_TU.L.S._${MONTHS[parseInt(selectedMonth)].label}_${selectedYear}.xls`;
+    link.download = `Report_TU.L.S._${selMonthLabel}_${selectedYear}.xls`;
     link.click();
   };
 
@@ -407,11 +160,12 @@ export default function ReportsPage() {
     if (!destEmail) return;
     setIsSending(true);
     try {
+      const selMonthLabel = MONTHS[parseInt(selectedMonth)].label;
       const result = await sendReportEmail({
         recipientEmail: destEmail,
-        monthLabel: MONTHS[parseInt(selectedMonth)].label,
+        monthLabel: selMonthLabel,
         year: selectedYear,
-        fileContent: generateStyledExcelHTML(),
+        fileContent: generateExcelHTML(processedData, selMonthLabel, selectedYear),
         adminName: user?.displayName || "Amministrazione TU.L.S."
       });
       if (result.success) {
@@ -430,35 +184,82 @@ export default function ReportsPage() {
   const isLoading = employeesLoading || entriesLoading || requestsLoading || shiftsLoading || isRefreshing;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-[#1e293b] flex items-center gap-3">
-            <Calculator className="h-8 w-8 text-[#227FD8]" /> Conteggio Mensile
-          </h1>
-          <p className="text-slate-500 font-medium">Analisi presenze e assenze basata su log reali.</p>
-        </div>
+    <div className="space-y-6 animate-in fade-in duration-700 pb-12">
+      {/* --- HERO SECTION: REPLICATED FROM DASHBOARD --- */}
+      <div className="relative overflow-hidden rounded-[2rem] bg-[#1e293b] p-6 md:p-8 text-white shadow-2xl">
+        <div className="absolute top-0 right-0 -mr-20 -mt-20 h-48 w-48 rounded-full bg-[#227FD8]/20 blur-3xl" />
+        <div className="absolute bottom-0 left-0 -ml-20 -mb-20 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />
         
-        <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-xl shadow-sm border">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-2xl bg-[#227FD8] flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <Calculator className="h-6 w-6 text-white" />
+              </div>
+              <div className="space-y-0.5">
+                <h1 className="text-3xl md:text-4xl font-black tracking-tighter leading-none">
+                  Conteggio <span className="text-[#227FD8]">Mensile</span>
+                </h1>
+                <p className="text-slate-400 font-medium text-sm">
+                  Analisi presenze e assenze basata su log reali.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 bg-white/5 backdrop-blur-md p-2 rounded-2xl border border-white/10 shadow-xl">
           <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-            <SelectTrigger className="w-[150px] border-none font-bold"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[150px] bg-white/10 border-white/20 text-white font-black hover:bg-white/20 transition-all rounded-xl h-10 shadow-sm">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>{MONTHS.map(m => <SelectItem value={m.value} key={m.value}>{m.label}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[100px] border-none font-bold"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[100px] bg-white/10 border-white/20 text-white font-black hover:bg-white/20 transition-all rounded-xl h-10 shadow-sm">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>{yearsOptions.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}</SelectContent>
           </Select>
-          <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
-          <Button variant="ghost" size="sm" className="h-10 gap-2 font-bold text-[#227FD8] hover:bg-blue-50" onClick={() => setIsRefreshing(true) || setTimeout(() => setIsRefreshing(false), 800)} disabled={isLoading}>
+          <div className="w-px h-6 bg-white/10 mx-1 hidden sm:block" />
+          <Button variant="ghost" size="sm" className="h-10 w-10 p-0 font-bold text-white hover:bg-white/10 rounded-xl" onClick={() => { setIsRefreshing(true); setTimeout(() => setIsRefreshing(false), 800); }} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
           </Button>
-          <Button variant="outline" size="sm" className="h-10 gap-2 font-bold border-[#227FD8] text-[#227FD8]" onClick={handleExportStyledExcel} disabled={isLoading}>
+          <Button variant="outline" size="sm" className="h-10 gap-2 font-bold bg-white/5 border-white/10 text-white hover:bg-white/10 rounded-xl shadow-sm" onClick={handleExportStyledExcel} disabled={isLoading}>
             <Download className="h-4 w-4" /> Esporta Excel
           </Button>
-          <Button variant="default" size="sm" className="h-10 gap-2 font-black bg-[#227FD8] shadow-md" onClick={() => setIsEmailOpen(true)} disabled={isLoading}>
-            <Send className="h-4 w-4" /> Invia Report
+          <Button variant="default" size="sm" className="h-10 gap-2 font-black bg-[#227FD8] hover:bg-[#1e6fb9] text-white rounded-xl shadow-lg shadow-blue-500/20 px-6" onClick={() => setIsEmailOpen(true)} disabled={isLoading}>
+            <Send className="h-4 w-4 text-white" /> Invia Report
           </Button>
         </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard 
+          title="Ore Lavorative" 
+          value={`${processedData.totals?.theo.toFixed(1)}h`} 
+          description="Quota Mensile Totale" 
+          icon={Calculator} 
+        />
+        <StatCard 
+          title="Ore Effettive" 
+          value={`${processedData.totals?.worked.toFixed(1)}h`} 
+          description="Lavoro Reale Team" 
+          icon={Clock} 
+        />
+        <StatCard 
+          title="Assenze" 
+          value={`${processedData.totals?.absence.toFixed(1)}h`} 
+          description="Ferie/Malattia/Permessi" 
+          icon={ClipboardList} 
+        />
+        <StatCard 
+          title="Saldo Netto" 
+          value={`${processedData.totals?.net.toFixed(1)}h`} 
+          description="Bilancio Mensile" 
+          icon={Zap} 
+          trend={processedData.totals?.net ? { value: Math.abs(Math.round(processedData.totals.net)), positive: processedData.totals.net >= 0 } : undefined}
+        />
       </div>
 
       <Tabs defaultValue="grid" className="w-full">
@@ -472,7 +273,7 @@ export default function ReportsPage() {
         </TabsList>
 
         <TabsContent value="grid">
-          <Card className="border-none shadow-sm overflow-hidden bg-[#F4F8FA]">
+          <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[1.5rem] overflow-hidden">
             <CardHeader className="p-6 pb-2">
               <div className="flex flex-col gap-6">
                 <div className="flex flex-wrap items-center gap-6">
@@ -481,8 +282,10 @@ export default function ReportsPage() {
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-emerald-500 text-white flex items-center justify-center rounded text-[10px] font-black">F</div> <span className="text-[10px] font-bold text-slate-600">Ferie</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-400 text-white flex items-center justify-center rounded text-[10px] font-black">P</div> <span className="text-[10px] font-bold text-slate-600">Permesso</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-blue-600 text-white flex items-center justify-center rounded text-[10px] font-black">M</div> <span className="text-[10px] font-bold text-slate-600">Malattia</span></div>
-                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-emerald-500 text-white flex items-center justify-center rounded text-[10px] font-black">S</div> <span className="text-[10px] font-bold text-slate-600">Straordinario</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-purple-600 text-white flex items-center justify-center rounded text-[10px] font-black">S</div> <span className="text-[10px] font-bold text-slate-600">Straordinario</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-slate-600 text-white flex items-center justify-center rounded text-[10px] font-black">R</div> <span className="text-[10px] font-bold text-slate-600">Riposo</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-500 text-white flex items-center justify-center rounded text-[10px] font-black">RC</div> <span className="text-[10px] font-bold text-slate-600">Riposo Comp.</span></div>
+                    <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-200 text-amber-900 flex items-center justify-center rounded text-[10px] font-black">FES</div> <span className="text-[10px] font-bold text-slate-600">Festivo</span></div>
                     <div className="flex items-center gap-2"><div className="w-6 h-6 bg-amber-100 border border-amber-300 rounded"></div> <span className="text-[10px] font-bold text-slate-600">Permesso orario</span></div>
                   </div>
                 </div>
@@ -499,26 +302,40 @@ export default function ReportsPage() {
                     <TableHeader>
                       <TableRow className="h-10 hover:bg-transparent border-none">
                         <TableHead className="w-[200px] border-r"></TableHead>
-                        {processedData.monthDays.map((day, idx) => (
-                          <TableHead key={idx} className={cn(
-                            "w-10 text-center p-0 text-[10px] font-black uppercase border-r",
-                            day.getDay() === 0 ? "bg-rose-600 text-white" : "bg-slate-200 text-slate-500"
-                          )}>
-                            {format(day, 'eee', { locale: it })}
-                          </TableHead>
-                        ))}
+                        {processedData.monthDays.map((day, idx) => {
+                          const isSun = day.getDay() === 0;
+                          const isHoliday = allHolidays?.some((h: any) => h.date === format(day, 'yyyy-MM-dd'));
+                          return (
+                            <TableHead key={idx} 
+                              className={cn(
+                                "w-10 text-center p-0 text-[10px] font-black uppercase border-r",
+                                isSun ? "" : isHoliday ? "bg-amber-400 text-amber-900" : "bg-slate-200 text-slate-500"
+                              )}
+                              style={isSun ? { backgroundColor: '#ef4444', color: '#ffffff' } : {}}
+                            >
+                              {format(day, 'eee', { locale: it })}
+                            </TableHead>
+                          );
+                        })}
                         <TableHead className="w-24 text-center text-[10px] font-black uppercase border-l bg-slate-100">SOMMA ORE</TableHead>
                       </TableRow>
                       <TableRow className="h-10 hover:bg-transparent">
                         <TableHead className="w-[200px] border-r font-black text-[11px] uppercase bg-slate-50">Dipendente</TableHead>
-                        {processedData.monthDays.map((day, idx) => (
-                          <TableHead key={idx} className={cn(
-                            "w-10 text-center p-0 text-xs font-black border-r",
-                            day.getDay() === 0 ? "bg-rose-600 text-white" : "bg-slate-300 text-slate-700"
-                          )}>
-                            {format(day, 'd')}
-                          </TableHead>
-                        ))}
+                        {processedData.monthDays.map((day, idx) => {
+                          const isSun = day.getDay() === 0;
+                          const isHoliday = allHolidays?.some((h: any) => h.date === format(day, 'yyyy-MM-dd'));
+                          return (
+                            <TableHead key={idx} 
+                              className={cn(
+                                "w-10 text-center p-0 text-xs font-black border-r",
+                                isSun ? "" : isHoliday ? "bg-amber-400 text-amber-900" : "bg-slate-300 text-slate-700"
+                              )}
+                              style={isSun ? { backgroundColor: '#ef4444', color: '#ffffff' } : {}}
+                            >
+                              {format(day, 'd')}
+                            </TableHead>
+                          );
+                        })}
                         <TableHead className="w-24 border-l bg-slate-200"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -530,11 +347,16 @@ export default function ReportsPage() {
                           </TableCell>
                           {row.rowDays.map((d: any, dIdx: number) => {
                             const isSunday = d.day.getDay() === 0;
+                            const dStr = format(d.day, 'yyyy-MM-dd');
+                            const isHoliday = allHolidays?.some((h: any) => h.date === dStr);
                             return (
-                              <TableCell key={dIdx} className={cn(
-                                "w-10 p-0 text-center border-r transition-colors h-12",
-                                isSunday ? "bg-rose-600/90 text-white" : "bg-white group-hover:bg-slate-50"
-                              )}>
+                              <TableCell key={dIdx} 
+                                className={cn(
+                                  "w-10 p-0 text-center border-r transition-colors h-12",
+                                  isSunday ? "" : isHoliday ? "bg-amber-100 text-amber-900" : "bg-white group-hover:bg-slate-50"
+                                )}
+                                style={isSunday ? { backgroundColor: '#ef4444', color: '#ffffff' } : {}}
+                              >
                                 {d.parts && d.parts.length > 0 && (
                                   <div className="flex flex-col h-full w-full">
                                     {d.parts.map((p: any, pIdx: number) => (
@@ -542,8 +364,10 @@ export default function ReportsPage() {
                                         "flex-1 flex items-center justify-center font-black text-[9px] leading-tight",
                                         p.type === 'vacation' && "bg-emerald-500 text-white",
                                         p.type === 'sick' && "bg-blue-600 text-white",
-                                        p.type === 'rest' && "bg-slate-600 text-white",
-                                        p.type === 'overtime' && "bg-emerald-500 text-white",
+                                        p.type === 'rest' && (isSunday ? "text-white font-black" : "bg-slate-600 text-white"),
+                                        p.type === 'holiday' && "bg-amber-200 text-amber-900",
+                                        p.type === 'compensatory_rest' && "bg-amber-500 text-white",
+                                        p.type === 'overtime' && "bg-purple-600 text-white",
                                         p.type === 'permit' && (p.value === 'P' ? "bg-slate-400 text-white" : "bg-amber-100 text-amber-900 border-y border-amber-200"),
                                         p.type === 'work' && (isSunday ? "text-white" : "text-slate-700")
                                       )}>
@@ -570,15 +394,16 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="summary">
-          <Card className="border-none shadow-sm overflow-hidden bg-white">
+          <Card className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-[1.5rem] overflow-hidden">
             <CardContent className="p-0">
               <Table>
                 <TableHeader className="bg-slate-50/50">
                   <TableRow className="h-12">
                     <TableHead className="text-sm font-bold uppercase text-slate-500 pl-8">Collaboratore</TableHead>
-                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ore Lavorate</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ore lavorative</TableHead>
+                    <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Ore Effettive</TableHead>
                     <TableHead className="text-sm font-bold uppercase text-slate-500 text-center">Assenze (h)</TableHead>
-                    <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Ore Totali (Netto)</TableHead>
+                    <TableHead className="text-right text-sm font-bold uppercase pr-8 text-slate-500">Differenza (Netto)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -592,11 +417,12 @@ export default function ReportsPage() {
                           <div className="flex flex-col"><span className="font-bold text-slate-900">{row.name}</span><span className="text-[10px] text-slate-400 font-bold uppercase">{row.jobTitle}</span></div>
                         </div>
                       </TableCell>
+                      <TableCell className="text-center font-bold text-slate-500">{row.theoreticalHoursStr}</TableCell>
                       <TableCell className="text-center font-bold text-slate-700">{row.workedHoursStr}</TableCell>
-                      <TableCell className="text-center font-bold text-rose-500">{row.absenceHoursStr}</TableCell>
+                      <TableCell className="text-center font-bold text-red-500">{row.absenceHoursStr}</TableCell>
                       <TableCell className="text-right pr-8">
-                        <span className={cn("text-lg font-black", row.hasAbsences ? "text-rose-600" : "text-slate-900")}>
-                          {row.totalNetStr}
+                        <span className={cn("text-lg font-black", parseFloat(row.totalNetStr) < 0 ? "text-red-600" : "text-emerald-600")}>
+                          {parseFloat(row.totalNetStr) > 0 ? `+${row.totalNetStr}` : row.totalNetStr}
                         </span>
                       </TableCell>
                     </TableRow>

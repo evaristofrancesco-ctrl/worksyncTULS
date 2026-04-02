@@ -65,11 +65,28 @@ export default function LoginPage() {
       if (userData) {
         const fullName = `${userData.firstName} ${userData.lastName}`
         
-        // Aggiorniamo il profilo per le notifiche di sistema
+        // Aggiorniamo il profilo e colleghiamo l'UID al documento per le regole di sicurezza
         if (auth.currentUser) {
+          const userUid = auth.currentUser.uid;
           await updateProfile(auth.currentUser, {
             displayName: fullName
           });
+          
+          // Colleghiamo l'UID al documento dipendente se non già presente o diverso
+          const { doc, updateDoc, setDoc } = await import("firebase/firestore");
+          const empRef = doc(db, "employees", userData.id);
+          await updateDoc(empRef, { 
+            authUid: userUid,
+            lastLogin: new Date().toISOString()
+          });
+
+          // Creiamo un documento di mappatura UID -> EmployeeID per le regole di sicurezza (Storage)
+          const userMappingRef = doc(db, "users", userUid);
+          await setDoc(userMappingRef, {
+            employeeId: userData.id,
+            role: (userData.role || "employee").toLowerCase(),
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
         }
 
         // Salviamo la sessione locale

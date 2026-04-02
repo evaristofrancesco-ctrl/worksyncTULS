@@ -48,7 +48,8 @@ OBIETTIVO: Assegna i dipendenti agli slot orari in modo RAPIDO.
 
 REGOLE TASSATIVE:
 1. RIPOSO: Se un dipendente ha riposo il giorno X, non assegnarlo MAI in quel giorno.
-2. DISTRIBUZIONE: Cerca di assegnare circa lo stesso numero di turni a tutti.
+2. FESTIVI: Se la giornata è contrassegnata come festivo (FES), non assegnare nessun turno di lavoro.
+3. DISTRIBUZIONE: Cerca di assegnare circa lo stesso numero di turni a tutti.
 3. COPERTURA: Ogni slot (ID) deve avere 1 persona. Se ci sono più slot per lo stesso orario, assegna persone diverse.
 
 Ignora le sedi. Restituisci solo l'array optimizedAssignments.

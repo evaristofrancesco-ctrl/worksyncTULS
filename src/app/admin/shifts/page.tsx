@@ -100,6 +100,12 @@ export default function ShiftsPage() {
   }, [db])
   const { data: allRequests } = useCollection(requestsQuery)
 
+  const holidaysQuery = useMemoFirebase(() => {
+    if (!db) return null;
+    return collection(db, "holidays");
+  }, [db])
+  const { data: allHolidays } = useCollection(holidaysQuery)
+
   const displayEmployees = useMemo(() => {
     if (!employees) return [];
     const order = ['vittorio', 'isa', 'rosa', 'savino'];
@@ -254,9 +260,11 @@ export default function ShiftsPage() {
         
         daysOfVisualizedWeek.forEach((day) => {
           const dayOfWeek = day.getDay();
-          if (dayOfWeek === 0) return; 
-
           const dStr = format(day, 'yyyy-MM-dd');
+          const isHoliday = allHolidays?.some(h => h.date === dStr);
+          
+          if (dayOfWeek === 0 || isHoliday) return; 
+
           const request = approvedRequests.find(r => r.employeeId === emp.id && r.startDate <= dStr && (r.endDate || r.startDate) >= dStr);
 
           if (request) {
@@ -268,8 +276,8 @@ export default function ShiftsPage() {
               date: dStr,
               startTime: new Date(`${dStr}T09:00:00`).toISOString(),
               endTime: new Date(`${dStr}T20:20:00`).toISOString(),
-              title: request.type === 'VACATION' ? 'FERIE' : request.type === 'SICK' ? 'MALATTIA' : 'PERMESSO',
-              type: request.type === 'SICK' ? "SICK" : "ABSENCE",
+              title: request.type === 'VACATION' ? 'FERIE' : request.type === 'SICK' ? 'MALATTIA' : request.type === 'COMPENSATORY_REST' ? 'RIPOSO COMP.' : 'PERMESSO',
+              type: request.type === 'SICK' ? "SICK" : request.type === 'COMPENSATORY_REST' ? "COMPENSATORY_REST" : "ABSENCE",
               companyId: "default",
               status: "SCHEDULED"
             }, { merge: true });
@@ -498,6 +506,7 @@ export default function ShiftsPage() {
                   <SelectItem value="ABSENCE" className="font-bold">Assenza / Ferie</SelectItem>
                   <SelectItem value="SICK" className="font-bold">Malattia</SelectItem>
                   <SelectItem value="HOURLY_PERMIT" className="font-bold">Permesso Orario</SelectItem>
+                  <SelectItem value="COMPENSATORY_REST" className="font-bold">Riposo Compensativo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -556,6 +565,9 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
   } else if (ev.type === 'SICK') {
     colorClass = "border-l-rose-700 bg-rose-100 text-rose-900";
     icon = <Activity className="h-4 w-4 text-rose-700" />;
+  } else if (ev.type === 'COMPENSATORY_REST') {
+    colorClass = "border-l-amber-500 bg-amber-50 text-amber-900";
+    icon = <Zap className="h-4 w-4 text-amber-500" />;
   } else if (ev.type === 'OVERTIME') {
     colorClass = "border-l-emerald-600 bg-emerald-50 text-emerald-900";
     icon = <Zap className="h-4 w-4 text-emerald-600" />;
@@ -580,7 +592,7 @@ function EventBadge({ ev, onEdit, onDragStart }: { ev: any, onEdit: () => void, 
       <div className="flex flex-col gap-1 pointer-events-none">
         <div className="flex items-center justify-between">
           <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
-            {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : ev.type === 'SICK' ? 'MALATTIA' : ev.type === 'OVERTIME' ? 'EXTRA' : ev.type === 'HOURLY_PERMIT' ? 'PERMESSO' : 'LAVORO'}
+            {ev.type === 'REST' ? 'RIPOSO' : ev.type === 'ABSENCE' ? 'ASSENZA' : ev.type === 'SICK' ? 'MALATTIA' : ev.type === 'COMPENSATORY_REST' ? 'R. COMPENS.' : ev.type === 'OVERTIME' ? 'EXTRA' : ev.type === 'HOURLY_PERMIT' ? 'PERMESSO' : 'LAVORO'}
           </span>
           {icon}
         </div>

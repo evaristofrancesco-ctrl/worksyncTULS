@@ -15,7 +15,8 @@ import {
   Trash2,
   Mail,
   Copy,
-  Sparkles
+  Sparkles,
+  Zap
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -32,7 +33,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, doc } from "firebase/firestore"
+import { collection, collectionGroup, doc, query, limit, orderBy } from "firebase/firestore"
 import { updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
 import { useMemo, useState } from "react"
@@ -58,7 +59,10 @@ export default function RequestsPage() {
 
   const requestsQuery = useMemoFirebase(() => {
     if (!db) return null;
-    return collectionGroup(db, "requests");
+    return query(
+      collectionGroup(db, "requests"),
+      limit(500)
+    );
   }, [db])
   const { data: requests, isLoading } = useCollection(requestsQuery)
 
@@ -161,6 +165,7 @@ export default function RequestsPage() {
       case 'SICK': return <Activity className="h-4 w-4" />;
       case 'HOURLY_PERMIT': return <Timer className="h-4 w-4" />;
       case 'REST_SWAP': return <RefreshCw className="h-4 w-4" />;
+      case 'COMPENSATORY_REST': return <Zap className="h-4 w-4 text-amber-500" />;
       default: return <Calendar className="h-4 w-4" />;
     }
   }
@@ -351,7 +356,7 @@ function RequestCard({ request, emp, onApprove, onReject, onDraft, isHistory = f
             {isExpanded && (
               <div className="px-4 pb-4 animate-in slide-in-from-top-2 duration-200">
                 <div className="p-3 bg-slate-50/50 rounded-xl border border-dashed space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
                       <p className="text-[9px] font-black uppercase text-slate-400 mb-1">Periodo Richiesto</p>
                       <p className="text-xs font-bold text-slate-700">{request.startDate} {request.endDate ? `al ${request.endDate}` : ""}</p>

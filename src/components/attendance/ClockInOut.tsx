@@ -1,8 +1,7 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
-import { Clock, Play, Square, MapPin, Loader2 } from "lucide-react"
+import { Clock, Play, Square, MapPin, Loader2, Zap, Hourglass } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -10,6 +9,7 @@ import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, orderBy, limit, doc } from "firebase/firestore"
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
 
 export function ClockInOut() {
   const db = useFirestore()
@@ -20,8 +20,10 @@ export function ClockInOut() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [employeeId, setEmployeeId] = useState<string | null>(null)
   const [userName, setUserName] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     setEmployeeId(localStorage.getItem("employeeId"))
     setUserName(localStorage.getItem("userName"))
     setTime(new Date())
@@ -77,11 +79,9 @@ export function ClockInOut() {
         return d;
       };
 
-      // Definizione slot aggiornata: Mattina (09:00-13:00) e Pomeriggio (17:00-20:20)
-      // Usiamo 17:00 per garantire il totale di 7h 20m giornaliere.
       const slots = isClockedIn 
-        ? [getPrecise(13, 0), getPrecise(20, 20)] // Slot per uscita
-        : [getPrecise(9, 0), getPrecise(17, 0)]; // Slot per entrata
+        ? [getPrecise(13, 0), getPrecise(20, 20)] 
+        : [getPrecise(9, 0), getPrecise(17, 0)];
 
       let minDiff = Infinity;
       let targetPrecise: Date | null = null;
@@ -94,7 +94,6 @@ export function ClockInOut() {
         }
       });
 
-      // Arrotondamento 20 minuti (prima e dopo)
       if (minDiff <= 20 && targetPrecise) {
         effectiveTime = (targetPrecise as Date).toISOString();
       } else {
@@ -139,7 +138,7 @@ export function ClockInOut() {
     } catch (e) {
       console.error(e)
     } finally {
-      setTimeout(() => setIsProcessing(false), 1000)
+      setTimeout(() => setIsProcessing(false), 500)
     }
   }
 
@@ -157,55 +156,69 @@ export function ClockInOut() {
   }
 
   return (
-    <Card className="border-primary/20 bg-primary/5">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Clock className="h-5 w-5 text-primary" />
-            Timbratura
-          </CardTitle>
-          <Badge variant={isClockedIn ? "default" : "secondary"} className={isClockedIn ? "bg-green-500" : ""}>
-            {isClockedIn ? "In Servizio" : "Offline"}
-          </Badge>
+    <Card className="border-none shadow-2xl bg-white rounded-[2.5rem] overflow-hidden ring-1 ring-slate-100 flex flex-col items-center">
+      <div className={cn(
+        "w-full p-6 pb-8 text-center relative overflow-hidden",
+        isClockedIn ? "bg-green-500" : "bg-[#1e293b]"
+      )}>
+        <div className="absolute top-0 left-0 p-8 opacity-10 pointer-events-none">
+          <Clock className="h-24 w-24 text-white" />
         </div>
-        <CardDescription>Registra le tue ore di lavoro per oggi.</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center py-6 gap-6">
-        <div className="text-center">
-          <p className="text-4xl font-mono font-bold tracking-tighter text-primary">
-            {time ? time.toLocaleTimeString('it-IT', { hour12: false }) : "00:00:00"}
+        <Badge className="bg-white/20 border-none font-black text-[9px] uppercase tracking-[0.2em] mb-3 text-white">
+          Modulo Timbratura
+        </Badge>
+        <div className="relative z-10 flex flex-col items-center gap-1">
+          <p className="text-4xl font-black font-mono tracking-tighter text-white italic">
+            {mounted && time ? time.toLocaleTimeString('it-IT', { hour12: false }) : "--:--:--"}
           </p>
-          <p className="text-sm text-muted-foreground mt-1 capitalize">
-            {time ? time.toLocaleDateString('it-IT', { weekday: 'long', month: 'long', day: 'numeric' }) : "Caricamento..."}
+          <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest mt-1">
+            {mounted && time ? time.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'short' }) : "Caricamento"}
           </p>
         </div>
+      </div>
 
+      <CardContent className="p-8 w-full space-y-8 flex flex-col items-center mt-[-2rem] relative z-20">
         {isClockedIn && (
-          <div className="bg-white dark:bg-slate-900 rounded-lg p-3 w-full border text-center shadow-sm animate-pulse">
-            <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Tempo Trascorso</p>
-            <p className="text-2xl font-mono font-bold text-[#1e293b]">{elapsed}</p>
+          <div className="bg-white rounded-[1.5rem] p-6 w-full shadow-xl ring-1 ring-slate-100 flex flex-col items-center animate-in zoom-in-75 duration-300">
+             <div className="flex items-center gap-2 mb-2">
+                <Hourglass className="h-3 w-3 text-green-500 animate-spin-slow" />
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Tempo in Servizio</span>
+             </div>
+             <p className="text-3xl font-black font-mono text-[#1e293b] tracking-tighter">{elapsed}</p>
           </div>
         )}
 
-        <div className="flex gap-4 w-full">
-          <Button 
-            onClick={handleClockToggle}
-            disabled={isProcessing || isEntriesLoading}
-            className={`flex-1 h-12 gap-2 text-lg font-bold shadow-md transition-all ${isClockedIn ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'}`}
-          >
-            {isProcessing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : isClockedIn ? (
-              <><Square className="h-5 w-5 fill-current" /> Uscita</>
-            ) : (
-              <><Play className="h-5 w-5 fill-current" /> Entrata</>
-            )}
-          </Button>
+        <div className="w-full space-y-4">
+           {isClockedIn ? (
+              <Button 
+                onClick={handleClockToggle}
+                disabled={isProcessing || isEntriesLoading}
+                className="w-full h-20 rounded-[1.5rem] bg-white border-2 border-rose-100 text-rose-600 hover:bg-rose-50 font-black text-xl italic tracking-tighter shadow-lg shadow-rose-200/20 active:scale-95 transition-all group"
+              >
+                {isProcessing ? <Loader2 className="h-8 w-8 animate-spin" /> : (
+                  <div className="flex items-center gap-3">
+                    <Square className="h-6 w-6 fill-current group-hover:scale-110 transition-transform" /> TERMINA TURNO
+                  </div>
+                )}
+              </Button>
+           ) : (
+              <Button 
+                onClick={handleClockToggle}
+                disabled={isProcessing || isEntriesLoading}
+                className="w-full h-20 rounded-[1.5rem] bg-[#227FD8] hover:bg-[#1e293b] text-white font-black text-xl italic tracking-tighter shadow-xl shadow-blue-500/10 active:scale-95 transition-all group"
+              >
+                {isProcessing ? <Loader2 className="h-8 w-8 animate-spin" /> : (
+                  <div className="flex items-center gap-3">
+                    <Play className="h-6 w-6 fill-current group-hover:scale-110 transition-transform" /> INIZIA TURNO
+                  </div>
+                )}
+              </Button>
+           )}
         </div>
-        
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground italic">
-          <MapPin className="h-3 w-3" />
-          <span>Sede Centrale - Arrotondamento 20m attivo</span>
+
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 tracking-widest bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+          <MapPin className="h-3.5 w-3.5 text-[#227FD8]" />
+          <span>Sede Centrale - GPS Attivo</span>
         </div>
       </CardContent>
     </Card>

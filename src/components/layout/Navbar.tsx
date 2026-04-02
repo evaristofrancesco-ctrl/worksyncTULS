@@ -1,7 +1,7 @@
 
 "use client"
 
-import { Bell, Search, User, LogOut, Settings, Loader2, Check, Inbox, Menu, LayoutDashboard, Users, MapPin, Calendar, Clock, FileText, ArrowLeftRight, Calculator, Info, ClipboardList, UserCircle } from "lucide-react"
+import { Bell, Search, User, LogOut, Settings, Loader2, Check, Inbox, Menu, LayoutDashboard, Users, MapPin, Calendar, Clock, FileText, ArrowLeftRight, Calculator, Info, ClipboardList, UserCircle, FolderOpen } from "lucide-react"
 import { useState, useMemo, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -15,10 +15,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useAuth, useFirestore, useCollection, useMemoFirebase } from "@/firebase"
+import { useAuth, useFirestore, useCollection, useMemoFirebase, useDoc } from "@/firebase"
 import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
-import { collection, query, where, limit, doc } from "firebase/firestore"
+import { collection, query, where, limit, doc, orderBy } from "firebase/firestore"
 import { updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
@@ -36,7 +36,13 @@ const adminLinks = [
   { name: "Richieste", href: "/admin/requests", icon: FileText },
   { name: "Modifiche", href: "/admin/modifications", icon: ArrowLeftRight },
   { name: "Conteggio", href: "/admin/reports", icon: Calculator },
+  { name: "Documenti", href: "/admin/documents", icon: FolderOpen },
   { name: "UTILITY", href: "/admin/utilities", icon: Info },
+]
+
+const adminPersonalLinks = [
+  { name: "I Miei Turni", href: "/admin/my-shifts", icon: Calendar },
+  { name: "Le Mie Presenze", href: "/admin/my-attendance", icon: Clock },
 ]
 
 const employeeLinks = [
@@ -45,6 +51,7 @@ const employeeLinks = [
   { name: "Le Mie Presenze", href: "/employee/attendance", icon: Clock },
   { name: "Le Mie Richieste", href: "/employee/requests", icon: FileText },
   { name: "Entra/Esce", href: "/employee/modification-requests", icon: ClipboardList },
+  { name: "Documenti", href: "/employee/documents", icon: FolderOpen },
   { name: "UTILITY", href: "/employee/utilities", icon: Info },
 ]
 
@@ -62,6 +69,13 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
     setCurrentEmployeeId(localStorage.getItem("employeeId"))
   }, [])
 
+  const employeeRef = useMemo(() => {
+    if (!db || !currentEmployeeId) return null;
+    return doc(db, "employees", currentEmployeeId);
+  }, [db, currentEmployeeId]);
+
+  const { data: employeeData } = useDoc(employeeRef);
+
   const isAdmin = role.toUpperCase() === 'ADMIN'
   const navLinks = isAdmin ? adminLinks : employeeLinks
 
@@ -75,7 +89,7 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
     return query(
       collection(db, "notifications"),
       where("recipientId", "in", [recipient, "ALL"]),
-      limit(50) // Aumentato il limite per evitare che i vecchi messaggi nascondano i nuovi
+      limit(50) 
     );
   }, [db, currentEmployeeId, role, isAdmin])
 
@@ -144,7 +158,7 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
               <div className="space-y-6">
                 <nav className="space-y-1">
                   <div className="px-3 mb-2 text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">
-                    Navigazione
+                    {isAdmin ? "Gestione Aziendale" : "Attività Aziendali"}
                   </div>
                   {navLinks.map((link) => {
                     const Icon = link.icon
@@ -167,6 +181,34 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
                     )
                   })}
                 </nav>
+
+                {isAdmin && (
+                  <nav className="space-y-1 pt-4">
+                    <div className="px-3 mb-2 text-[10px] font-black uppercase text-muted-foreground tracking-widest opacity-60">
+                      La Mia Area
+                    </div>
+                    {adminPersonalLinks.map((link) => {
+                      const Icon = link.icon
+                      const isActive = pathname === link.href
+                      return (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className={cn(
+                            "flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition-all",
+                            isActive 
+                              ? "bg-primary text-primary-foreground shadow-md" 
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                          {link.name}
+                        </Link>
+                      )
+                    })}
+                  </nav>
+                )}
 
                 <div className="pt-4 border-t">
                    <Button 
@@ -249,9 +291,9 @@ export function Navbar({ userName, role }: { userName: string, role: string }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-10 flex items-center gap-2 px-1 hover:bg-muted/50 rounded-xl transition-all">
-                <Avatar className="h-8 w-8 border-2 border-white shadow-sm">
-                  <AvatarImage src={`https://picsum.photos/seed/${userName}/100/100`} />
-                  <AvatarFallback className="font-black text-[10px]">{userName.charAt(0)}</AvatarFallback>
+                <Avatar className="h-8 w-8 border-2 border-white shadow-sm overflow-hidden">
+                  <AvatarImage src={employeeData?.photoUrl || `https://picsum.photos/seed/${userName}/100/100`} className="object-cover" />
+                  <AvatarFallback className="font-black text-[10px] bg-slate-800 text-white">{userName.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start text-xs hidden sm:flex pr-2">
                   <span className="font-black text-slate-900 leading-none">{userName.split(' ')[0]}</span>

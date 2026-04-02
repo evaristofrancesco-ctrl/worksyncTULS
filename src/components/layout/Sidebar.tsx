@@ -17,7 +17,9 @@ import {
   Info,
   UserCircle,
   Briefcase,
-  Calculator
+  Calculator,
+  Star,
+  FolderOpen
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -30,6 +32,8 @@ const adminLinks = [
   { name: "Richieste", href: "/admin/requests", icon: FileText },
   { name: "Modifiche", href: "/admin/modifications", icon: ArrowLeftRight },
   { name: "Conteggio", href: "/admin/reports", icon: Calculator },
+  { name: "Festività", href: "/admin/holidays", icon: Star },
+  { name: "Documenti", href: "/admin/documents", icon: FolderOpen },
   { name: "UTILITY", href: "/admin/utilities", icon: Info },
 ]
 
@@ -38,6 +42,7 @@ const adminPersonalLinks = [
   { name: "Mie Presenze", href: "/employee/attendance", icon: Clock },
   { name: "Mie Richieste", href: "/employee/requests", icon: FileText },
   { name: "Entra/Esce", href: "/employee/modification-requests", icon: ClipboardList },
+  { name: "Miei Documenti", href: "/employee/documents", icon: FolderOpen },
   { name: "UTILITY", href: "/employee/utilities", icon: Info },
 ]
 
@@ -47,6 +52,7 @@ const employeeLinks = [
   { name: "Le Mie Presenze", href: "/employee/attendance", icon: Clock },
   { name: "Le Mie Richieste", href: "/employee/requests", icon: FileText },
   { name: "Entra/Esce", href: "/employee/modification-requests", icon: ClipboardList },
+  { name: "Documenti", href: "/employee/documents", icon: FolderOpen },
   { name: "UTILITY", href: "/employee/utilities", icon: Info },
 ]
 

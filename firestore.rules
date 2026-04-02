@@ -2,7 +2,39 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Permettiamo tutto agli utenti autenticati per risolvere problemi di accesso immediato.
+    
+    // Helper per verificare se l'utente è un admin
+    function isAdmin() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/employees/$(getEmployeeId())).data.role == 'admin';
+    }
+    
+    // Helper per ottenere l'ID del dipendente associato all'Auth UID
+    // Nota: assumiamo che l'ID del documento sia memorizzato o che l'UID sia nel documento
+    function getEmployeeId() {
+      // Questa è una semplificazione. In una produzione reale useremmo custom claims.
+      // Qui facciamo affidamento sul fatto che i documenti hanno il campo authUid.
+      return request.auth.uid; 
+    }
+
+    // Regole per la collezione employees
+    match /employees/{employeeId} {
+      allow read: if request.auth != null; // Tutti possono vedere la lista (per select admin ecc)
+      allow write: if isAdmin();
+      
+      // Regole per i documenti (sottocollezione)
+      match /documents/{docId} {
+        // Un dipendente può leggere solo i propri documenti
+        // Verifichiamo che l'authUid nel documento dipendente corrisponda a chi richiede
+        allow read: if request.auth != null && (
+          request.auth.uid == get(/databases/$(database)/documents/employees/$(employeeId)).data.authUid ||
+          isAdmin()
+        );
+        allow write: if isAdmin();
+      }
+    }
+
+    // Regole generali per le altre collezioni (manteniamo aperto per ora per non rompere l'app esistente)
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

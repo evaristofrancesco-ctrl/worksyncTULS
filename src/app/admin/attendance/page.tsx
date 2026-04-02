@@ -1,22 +1,15 @@
 
 "use client"
 
-import { Clock, Search, Loader2, Zap, Plus, Edit, Trash2, CalendarDays, History, Fingerprint, ShieldCheck, Umbrella, ChevronRight } from "lucide-react"
+import { Clock, Search, Loader2, Zap, Plus, Edit, Trash2, CalendarDays, History, Fingerprint, ShieldCheck, Umbrella, ChevronRight, ArrowRight, Sun, Moon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import { useFirestore, useCollection, useMemoFirebase, useUser } from "@/firebase"
-import { collection, collectionGroup, doc, query, limit } from "firebase/firestore"
+import { collection, collectionGroup, doc, query, limit, orderBy } from "firebase/firestore"
 import { useState, useMemo } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from "@/firebase/non-blocking-updates"
@@ -64,7 +57,10 @@ export default function AttendancePage() {
   // Rimosso orderBy per evitare l'errore di indice mancante che bloccava la visualizzazione
   const timeEntriesQuery = useMemoFirebase(() => {
     if (!db || !user) return null;
-    return query(collectionGroup(db, "timeentries"), limit(1000));
+    return query(
+      collectionGroup(db, "timeentries"),
+      limit(1000)
+    );
   }, [db, user])
   const { data: entries, isLoading: isLoadingEntries } = useCollection(timeEntriesQuery)
 
@@ -245,207 +241,323 @@ export default function AttendancePage() {
     }
   }
 
+  const calculateDuration = (start: string, end: string | null) => {
+    if (!start || !end) return null;
+    try {
+      const s = new Date(start);
+      const e = new Date(end);
+      if (!isValid(s) || !isValid(e)) return null;
+      const diffMs = e.getTime() - s.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const hours = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    } catch { return null; }
+  }
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-[#1e293b] tracking-tight">Registro Presenze</h1>
-          <p className="text-sm text-muted-foreground font-medium flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[#227FD8]" /> 
-            {showAllHistory || filterDate || searchQuery ? "Risultati ricerca e storico" : "Vista focalizzata sulla giornata di oggi."}
+    <div className="space-y-6 animate-in fade-in duration-700 pb-16">
+      {/* --- REFINED HEADER --- */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-[2rem] shadow-sm ring-1 ring-slate-200">
+        <div className="space-y-1">
+          <Badge className="bg-[#227FD8]/10 text-[#227FD8] hover:bg-[#227FD8]/20 border-none px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em]">
+            Gestione Operativa
+          </Badge>
+          <h1 className="text-3xl font-black text-[#1e293b] tracking-tighter">Registro Presenze</h1>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+            <Clock className="h-3 w-3" /> 
+            {showAllHistory || filterDate || searchQuery ? "Risultati filtrati" : "Monitoraggio odierno"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
           {!showAllHistory && !filterDate && !searchQuery && (
-            <Button variant="outline" onClick={() => setShowAllHistory(true)} className="font-bold border-slate-200 text-slate-600 h-11 px-6">
-              <History className="h-5 w-5 mr-2" /> Vedi Storico
+            <Button variant="ghost" onClick={() => setShowAllHistory(true)} className="font-black text-[10px] uppercase tracking-widest h-12 px-6 rounded-2xl hover:bg-slate-50 border border-slate-100">
+              <History className="h-4 w-4 mr-2 text-[#227FD8]" /> Storico
             </Button>
           )}
-          <Button variant="default" onClick={() => setIsAddOpen(true)} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-11 px-6 shadow-md">
-            <Plus className="h-5 w-5 mr-2" /> Inserimento Manuale
+          <Button onClick={() => setIsAddOpen(true)} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black h-12 px-8 rounded-2xl shadow-lg shadow-blue-500/20 text-[10px] uppercase tracking-widest">
+            <Plus className="h-4 w-4 mr-2" /> Inserisci
           </Button>
         </div>
       </div>
 
-      <Card className="border-none shadow-sm bg-white ring-1 ring-slate-200">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              <Input placeholder="Cerca collaboratore..." className="pl-9 h-10 border-none bg-slate-50" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+      {/* --- NEW FILTER BAR --- */}
+      <div className="bg-[#1e293b] p-3 rounded-3xl shadow-xl">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <div className="relative group">
+            <Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-500 transition-colors group-focus-within:text-[#227FD8]" />
+            <Input 
+              placeholder="Cerca collaboratore..." 
+              className="pl-11 h-11 border-none bg-white/5 text-white placeholder:text-slate-500 rounded-2xl focus-visible:ring-1 focus-visible:ring-[#227FD8] transition-all" 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+            />
+          </div>
+          <div className="relative">
+             <Input 
+              type="date" 
+              className="h-11 border-none bg-white/5 text-white placeholder:text-slate-500 rounded-2xl focus-visible:ring-1 focus-visible:ring-[#227FD8] [color-scheme:dark]" 
+              value={filterDate} 
+              onChange={(e) => setFilterDate(e.target.value)} 
+            />
+          </div>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="h-11 border-none bg-white/5 text-white rounded-2xl focus:ring-[#227FD8]">
+              <SelectValue placeholder="Fonte" />
+            </SelectTrigger>
+            <SelectContent className="rounded-2xl border-none shadow-2xl bg-[#1e293b] text-white">
+              <SelectItem value="all">Tutti i movimenti</SelectItem>
+              <SelectItem value="USER">Registrazioni Utente</SelectItem>
+              <SelectItem value="AUTO">Registrazioni Auto</SelectItem>
+              <SelectItem value="ADMIN">Inserimenti Admin</SelectItem>
+              <SelectItem value="ABSENCE">Assenze e Ferie</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button 
+            variant="ghost" 
+            className="h-11 text-slate-400 hover:text-white hover:bg-white/10 rounded-2xl font-black text-[10px] uppercase tracking-widest" 
+            onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}
+          >
+            Reset Filtri
+          </Button>
+        </div>
+      </div>
+
+      {/* --- ACTIVITY STREAM --- */}
+      <div className="space-y-10">
+        {isLoadingEntries || isLoadingRequests ? (
+          <div className="py-24 text-center">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto text-[#227FD8] opacity-20" />
+            <p className="mt-4 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Caricamento registro...</p>
+          </div>
+        ) : groupedEntries.length > 0 ? groupedEntries.map(([date, dayEntries]) => (
+          <div key={date} className="space-y-4">
+            <div className="flex items-center gap-4 px-2">
+              <div className="h-px flex-1 bg-slate-200" />
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-[#227FD8]" />
+                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#1e293b]">
+                  {isSameDay(parseISO(date), new Date()) ? "OGGI • " : ""}
+                  {format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}
+                </span>
+              </div>
+              <div className="h-px flex-1 bg-slate-200" />
             </div>
-            <Input type="date" className="h-10 border-none bg-slate-50" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="h-10 border-none bg-slate-50">
-                <SelectValue placeholder="Fonte" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tutte le fonti</SelectItem>
-                <SelectItem value="USER">Utente</SelectItem>
-                <SelectItem value="AUTO">Automatiche</SelectItem>
-                <SelectItem value="ADMIN">Admin</SelectItem>
-                <SelectItem value="ABSENCE">Assenze</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-10 font-bold flex-1" onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}>Reset</Button>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {dayEntries.map((log) => {
+                const emp = employeeMap[log.employeeId];
+                const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
+                const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
+                const isAbsence = log.type === 'ABSENCE';
+                const duration = calculateDuration(log.checkInTime, log.checkOutTime);
+                const isInProgress = !cOut && !isAbsence;
+                const isMorning = cIn && isValid(cIn) ? cIn.getHours() < 13 : true;
+                const ShiftIcon = isMorning ? Sun : Moon;
+
+                return (
+                  <div key={log.id} className="group relative bg-white rounded-[2rem] p-5 shadow-sm ring-1 ring-slate-200 hover:shadow-xl hover:ring-[#227FD8]/30 transition-all duration-500 overflow-hidden">
+                    {/* Subtle Shift Accent */}
+                    <div className={cn(
+                      "absolute top-0 left-0 w-1 h-full transition-all duration-500",
+                      isAbsence ? "bg-slate-200" : isMorning ? "bg-amber-400" : "bg-indigo-500"
+                    )} />
+
+                    {/* Soft Glow Background */}
+                    <div className={cn(
+                      "absolute -top-24 -right-24 w-64 h-64 rounded-full blur-[80px] opacity-[0.03] transition-all duration-700 group-hover:opacity-[0.07]",
+                      isAbsence ? "bg-slate-400" : isMorning ? "bg-amber-400" : "bg-indigo-500"
+                    )} />
+                    
+                    <div className="relative z-10 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 border-2 border-white shadow-sm ring-1 ring-slate-100">
+                            <AvatarImage src={emp?.photoUrl} />
+                            <AvatarFallback className="bg-[#1e293b] text-white font-black text-xs">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-black text-sm text-[#1e293b] truncate leading-none">
+                                {emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}
+                              </p>
+                              {!isAbsence && <ShiftIcon className={cn("h-3 w-3 opacity-30", isMorning ? "text-amber-500" : "text-indigo-500")} />}
+                            </div>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{emp?.jobTitle || "Dipartimento"}</span>
+                          </div>
+                        </div>
+                        {getSourceBadge(log.type)}
+                      </div>
+
+                      <div className={cn(
+                        "rounded-2xl p-4 flex flex-col gap-3",
+                        isAbsence ? "bg-rose-50" : isInProgress ? "bg-green-50/50" : "bg-slate-50"
+                      )}>
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Ingresso</p>
+                            <p className="text-sm font-black text-[#1e293b]">{cIn && isValid(cIn) ? format(cIn, "HH:mm") : "--:--"}</p>
+                          </div>
+                          <div className="h-8 w-8 rounded-full bg-white flex items-center justify-center shadow-sm">
+                            <ArrowRight className={cn("h-3 w-3", isAbsence ? "text-rose-400" : "text-[#227FD8]")} />
+                          </div>
+                          <div className="space-y-1 text-right">
+                            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Uscita</p>
+                            <p className={cn("text-sm font-black", isInProgress ? "text-green-600 animate-pulse" : "text-[#1e293b]")}>
+                              {cOut && isValid(cOut) ? format(cOut, "HH:mm") : isInProgress ? "In Corso" : "--:--"}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {duration && (
+                          <div className="pt-2 border-t border-white/50 flex justify-between items-center">
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-[0.2em]">Durata Totale</span>
+                            <Badge className="bg-white text-[#1e293b] border-none font-black text-[10px] shadow-sm">
+                              {duration}
+                            </Badge>
+                          </div>
+                        )}
+                        {isAbsence && (
+                          <div className="pt-2 border-t border-rose-100 flex justify-between items-center text-rose-700">
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em]">Tipo Assenza</span>
+                            <span className="text-[10px] font-black uppercase">{log.absenceType || "N/D"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-300">
+                        {!isAbsence && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1 rounded-xl h-9 font-black text-[9px] uppercase tracking-widest border-slate-200 hover:bg-[#1e293b] hover:text-white transition-all"
+                            onClick={() => handleEditClick(log)}
+                          >
+                            <Edit className="h-3 w-3 mr-1.5" /> Modifica
+                          </Button>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="rounded-xl h-9 font-black text-[9px] uppercase tracking-widest text-rose-500 hover:bg-rose-50 w-12"
+                          onClick={() => handleDeleteEntry(log)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-6">
-        {isLoadingEntries || isLoadingRequests ? (
-          <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-[#227FD8]" /></div>
-        ) : groupedEntries.length > 0 ? groupedEntries.map(([date, dayEntries]) => (
-          <Card key={date} className="border-none shadow-sm bg-white overflow-hidden ring-1 ring-slate-200">
-            <CardHeader className="p-4 border-b bg-slate-50/50 flex flex-row items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-white p-2 rounded-xl shadow-sm border"><CalendarDays className="h-5 w-5 text-[#227FD8]" /></div>
-                <div>
-                  <CardTitle className="text-sm font-black uppercase text-[#1e293b]">
-                    {isSameDay(parseISO(date), new Date()) ? "OGGI - " : ""}
-                    {format(parseISO(date), "EEEE d MMMM yyyy", { locale: it })}
-                  </CardTitle>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">{dayEntries.length} movimenti</p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableBody>
-                  {dayEntries.map((log) => {
-                    const emp = employeeMap[log.employeeId];
-                    const cIn = log.checkInTime ? new Date(log.checkInTime) : null;
-                    const cOut = log.checkOutTime ? new Date(log.checkOutTime) : null;
-                    const isAbsence = log.type === 'ABSENCE';
-                    return (
-                      <TableRow key={log.id} className="h-14 border-b last:border-0 hover:bg-slate-50/30">
-                        <TableCell className="pl-6 w-[250px]">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={emp?.photoUrl} />
-                              <AvatarFallback className="text-[10px] font-bold">{(emp?.firstName || "U").charAt(0)}</AvatarFallback>
-                            </Avatar>
-                            <div className="flex flex-col">
-                              <span className="font-bold text-xs text-[#1e293b] truncate w-32">{emp ? `${emp.firstName} ${emp.lastName}` : "Sconosciuto"}</span>
-                              <span className="text-[9px] font-bold text-slate-400 uppercase">{emp?.jobTitle || "Collaboratore"}</span>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-[#227FD8]">{cIn && isValid(cIn) ? cIn.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "--:--"}</span>
-                            <span className="text-slate-300 text-[10px]">→</span>
-                            <span className="text-xs font-black text-slate-700">{cOut && isValid(cOut) ? cOut.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : "In Corso"}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{getSourceBadge(log.type)}</TableCell>
-                        <TableCell className="pr-6 text-right">
-                          <div className="flex justify-end gap-2">
-                            {!isAbsence && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-[#227FD8] hover:bg-blue-50" onClick={() => handleEditClick(log)}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-rose-500 hover:bg-rose-50" onClick={() => handleDeleteEntry(log)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
         )) : (
-          <Card className="py-20 text-center border-dashed border-2 flex flex-col items-center gap-4">
-            <p className="text-slate-400 font-bold italic">Nessun movimento trovato per oggi.</p>
-            {!showAllHistory && !filterDate && !searchQuery && (
-              <Button variant="outline" size="sm" onClick={() => setShowAllHistory(true)} className="font-black uppercase text-[10px]">
-                Controlla lo storico recente
-              </Button>
-            )}
-          </Card>
+          <div className="py-32 text-center bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+            <div className="h-20 w-20 bg-white rounded-3xl mx-auto flex items-center justify-center shadow-lg border border-slate-100 mb-6 group hover:rotate-12 transition-transform">
+              <CalendarDays className="h-10 w-10 text-slate-200 group-hover:text-[#227FD8]" />
+            </div>
+            <h3 className="text-xl font-black text-[#1e293b] tracking-tight">Nessun movimento trovato</h3>
+            <p className="text-slate-400 font-medium text-sm mt-2 max-w-xs mx-auto">
+              Non ci sono registrazioni che corrispondono ai filtri attuali.
+            </p>
+            <Button 
+              variant="outline" 
+              className="mt-8 rounded-2xl h-12 font-black text-[10px] uppercase tracking-widest border-slate-200 px-8"
+              onClick={() => { setSearchQuery(""); setFilterDate(""); setFilterType("all"); setShowAllHistory(false); }}
+            >
+              Reset di tutti i filtri
+            </Button>
+          </div>
         )}
       </div>
 
+      {/* --- ADD MODAL --- */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-black text-xl uppercase">Nuova Timbratura</DialogTitle>
-            <DialogDescription>Inserisci manualmente un record di presenza.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="font-bold text-xs uppercase text-slate-500">Collaboratore</Label>
+        <DialogContent className="max-w-md rounded-[2.5rem] border-none shadow-2xl overflow-hidden p-0">
+          <div className="bg-[#1e293b] p-8 text-white">
+            <Badge className="bg-[#227FD8] border-none font-black text-[9px] uppercase tracking-widest mb-4">Storage Admin</Badge>
+            <DialogTitle className="text-3xl font-black tracking-tighter italic">Nuova Timbratura</DialogTitle>
+            <DialogDescription className="text-slate-400 font-medium mt-1">Registra manualmente un ingresso o un'uscita.</DialogDescription>
+          </div>
+          <div className="p-8 space-y-6">
+            <div className="space-y-3">
+              <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Scegli Collaboratore</Label>
               <Select value={formData.employeeId} onValueChange={(v) => setFormData({...formData, employeeId: v})}>
-                <SelectTrigger className="h-11"><SelectValue placeholder="Seleziona..." /></SelectTrigger>
-                <SelectContent>{employees?.map(e => <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName}</SelectItem>)}</SelectContent>
+                <SelectTrigger className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold focus:ring-[#227FD8]">
+                  <SelectValue placeholder="Seleziona..." />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-xl">
+                  {employees?.map(e => <SelectItem key={e.id} value={e.id} className="font-bold">{e.firstName} {e.lastName}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Inizio</Label>
-                <Input type="date" className="h-11" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Data Inizio</Label>
+                <Input type="date" className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
               </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-xs uppercase text-slate-500">Ora Inizio</Label>
-                <Input type="time" className="h-11" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Fine</Label>
-                <Input type="date" className="h-11" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-xs uppercase text-slate-500">Ora Fine</Label>
-                <Input type="time" className="h-11" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} />
+              <div className="space-y-3">
+                <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Ora Inizio</Label>
+                <Input type="time" className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} />
               </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Data Fine</Label>
+                <Input type="date" className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} />
+              </div>
+              <div className="space-y-3">
+                <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Ora Fine</Label>
+                <Input type="time" className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} />
+              </div>
+            </div>
+            
+            <DialogFooter className="flex-col md:flex-row gap-3 pt-4">
+              <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="rounded-2xl h-14 font-black text-[10px] uppercase tracking-widest flex-1">Chiudi</Button>
+              <Button onClick={handleAddEntry} className="rounded-2xl h-14 bg-[#1e293b] hover:bg-black font-black text-[10px] uppercase tracking-widest flex-1 px-8">Salva Record</Button>
+            </DialogFooter>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsAddOpen(false)} className="font-bold">Annulla</Button>
-            <Button onClick={handleAddEntry} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8">SALVA RECORD</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* --- EDIT MODAL --- */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="font-black text-xl uppercase">Modifica Record</DialogTitle>
-            <DialogDescription>Correggi gli orari di ingresso o uscita.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Inizio</Label>
-                <Input type="date" className="h-11" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-xs uppercase text-slate-500">Ora Inizio</Label>
-                <Input type="time" className="h-11" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="font-bold text-xs uppercase text-slate-500">Giorno Fine</Label>
-                <Input type="date" className="h-11" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-xs uppercase text-slate-500">Ora Fine</Label>
-                <Input type="time" className="h-11" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} />
-              </div>
-            </div>
+        <DialogContent className="max-w-md rounded-[2.5rem] border-none shadow-2xl overflow-hidden p-0">
+          <div className="bg-[#227FD8] p-8 text-white">
+            <Badge className="bg-white/20 border-none font-black text-[9px] uppercase tracking-widest mb-4">Editing Session</Badge>
+            <DialogTitle className="text-3xl font-black tracking-tighter italic">Aggiorna Record</DialogTitle>
+            <DialogDescription className="text-blue-100 font-medium mt-1">Modifica gli orari di ingresso o uscita del collaboratore.</DialogDescription>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="font-bold">Annulla</Button>
-            <Button onClick={handleUpdateEntry} className="bg-[#227FD8] hover:bg-[#227FD8]/90 font-black px-8">AGGIORNA</Button>
-          </DialogFooter>
+          <div className="p-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Data Inizio</Label>
+                <Input type="date" className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold" value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
+              </div>
+              <div className="space-y-3">
+                <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Ora Inizio</Label>
+                <Input type="time" className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold" value={formData.checkInTime} onChange={e => setFormData({...formData, checkInTime: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Data Fine</Label>
+                <Input type="date" className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold" value={formData.checkOutDate} onChange={e => setFormData({...formData, checkOutDate: e.target.value})} />
+              </div>
+              <div className="space-y-3">
+                <Label className="font-black text-[10px] uppercase tracking-widest text-slate-400 ml-1">Ora Fine</Label>
+                <Input type="time" className="h-14 rounded-2xl border-slate-100 bg-slate-50 font-bold" value={formData.checkOutTime} onChange={e => setFormData({...formData, checkOutTime: e.target.value})} />
+              </div>
+            </div>
+            
+            <DialogFooter className="flex-col md:flex-row gap-3 pt-4">
+              <Button variant="ghost" onClick={() => setIsEditOpen(false)} className="rounded-2xl h-14 font-black text-[10px] uppercase tracking-widest flex-1">Annulla</Button>
+              <Button onClick={handleUpdateEntry} className="rounded-2xl h-14 bg-[#227FD8] hover:bg-blue-600 font-black text-[10px] uppercase tracking-widest flex-1 px-8">Salva Modifiche</Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

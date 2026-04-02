@@ -16,6 +16,7 @@ const SendReportInputSchema = z.object({
   year: z.string(),
   fileContent: z.string().describe('Contenuto del file (HTML Excel format)'),
   adminName: z.string(),
+  htmlBody: z.string().optional().describe('Contenuto HTML opzionale per il corpo della mail'),
 });
 
 const SendReportOutputSchema = z.object({
@@ -79,6 +80,7 @@ const sendReportFlow = ai.defineFlow(
         to: input.recipientEmail,
         subject: output.subject,
         text: output.body,
+        html: input.htmlBody ? `<div style="font-family: sans-serif;">${output.body.replace(/\n/g, '<br>')}<br><br>${input.htmlBody}</div>` : undefined,
         attachments: [
           {
             filename: fileName,
@@ -90,10 +92,14 @@ const sendReportFlow = ai.defineFlow(
 
       return { success: true, message: 'Email inviata con successo.' };
     } catch (error: any) {
-      console.error('Email Error Detailed:', error);
+      console.error('[Genkit Flow Error]:', {
+        error: error.message,
+        stack: error.stack,
+        details: error.details || error.response?.data || 'No extra details'
+      });
       return { 
         success: false, 
-        message: `Errore: ${error.message || 'Verifica le credenziali SMTP'}` 
+        message: `Errore: ${error.message || 'Verifica le credenziali SMTP o l\'attivazione delle API AI'}` 
       };
     }
   }
